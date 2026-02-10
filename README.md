@@ -1,27 +1,76 @@
 # cs203-project
 
-## Requirements
+## Frontend
+
+### Requirements
 
 - [Bun](https://bun.sh)
 
-## Setup
+### Setup
 
 ```bash
 cd frontend && bun install
 ```
 
-## Development
+### Development
 
 ```bash
-# Start development server
+# start dev server
 bun run dev
 
-# Build for production
-bun run build
-
-# Run linter
+# lint / format
 bun run lint
+bun run fmt
 
-# Preview production build
+# preview production build
 bun run preview
+
+# build
+bun run build
 ```
+
+### About
+
+- Runtime: Bun
+- SPA: Vite
+- Routing: Tanstack Router
+- Frontend Framework: React
+- Component Library: shadcn
+
+## Backend
+
+### Requirements
+
+- [Gradle](https://docs.gradle.org/current/userguide/installation.html)
+
+### Setup
+
+```bash
+cd backend && ./gradlew build
+```
+
+### Development
+
+```bash
+# start dev server
+./gradlew bootRun
+
+# run tests
+./gradlew test
+
+# build
+./gradlew build
+
+# clean build
+./gradlew clean build
+```
+
+### About
+
+- Build Tool: Gradle (Kotlin DSL)
+- Runtime: Java 21
+- Framework: Spring Boot 3.5.10
+- Database: Supabase (PostgreSQL)
+- ORM: Spring Data JPA
+- Security: Spring Security
+- Validation: Jakarta Bean Validation
