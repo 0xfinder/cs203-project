@@ -29,19 +29,22 @@ bun run preview
 bun run build
 ```
 
-### About
+### Tech Stack
 
 - Runtime: Bun
 - SPA: Vite
 - Routing: Tanstack Router
 - Frontend Framework: React
 - Component Library: shadcn
+- Styling: Tailwind CSS
+- HTTP Client: ky
 
 ## Backend
 
 ### Requirements
 
 - [Gradle](https://docs.gradle.org/current/userguide/installation.html)
+- Java 21
 
 ### Setup
 
@@ -65,7 +68,7 @@ cd backend && ./gradlew build
 ./gradlew clean build
 ```
 
-### About
+### Tech Stack
 
 - Build Tool: Gradle (Kotlin DSL)
 - Runtime: Java 21
