@@ -1,8 +1,6 @@
 spring:
   config:
     import: optional:file:.env[.properties]
-  application:
-    name: app
   datasource:
     url: ${SUPABASE_DB_URL}
     username: ${SUPABASE_DB_USERNAME}
@@ -11,4 +9,3 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: true
-    open-in-view: false

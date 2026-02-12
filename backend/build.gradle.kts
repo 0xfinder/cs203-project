@@ -28,8 +28,18 @@ dependencies {
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.security:spring-security-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+	testImplementation("com.h2database:h2")
+	// Swagger UI
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.15")
 }
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+	environment("SPRINGDOTENV_DIRECTORY", projectDir.absolutePath)
+	environment("SPRINGDOTENV_FILENAME", ".env")
+}
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+	environment("SPRINGDOTENV_DIRECTORY", projectDir.absolutePath)
+	environment("SPRINGDOTENV_FILENAME", ".env")
 }
