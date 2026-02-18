@@ -27,10 +27,9 @@ export function useCreateExample() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (title: string) =>
-      api.post("examples", { json: { title } }).json<ExampleItem>(),
+    mutationFn: (title: string) => api.post("examples", { json: { title } }).json<ExampleItem>(),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: EXAMPLES_KEY });
+      void queryClient.invalidateQueries({ queryKey: EXAMPLES_KEY });
     },
   });
 }
