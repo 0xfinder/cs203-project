@@ -7,6 +7,11 @@ spring:
     url: ${SUPABASE_DB_URL}
     username: ${SUPABASE_DB_USERNAME}
     password: ${SUPABASE_DB_PASSWORD}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${SUPABASE_JWT_ISSUER}
   jpa:
     hibernate:
       ddl-auto: update

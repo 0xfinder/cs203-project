@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { JsHelloCard } from "@/components/examples/JsHelloCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useExamples } from "@/features/example/useExampleData";
+import { requireAuth } from "@/lib/auth";
 
 function ExampleDataList() {
   const { data, isLoading, error } = useExamples();
@@ -19,6 +20,7 @@ function ExampleDataList() {
 }
 
 export const Route = createFileRoute("/examples")({
+  beforeLoad: requireAuth,
   component: ExamplesPage,
 });
 
@@ -26,25 +28,27 @@ function ExamplesPage() {
   return (
     <div className="flex min-h-screen w-full justify-center">
       <div className="max-w-2xl space-y-8 p-8">
-      <h1 className="text-2xl font-bold">Examples</h1>
-      <p className="text-muted-foreground">This page shows the patterns we use in this project.</p>
+        <h1 className="text-2xl font-bold">Examples</h1>
+        <p className="text-muted-foreground">
+          This page shows the patterns we use in this project.
+        </p>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">JS Component (JsHelloCard.jsx)</h2>
-        <JsHelloCard />
-      </section>
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">JS Component (JsHelloCard.jsx)</h2>
+          <JsHelloCard />
+        </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Wrapper Component (PrimaryButton)</h2>
-        <PrimaryButton onClick={() => alert("PrimaryButton wraps shadcn Button")}>
-          Primary Action
-        </PrimaryButton>
-      </section>
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">Wrapper Component (PrimaryButton)</h2>
+          <PrimaryButton onClick={() => alert("PrimaryButton wraps shadcn Button")}>
+            Primary Action
+          </PrimaryButton>
+        </section>
 
-      <section className="space-y-3">
-        <h2 className="text-lg font-semibold">TanStack Query (useExampleData)</h2>
-        <ExampleDataList />
-      </section>
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">TanStack Query (useExampleData)</h2>
+          <ExampleDataList />
+        </section>
       </div>
     </div>
   );

@@ -1,5 +1,7 @@
-import { Link, Outlet, createRootRoute, ErrorComponent } from "@tanstack/react-router";
+import { Link, Outlet, createRootRoute } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { useAuth } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
 
 export const Route = createRootRoute({
   errorComponent: ({ error }) => (
@@ -9,18 +11,42 @@ export const Route = createRootRoute({
       <pre className="mt-2 whitespace-pre-wrap text-xs text-red-400">{error.stack}</pre>
     </div>
   ),
-  component: () => (
-    <>
-      <nav className="flex gap-4 border-b px-6 py-3 text-sm">
+  component: RootComponent,
+});
+
+function RootComponent() {
+  const { user, signOut } = useAuth();
+
+  return (
+    <div className="flex min-h-screen flex-col">
+      <nav className="flex items-center gap-4 border-b px-6 py-3 text-sm">
         <Link to="/" className="hover:underline [&.active]:font-bold">
           Home
         </Link>
-        <Link to="/examples" className="hover:underline [&.active]:font-bold">
-          Examples
-        </Link>
+        {user && (
+          <Link to="/examples" className="hover:underline [&.active]:font-bold">
+            Examples
+          </Link>
+        )}
+        <div className="ml-auto flex items-center gap-3">
+          {user ? (
+            <>
+              <span className="text-muted-foreground">{user.email}</span>
+              <Button variant="ghost" size="sm" onClick={() => signOut()}>
+                Sign out
+              </Button>
+            </>
+          ) : (
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/login">Login</Link>
+            </Button>
+          )}
+        </div>
       </nav>
-      <Outlet />
+      <div className="flex flex-1 flex-col">
+        <Outlet />
+      </div>
       <TanStackRouterDevtools />
-    </>
-  ),
-});
+    </div>
+  );
+}
