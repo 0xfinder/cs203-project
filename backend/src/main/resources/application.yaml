@@ -7,6 +7,13 @@ spring:
     url: ${SUPABASE_DB_URL}
     username: ${SUPABASE_DB_USERNAME}
     password: ${SUPABASE_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 2
+      minimum-idle: 0
+      max-lifetime: 300000
+      idle-timeout: 60000
+      data-source-properties:
+        prepareThreshold: 0
   security:
     oauth2:
       resourceserver:
