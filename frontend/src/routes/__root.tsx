@@ -24,9 +24,14 @@ function RootComponent() {
           Home
         </Link>
         {user && (
-          <Link to="/examples" className="hover:underline [&.active]:font-bold">
-            Examples
-          </Link>
+          <>
+            <Link to="/add" className="hover:underline [&.active]:font-bold">
+              Add
+            </Link>
+            <Link to="/examples" className="hover:underline [&.active]:font-bold">
+              Examples
+            </Link>
+          </>
         )}
         <div className="ml-auto flex items-center gap-3">
           {user ? (
