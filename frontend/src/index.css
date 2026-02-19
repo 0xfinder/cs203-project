@@ -130,3 +130,53 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Ensure root fills the viewport and remove default body margin */
+html, body, #root {
+  height: 100%;
+}
+body {
+  margin: 0;
+}
+
+@layer components {
+  .al-hero {
+    @apply h-screen relative bg-slate-900 flex items-center justify-center p-6 overflow-hidden;
+  }
+
+  .al-deco-pink {
+    @apply pointer-events-none absolute -left-20 -top-28 w-96 h-96 rounded-full bg-gradient-to-tr from-pink-600 to-purple-500 opacity-30 blur-3xl mix-blend-screen;
+  }
+
+  .al-deco-indigo {
+    @apply pointer-events-none absolute -right-28 -bottom-20 w-96 h-96 rounded-full bg-gradient-to-br from-indigo-500 to-sky-400 opacity-20 blur-3xl mix-blend-overlay;
+  }
+
+  .al-card {
+    @apply relative w-full max-w-4xl rounded-3xl border border-white/6 bg-white/5 backdrop-blur-md p-10 shadow-2xl transition-colors dark:bg-slate-900/50 dark:border-slate-700/40;
+  }
+
+  .al-title {
+    @apply font-extrabold tracking-tight text-3xl sm:text-4xl md:text-5xl lg:text-6xl pl-1 sm:pl-0 pb-2 leading-normal;
+  }
+
+  .al-title-alpha {
+    @apply inline-block bg-clip-text text-transparent bg-gradient-to-r from-purple-300 via-purple-400 to-indigo-500;
+  }
+
+  .al-title-plain {
+    @apply inline-block text-white ml-1;
+  }
+
+  .al-subtitle {
+    @apply mt-2 text-sm text-white/80;
+  }
+
+  .al-toggle {
+    @apply inline-flex items-center gap-2 rounded-full bg-white/6 px-3 py-2 text-sm text-white/90 hover:bg-white/10 transition;
+  }
+
+  .al-cta {
+    @apply inline-flex items-center justify-center px-6 py-3 rounded-lg border-2 border-purple-400 text-white font-semibold shadow-lg bg-transparent hover:bg-purple-600/20 transform transition duration-200 ease-in-out hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-400 focus:ring-offset-2;
+  }
+}
