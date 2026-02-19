@@ -19,6 +19,7 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${SUPABASE_JWK_SET_URI}
+          jws-algorithms: ${SUPABASE_JWS_ALGORITHMS:ES256}
   jpa:
     hibernate:
       ddl-auto: update
