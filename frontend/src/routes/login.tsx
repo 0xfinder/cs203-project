@@ -21,7 +21,17 @@ function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState("login");
+  const [tab, setTab] = useState(() => {
+    try {
+      if (typeof window !== "undefined") {
+        const hash = window.location.hash;
+        const params = new URLSearchParams(window.location.search);
+        if (hash === "#signup") return "signup";
+        if (params.get("tab") === "signup") return "signup";
+      }
+    } catch {}
+    return "login";
+  });
 
   // redirect if already logged in
   useEffect(() => {

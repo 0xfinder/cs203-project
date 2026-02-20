@@ -48,7 +48,7 @@ export const Route = createFileRoute("/")({
           </div>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
-            <Link to="/signup" className="al-cta">
+            <Link to="/login#signup" className="al-cta">
               Sign up
             </Link>
 
