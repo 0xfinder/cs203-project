@@ -16,10 +16,10 @@ function DashboardPage() {
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
       <Card className="w-full">
-        <CardHeader>
+          <CardHeader>
           <CardTitle className="text-2xl">Dashboard</CardTitle>
           <CardDescription>
-            Signed in as {user?.email ?? "unknown user"}. Pick where you want to continue.
+            Signed in as {((user as any)?.user_metadata?.full_name ?? user?.email ?? "unknown user")}. Pick where you want to continue.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
