@@ -28,6 +28,9 @@ function RootComponent() {
             <Link to="/add" className="hover:underline [&.active]:font-bold">
               Add
             </Link>
+            <Link to="/review" className="hover:underline [&.active]:font-bold">
+              Review
+            </Link>
             <Link to="/examples" className="hover:underline [&.active]:font-bold">
               Examples
             </Link>
