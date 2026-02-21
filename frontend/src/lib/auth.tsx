@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { redirect } from "@tanstack/react-router";
 import { supabase } from "./supabase";
+import { getValidAccessToken } from "./session";
 
 interface AuthContext {
   user: User | null;
@@ -59,8 +60,9 @@ export function useAuth() {
 
 // use in beforeLoad on any route that requires authentication
 export async function requireAuth() {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) {
+  const token = await getValidAccessToken();
+  if (!token) {
+    await supabase.auth.signOut();
     throw redirect({ to: "/login" });
   }
 }
