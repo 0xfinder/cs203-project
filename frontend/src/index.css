@@ -132,7 +132,9 @@
 }
 
 /* Ensure root fills the viewport and remove default body margin */
-html, body, #root {
+html,
+body,
+#root {
   height: 100%;
 }
 body {
