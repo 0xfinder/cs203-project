@@ -48,4 +48,14 @@ public class ContentController {
     public List<Content> getPendingContents() {
         return contentService.getPendingContents();
     }
+
+    // Get pending terms with pagination
+    @GetMapping("/pending/paginated")
+    public org.springframework.data.domain.Page<Content> getPendingContentsPaginated(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return contentService.getPendingContents(
+                org.springframework.data.domain.PageRequest.of(page, size,
+                        org.springframework.data.domain.Sort.by("createdAt").ascending()));
+    }
 }
