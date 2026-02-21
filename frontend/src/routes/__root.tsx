@@ -69,6 +69,59 @@ function RootComponent() {
     } catch {}
   }, [user]);
 
+  // build avatarPreview from stored metadata (avatar_path or avatar_url)
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        if (!user) return;
+        const meta: any = (user as any).user_metadata ?? {};
+        if (meta.avatar_path) {
+          // private bucket: create signed URL
+          const { data: previewData, error: previewError } = await supabase.storage
+            .from("avatars")
+            .createSignedUrl(meta.avatar_path, 60 * 60);
+          if (!previewError && mounted) setAvatarPreview(previewData?.signedUrl ?? null);
+        } else if (meta.avatar_url) {
+          // fallback if an explicit URL is stored
+          if (mounted) setAvatarPreview(meta.avatar_url);
+        } else {
+          if (mounted) setAvatarPreview(null);
+        }
+      } catch {}
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  // Persistently remove avatar metadata (revert to initials + color)
+  const handleRemoveAvatarPersist = async () => {
+    try {
+      setSaveError(null);
+      setSaving(true);
+      const { data, error } = await supabase.auth.updateUser({ data: { avatar_url: null, avatar_path: null } });
+      setSaving(false);
+      if (error) {
+        setSaveError(error.message || "Failed to remove avatar");
+        return;
+      }
+      // clear preview and file state
+      setAvatarPreview(null);
+      setAvatarFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      setSaveSuccess("Avatar removed");
+      // update local profile metadata
+      try {
+        const meta: any = (data?.user as any)?.user_metadata ?? {};
+        setProfile((p) => ({ ...p, avatar_color: meta.avatar_color ?? p.avatar_color }));
+      } catch {}
+    } catch (e: any) {
+      setSaving(false);
+      setSaveError(e?.message ?? String(e));
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col">
       <nav className="flex items-center gap-4 border-b px-6 py-3 text-sm">
@@ -222,7 +275,7 @@ function RootComponent() {
                             Choose avatar
                           </Button>
                           {avatarPreview && (
-                            <Button size="sm" variant="ghost" onClick={() => { setAvatarFile(null); setAvatarPreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}>
+                            <Button size="sm" variant="ghost" onClick={async () => { await handleRemoveAvatarPersist(); }}>
                               Remove
                             </Button>
                           )}
@@ -241,6 +294,7 @@ function RootComponent() {
 
                                     // if user selected a file, upload it first
                                     let avatar_url: string | undefined = undefined;
+                                    let path: string | undefined = undefined;
                                     if (avatarFile && user) {
                                       // basic client-side validation
                                       const MAX_MB = 5;
@@ -263,12 +317,22 @@ function RootComponent() {
                                         }
                                         // do not abort - continue saving profile without avatar_url
                                       } else {
-                                        // getPublicUrl is synchronous in the client
+                                        // For private buckets we store the object path in user metadata
+                                        // and generate a signed URL for immediate preview.
                                         try {
-                                          const { data: pubData } = supabase.storage.from('avatars').getPublicUrl(path) as any;
-                                          avatar_url = pubData?.publicUrl ?? pubData?.public_url ?? undefined;
+                                          const { data: signedData, error: signedError } = await supabase.storage
+                                            .from('avatars')
+                                            .createSignedUrl(path, 60 * 60); // 1 hour
+                                          if (signedError) throw signedError;
+                                          avatar_url = signedData?.signedUrl ?? undefined;
+                                          // store the path (not the signed URL) in user metadata so we can
+                                          // generate fresh signed URLs later when displaying the avatar
+                                          // (signed URLs expire).
+                                          // We'll save `avatar_path` in metadata instead of a public URL.
+                                          // assign avatar_path into updateData below.
+                                          // temporarily reuse avatar_url variable for preview.
                                         } catch (gpe) {
-                                          console.error('getPublicUrl error', gpe);
+                                          console.error('createSignedUrl error', gpe);
                                         }
                                       }
                                     }
@@ -280,7 +344,12 @@ function RootComponent() {
                                       gender: profile.gender,
                                       avatar_color: profile.avatar_color,
                                     };
-                                    if (avatar_url) updateData.avatar_url = avatar_url;
+                                    if (avatar_url) {
+                                      // store preview URL only for immediate UI update
+                                      updateData.avatar_url = avatar_url;
+                                    }
+                                    // always store the object path so we can create signed URLs later
+                                    if (path) updateData.avatar_path = path;
 
                                     const { data, error } = await supabase.auth.updateUser({ data: updateData });
                                     setSaving(false);
@@ -302,8 +371,17 @@ function RootComponent() {
                                         avatar_color: meta.avatar_color ?? p.avatar_color,
                                       }));
                                       // if we uploaded, set preview to the public url and clear file state
-                                      if (avatar_url) {
-                                        setAvatarPreview(avatar_url);
+                                      if ((avatar_url || (data?.user as any)?.user_metadata?.avatar_path)) {
+                                        try {
+                                          // prefer the immediate signed preview if present
+                                          if (avatar_url) {
+                                            setAvatarPreview(avatar_url);
+                                          } else if ((data?.user as any)?.user_metadata?.avatar_path) {
+                                            const savedPath = (data?.user as any)?.user_metadata?.avatar_path;
+                                            const { data: previewData } = await supabase.storage.from('avatars').createSignedUrl(savedPath, 60 * 60);
+                                            setAvatarPreview(previewData?.signedUrl ?? null);
+                                          }
+                                        } catch {}
                                         setAvatarFile(null);
                                         if (fileInputRef.current) fileInputRef.current.value = "";
                                       }
