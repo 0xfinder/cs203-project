@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { requireAuth } from "@/lib/auth";
+import { requireOnboardingCompleted } from "@/lib/auth";
 
 function ReviewPage() {
   const [page, setPage] = useState(0);
@@ -257,6 +257,6 @@ function ReviewPage() {
 }
 
 export const Route = createFileRoute("/review")({
-  beforeLoad: requireAuth,
+  beforeLoad: requireOnboardingCompleted,
   component: ReviewPage,
 });

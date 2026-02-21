@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,28 @@ public class UserService {
 
     public boolean existsByEmail(String email) {
         return userRepository.existsByEmailIgnoreCase(email);
+    }
+
+    @Transactional
+    public User createFromAuth(UUID id, String email) {
+        try {
+            return userRepository.save(new User(id, email));
+        } catch (DataIntegrityViolationException ex) {
+            return userRepository.findById(id).orElseThrow(() -> ex);
+        }
+    }
+
+    @Transactional
+    public User updateProfile(UUID id, String displayName, Role role) {
+        User user = userRepository.findById(id).orElseThrow();
+        user.setDisplayName(displayName);
+        user.setRole(role);
+        return userRepository.save(user);
+    }
+
+    public boolean isOnboardingCompleted(User user) {
+        String displayName = user.getDisplayName();
+        return displayName != null && !displayName.trim().isEmpty();
     }
 
     @Transactional

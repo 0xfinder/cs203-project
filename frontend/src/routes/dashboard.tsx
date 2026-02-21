@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useAuth, requireAuth } from "@/lib/auth";
+import { useAuth, requireOnboardingCompleted } from "@/lib/auth";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: async () => {
-    await requireAuth();
+    await requireOnboardingCompleted();
   },
   component: DashboardPage,
 });

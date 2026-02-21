@@ -1,10 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireAuth, useAuth } from "@/lib/auth";
+import { requireOnboardingCompleted, useAuth } from "@/lib/auth";
 
 export const Route = createFileRoute("/profile")({
-  beforeLoad: requireAuth,
+  beforeLoad: requireOnboardingCompleted,
   component: ProfilePage,
 });
 

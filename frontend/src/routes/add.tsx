@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { requireAuth, useAuth } from "@/lib/auth";
+import { requireOnboardingCompleted, useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ interface ContentPayload {
 }
 
 export const Route = createFileRoute("/add")({
-  beforeLoad: requireAuth,
+  beforeLoad: requireOnboardingCompleted,
   component: SubmitContentPage,
 });
 
