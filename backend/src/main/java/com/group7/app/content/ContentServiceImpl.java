@@ -54,4 +54,10 @@ public class ContentServiceImpl implements ContentService {
     public List<Content> getPendingContents() {
         return contentRepository.findByStatus(Content.Status.PENDING);
     }
+
+    @Override
+    public org.springframework.data.domain.Page<Content> getPendingContents(
+            org.springframework.data.domain.Pageable pageable) {
+        return contentRepository.findByStatus(Content.Status.PENDING, pageable);
+    }
 }
