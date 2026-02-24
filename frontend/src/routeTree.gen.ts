@@ -13,6 +13,7 @@ import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as ForumRouteImport } from './routes/forum'
 import { Route as ExamplesRouteImport } from './routes/examples'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AddRouteImport } from './routes/add'
@@ -36,6 +37,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ForumRoute = ForumRouteImport.update({
+  id: '/forum',
+  path: '/forum',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ExamplesRoute = ExamplesRouteImport.update({
@@ -64,6 +70,7 @@ export interface FileRoutesByFullPath {
   '/add': typeof AddRoute
   '/dashboard': typeof DashboardRoute
   '/examples': typeof ExamplesRoute
+  '/forum': typeof ForumRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
@@ -74,6 +81,7 @@ export interface FileRoutesByTo {
   '/add': typeof AddRoute
   '/dashboard': typeof DashboardRoute
   '/examples': typeof ExamplesRoute
+  '/forum': typeof ForumRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
@@ -85,6 +93,7 @@ export interface FileRoutesById {
   '/add': typeof AddRoute
   '/dashboard': typeof DashboardRoute
   '/examples': typeof ExamplesRoute
+  '/forum': typeof ForumRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
@@ -97,6 +106,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/dashboard'
     | '/examples'
+    | '/forum'
     | '/login'
     | '/onboarding'
     | '/profile'
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/dashboard'
     | '/examples'
+    | '/forum'
     | '/login'
     | '/onboarding'
     | '/profile'
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/add'
     | '/dashboard'
     | '/examples'
+    | '/forum'
     | '/login'
     | '/onboarding'
     | '/profile'
@@ -128,6 +140,7 @@ export interface RootRouteChildren {
   AddRoute: typeof AddRoute
   DashboardRoute: typeof DashboardRoute
   ExamplesRoute: typeof ExamplesRoute
+  ForumRoute: typeof ForumRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
   ProfileRoute: typeof ProfileRoute
@@ -162,6 +175,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/forum': {
+      id: '/forum'
+      path: '/forum'
+      fullPath: '/forum'
+      preLoaderRoute: typeof ForumRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/examples': {
@@ -200,6 +220,7 @@ const rootRouteChildren: RootRouteChildren = {
   AddRoute: AddRoute,
   DashboardRoute: DashboardRoute,
   ExamplesRoute: ExamplesRoute,
+  ForumRoute: ForumRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
