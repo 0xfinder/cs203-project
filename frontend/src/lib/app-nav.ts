@@ -4,9 +4,10 @@ import {
   LayoutDashboard,
   SquarePlus,
   UserRound,
+  MessageCircleMore,
 } from "lucide-react";
 
-export type AppNavPath = "/dashboard" | "/add" | "/review" | "/profile";
+export type AppNavPath = "/dashboard" | "/add" | "/review" | "/profile" | "/forum";
 
 export interface AppNavItem {
   to: AppNavPath;
@@ -35,9 +36,17 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     label: "Profile",
     icon: UserRound,
   },
+  {
+    to: "/forum",
+    label: "Forum",
+    icon: MessageCircleMore,
+  },
 ] as const;
 
 export function isAppShellPath(pathname: string): boolean {
+  if (pathname.startsWith("/forum")) {
+    return false;
+  }  
   return APP_NAV_ITEMS.some((item) => isNavItemActive(pathname, item.to));
 }
 

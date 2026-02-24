@@ -65,11 +65,11 @@ export const Route = createFileRoute("/")({
 
           <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
             <Link to="/login" className="al-cta">
-              Sign up
+              Enter
             </Link>
 
-            <Link to="/login" className="al-cta">
-              Log in
+            <Link to="/forum" className="al-cta">
+              Forum
             </Link>
           </div>
 
