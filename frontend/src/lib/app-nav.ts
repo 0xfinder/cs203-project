@@ -1,5 +1,6 @@
 import {
   ClipboardCheck,
+  BookOpenCheck,
   type LucideIcon,
   House,
   SquarePlus,
@@ -7,7 +8,7 @@ import {
   MessageCircleMore,
 } from "lucide-react";
 
-export type AppNavPath = "/dashboard" | "/add" | "/review" | "/profile" | "/forum";
+export type AppNavPath = "/dashboard" | "/add" | "/course" | "/review" | "/profile" | "/forum";
 
 export interface AppNavItem {
   to: AppNavPath;
@@ -25,6 +26,11 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     to: "/add",
     label: "Add",
     icon: SquarePlus,
+  },
+  {
+    to: "/course",
+    label: "Course",
+    icon: BookOpenCheck,
   },
   {
     to: "/review",

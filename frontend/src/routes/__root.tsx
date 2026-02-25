@@ -82,7 +82,10 @@ function RootComponent() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
-        <div className="grid h-16 grid-cols-5">
+        <div
+          className="grid h-16"
+          style={{ gridTemplateColumns: `repeat(${APP_NAV_ITEMS.length}, minmax(0, 1fr))` }}
+        >
           {APP_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = isNavItemActive(pathname, item.to);
