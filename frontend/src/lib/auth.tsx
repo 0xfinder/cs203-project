@@ -1,7 +1,10 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { redirect } from "@tanstack/react-router";
+import { HTTPError } from "ky";
 import { supabase } from "./supabase";
+import { getValidAccessToken } from "./session";
+import { getMe } from "./me";
 
 interface AuthContext {
   user: User | null;
@@ -59,8 +62,41 @@ export function useAuth() {
 
 // use in beforeLoad on any route that requires authentication
 export async function requireAuth() {
-  const { data } = await supabase.auth.getSession();
-  if (!data.session) {
+  const token = await getValidAccessToken();
+  if (!token) {
+    await supabase.auth.signOut();
     throw redirect({ to: "/login" });
+  }
+}
+
+export async function requireOnboardingCompleted() {
+  await requireAuth();
+  try {
+    const me = await getMe();
+    if (!me.onboardingCompleted) {
+      throw redirect({ to: "/onboarding" });
+    }
+  } catch (error) {
+    if (error instanceof HTTPError && error.response.status === 401) {
+      await supabase.auth.signOut();
+      throw redirect({ to: "/login" });
+    }
+    throw error;
+  }
+}
+
+export async function requireOnboardingPending() {
+  await requireAuth();
+  try {
+    const me = await getMe();
+    if (me.onboardingCompleted) {
+      throw redirect({ to: "/dashboard" });
+    }
+  } catch (error) {
+    if (error instanceof HTTPError && error.response.status === 401) {
+      await supabase.auth.signOut();
+      throw redirect({ to: "/login" });
+    }
+    throw error;
   }
 }

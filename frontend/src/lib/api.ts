@@ -1,5 +1,5 @@
 import ky from "ky";
-import { supabase } from "./supabase";
+import { getValidAccessToken } from "./session";
 
 export const api = ky.create({
   prefixUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api",
@@ -7,8 +7,7 @@ export const api = ky.create({
   hooks: {
     beforeRequest: [
       async (request) => {
-        const { data } = await supabase.auth.getSession();
-        const token = data.session?.access_token;
+        const token = await getValidAccessToken();
         if (token) {
           request.headers.set("Authorization", `Bearer ${token}`);
         }
