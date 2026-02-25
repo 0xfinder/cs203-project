@@ -10,7 +10,7 @@ import { requireAuth, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 
-const AVATAR_BUCKET = "pictures";
+const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 const MAX_AVATAR_MB = 5;
 
 interface UserMetadata {
@@ -187,7 +187,13 @@ function ProfilePage() {
           });
 
         if (uploadError) {
-          setSaveError(uploadError.message || "Failed to upload avatar");
+          if ((uploadError.message || "").toLowerCase().includes("bucket")) {
+            setSaveError(
+              `Storage bucket "${AVATAR_BUCKET}" not found. Create it in Supabase Storage or set VITE_SUPABASE_AVATAR_BUCKET.`,
+            );
+          } else {
+            setSaveError(uploadError.message || "Failed to upload avatar");
+          }
           return;
         }
 
