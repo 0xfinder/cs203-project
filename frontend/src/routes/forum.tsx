@@ -290,7 +290,7 @@ function ForumPage() {
 
   /* ── Render ─────────────────────────────────────────────────────────────── */
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 text-slate-100 font-[system-ui]">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-violet-950 to-slate-900 text-slate-100">
       {/* ── Header ── */}
       <header className="sticky top-0 z-20 backdrop-blur-md bg-slate-950/70 border-b border-white/10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">

@@ -34,9 +34,6 @@ function DashboardPage() {
           <Button variant="secondary" asChild>
             <Link to="/review">Review Queue</Link>
           </Button>
-          <Button variant="outline" asChild>
-            <Link to="/examples">Examples</Link>
-          </Button>
         </CardContent>
       </Card>
     </div>
