@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import type { User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
@@ -33,6 +34,14 @@ type UserProfile = {
 
 const API = "http://localhost:8080/api/forum";
 const USER_API = "http://localhost:8080/api/users";
+const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
+
+type UserMetadata = {
+  full_name?: string;
+  name?: string;
+  avatar_url?: string;
+  avatar_path?: string;
+};
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 function timeAgo(iso: string) {
@@ -71,13 +80,26 @@ function displayLabel(profile: UserProfile | null): string {
   return profile.displayName?.trim() || profile.email.split("@")[0];
 }
 
+function readMetadata(user: User | null): UserMetadata {
+  if (!user || typeof user.user_metadata !== "object" || user.user_metadata === null) {
+    return {};
+  }
+  return user.user_metadata as UserMetadata;
+}
+
 /* ── Sub-components ───────────────────────────────────────────────────────── */
-function Avatar({ name }: { name: string }) {
+function Avatar({ name, imageUrl }: { name: string; imageUrl?: string | null }) {
   return (
-    <span
-      className={`inline-flex items-center justify-center w-7 h-7 rounded-full text-white text-xs font-bold shrink-0 ${avatarColor(name)}`}
-    >
-      {initials(name)}
+    <span className="inline-flex w-7 h-7 shrink-0 items-center justify-center overflow-hidden rounded-full">
+      {imageUrl ? (
+        <img src={imageUrl} alt={`${name} avatar`} className="h-full w-full object-cover" />
+      ) : (
+        <span
+          className={`inline-flex h-full w-full items-center justify-center text-xs font-bold text-white ${avatarColor(name)}`}
+        >
+          {initials(name)}
+        </span>
+      )}
     </span>
   );
 }
@@ -112,6 +134,7 @@ function ForumPage() {
   // Full profile from the Spring backend
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string | null>(null);
 
   // Ask form
   const [showAskForm, setShowAskForm] = useState(false);
@@ -136,10 +159,25 @@ function ForumPage() {
 
         if (!session) {
           setProfile(null);
+          setCurrentUserAvatarUrl(null);
           return;
         }
 
         const token = session.access_token;
+        const metadata = readMetadata(session.user);
+
+        if (metadata.avatar_path) {
+          const { data: signedData, error: signedError } = await supabase.storage
+            .from(AVATAR_BUCKET)
+            .createSignedUrl(metadata.avatar_path, 60 * 60);
+          if (!signedError && signedData?.signedUrl) {
+            setCurrentUserAvatarUrl(signedData.signedUrl);
+          } else {
+            setCurrentUserAvatarUrl(metadata.avatar_url ?? null);
+          }
+        } else {
+          setCurrentUserAvatarUrl(metadata.avatar_url ?? null);
+        }
 
         const res = await fetch(`${USER_API}/me`, {
           headers: { Authorization: `Bearer ${token}` },
@@ -151,6 +189,7 @@ function ForumPage() {
         setProfile(userProfile);
       } catch (err) {
         setProfile(null);
+        setCurrentUserAvatarUrl(null);
         console.error("Failed to load profile:", err);
       } finally {
         setProfileLoading(false);
@@ -267,7 +306,7 @@ function ForumPage() {
               <div className="h-7 w-28 bg-slate-800 rounded-full animate-pulse" />
             ) : profile ? (
               <span className="hidden sm:flex items-center gap-2 text-sm">
-                <Avatar name={authorName} />
+                <Avatar name={authorName} imageUrl={currentUserAvatarUrl} />
                 <span className="max-w-[140px] truncate font-medium text-slate-300">
                   {authorName}
                 </span>
@@ -460,7 +499,10 @@ function ForumPage() {
 
                   <div className="flex items-center gap-3 mt-3 flex-wrap">
                     <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                      <Avatar name={q.author} />
+                      <Avatar
+                        name={q.author}
+                        imageUrl={q.author === authorName ? currentUserAvatarUrl : null}
+                      />
                       <span className="font-medium text-slate-400">{q.author}</span>
                     </div>
                     <span className="text-slate-600 text-xs">{timeAgo(q.createdAt)}</span>
@@ -484,7 +526,10 @@ function ForumPage() {
                       <ul className="space-y-3">
                         {q.answers.map((a) => (
                           <li key={a.id} className="flex gap-3 group">
-                            <Avatar name={a.author} />
+                            <Avatar
+                              name={a.author}
+                              imageUrl={a.author === authorName ? currentUserAvatarUrl : null}
+                            />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <span className="text-xs font-semibold text-slate-300">
