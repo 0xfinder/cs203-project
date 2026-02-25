@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requireAuth, useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
+import { applyTheme, getStoredTheme } from "@/lib/theme";
 
 const AVATAR_BUCKET = "pictures";
 const MAX_AVATAR_MB = 5;
@@ -86,26 +87,10 @@ function ProfilePage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [dark, setDark] = useState<boolean>(() => {
-    try {
-      const savedTheme = localStorage.getItem("theme");
-      if (savedTheme) return savedTheme === "dark";
-      return window.matchMedia("(prefers-color-scheme: dark)").matches;
-    } catch {
-      return true;
-    }
-  });
+  const [dark, setDark] = useState<boolean>(() => getStoredTheme() === "dark");
 
   useEffect(() => {
-    try {
-      if (dark) {
-        document.documentElement.classList.add("dark");
-        localStorage.setItem("theme", "dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-        localStorage.setItem("theme", "light");
-      }
-    } catch {}
+    applyTheme(dark ? "dark" : "light");
   }, [dark]);
 
   useEffect(() => {
