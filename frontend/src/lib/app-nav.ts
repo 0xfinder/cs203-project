@@ -46,7 +46,7 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
 export function isAppShellPath(pathname: string): boolean {
   if (pathname.startsWith("/forum")) {
     return false;
-  }  
+  }
   return APP_NAV_ITEMS.some((item) => isNavItemActive(pathname, item.to));
 }
 

@@ -8,210 +8,210 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root'
-import { Route as ReviewRouteImport } from './routes/review'
-import { Route as ProfileRouteImport } from './routes/profile'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as ForumRouteImport } from './routes/forum'
-import { Route as ExamplesRouteImport } from './routes/examples'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as AddRouteImport } from './routes/add'
-import { Route as IndexRouteImport } from './routes/index'
+import { Route as rootRouteImport } from "./routes/__root";
+import { Route as ReviewRouteImport } from "./routes/review";
+import { Route as ProfileRouteImport } from "./routes/profile";
+import { Route as OnboardingRouteImport } from "./routes/onboarding";
+import { Route as LoginRouteImport } from "./routes/login";
+import { Route as ForumRouteImport } from "./routes/forum";
+import { Route as ExamplesRouteImport } from "./routes/examples";
+import { Route as DashboardRouteImport } from "./routes/dashboard";
+import { Route as AddRouteImport } from "./routes/add";
+import { Route as IndexRouteImport } from "./routes/index";
 
 const ReviewRoute = ReviewRouteImport.update({
-  id: '/review',
-  path: '/review',
+  id: "/review",
+  path: "/review",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const ProfileRoute = ProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
+  id: "/profile",
+  path: "/profile",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
+  id: "/onboarding",
+  path: "/onboarding",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
+  id: "/login",
+  path: "/login",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const ForumRoute = ForumRouteImport.update({
-  id: '/forum',
-  path: '/forum',
+  id: "/forum",
+  path: "/forum",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const ExamplesRoute = ExamplesRouteImport.update({
-  id: '/examples',
-  path: '/examples',
+  id: "/examples",
+  path: "/examples",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
+  id: "/dashboard",
+  path: "/dashboard",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const AddRoute = AddRouteImport.update({
-  id: '/add',
-  path: '/add',
+  id: "/add",
+  path: "/add",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+  id: "/",
+  path: "/",
   getParentRoute: () => rootRouteImport,
-} as any)
+} as any);
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/add': typeof AddRoute
-  '/dashboard': typeof DashboardRoute
-  '/examples': typeof ExamplesRoute
-  '/forum': typeof ForumRoute
-  '/login': typeof LoginRoute
-  '/onboarding': typeof OnboardingRoute
-  '/profile': typeof ProfileRoute
-  '/review': typeof ReviewRoute
+  "/": typeof IndexRoute;
+  "/add": typeof AddRoute;
+  "/dashboard": typeof DashboardRoute;
+  "/examples": typeof ExamplesRoute;
+  "/forum": typeof ForumRoute;
+  "/login": typeof LoginRoute;
+  "/onboarding": typeof OnboardingRoute;
+  "/profile": typeof ProfileRoute;
+  "/review": typeof ReviewRoute;
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/add': typeof AddRoute
-  '/dashboard': typeof DashboardRoute
-  '/examples': typeof ExamplesRoute
-  '/forum': typeof ForumRoute
-  '/login': typeof LoginRoute
-  '/onboarding': typeof OnboardingRoute
-  '/profile': typeof ProfileRoute
-  '/review': typeof ReviewRoute
+  "/": typeof IndexRoute;
+  "/add": typeof AddRoute;
+  "/dashboard": typeof DashboardRoute;
+  "/examples": typeof ExamplesRoute;
+  "/forum": typeof ForumRoute;
+  "/login": typeof LoginRoute;
+  "/onboarding": typeof OnboardingRoute;
+  "/profile": typeof ProfileRoute;
+  "/review": typeof ReviewRoute;
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/add': typeof AddRoute
-  '/dashboard': typeof DashboardRoute
-  '/examples': typeof ExamplesRoute
-  '/forum': typeof ForumRoute
-  '/login': typeof LoginRoute
-  '/onboarding': typeof OnboardingRoute
-  '/profile': typeof ProfileRoute
-  '/review': typeof ReviewRoute
+  __root__: typeof rootRouteImport;
+  "/": typeof IndexRoute;
+  "/add": typeof AddRoute;
+  "/dashboard": typeof DashboardRoute;
+  "/examples": typeof ExamplesRoute;
+  "/forum": typeof ForumRoute;
+  "/login": typeof LoginRoute;
+  "/onboarding": typeof OnboardingRoute;
+  "/profile": typeof ProfileRoute;
+  "/review": typeof ReviewRoute;
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath
+  fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
-    | '/'
-    | '/add'
-    | '/dashboard'
-    | '/examples'
-    | '/forum'
-    | '/login'
-    | '/onboarding'
-    | '/profile'
-    | '/review'
-  fileRoutesByTo: FileRoutesByTo
+    | "/"
+    | "/add"
+    | "/dashboard"
+    | "/examples"
+    | "/forum"
+    | "/login"
+    | "/onboarding"
+    | "/profile"
+    | "/review";
+  fileRoutesByTo: FileRoutesByTo;
   to:
-    | '/'
-    | '/add'
-    | '/dashboard'
-    | '/examples'
-    | '/forum'
-    | '/login'
-    | '/onboarding'
-    | '/profile'
-    | '/review'
+    | "/"
+    | "/add"
+    | "/dashboard"
+    | "/examples"
+    | "/forum"
+    | "/login"
+    | "/onboarding"
+    | "/profile"
+    | "/review";
   id:
-    | '__root__'
-    | '/'
-    | '/add'
-    | '/dashboard'
-    | '/examples'
-    | '/forum'
-    | '/login'
-    | '/onboarding'
-    | '/profile'
-    | '/review'
-  fileRoutesById: FileRoutesById
+    | "__root__"
+    | "/"
+    | "/add"
+    | "/dashboard"
+    | "/examples"
+    | "/forum"
+    | "/login"
+    | "/onboarding"
+    | "/profile"
+    | "/review";
+  fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AddRoute: typeof AddRoute
-  DashboardRoute: typeof DashboardRoute
-  ExamplesRoute: typeof ExamplesRoute
-  ForumRoute: typeof ForumRoute
-  LoginRoute: typeof LoginRoute
-  OnboardingRoute: typeof OnboardingRoute
-  ProfileRoute: typeof ProfileRoute
-  ReviewRoute: typeof ReviewRoute
+  IndexRoute: typeof IndexRoute;
+  AddRoute: typeof AddRoute;
+  DashboardRoute: typeof DashboardRoute;
+  ExamplesRoute: typeof ExamplesRoute;
+  ForumRoute: typeof ForumRoute;
+  LoginRoute: typeof LoginRoute;
+  OnboardingRoute: typeof OnboardingRoute;
+  ProfileRoute: typeof ProfileRoute;
+  ReviewRoute: typeof ReviewRoute;
 }
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface FileRoutesByPath {
-    '/review': {
-      id: '/review'
-      path: '/review'
-      fullPath: '/review'
-      preLoaderRoute: typeof ReviewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profile': {
-      id: '/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof ProfileRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/forum': {
-      id: '/forum'
-      path: '/forum'
-      fullPath: '/forum'
-      preLoaderRoute: typeof ForumRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/examples': {
-      id: '/examples'
-      path: '/examples'
-      fullPath: '/examples'
-      preLoaderRoute: typeof ExamplesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/add': {
-      id: '/add'
-      path: '/add'
-      fullPath: '/add'
-      preLoaderRoute: typeof AddRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
+    "/review": {
+      id: "/review";
+      path: "/review";
+      fullPath: "/review";
+      preLoaderRoute: typeof ReviewRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/profile": {
+      id: "/profile";
+      path: "/profile";
+      fullPath: "/profile";
+      preLoaderRoute: typeof ProfileRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/onboarding": {
+      id: "/onboarding";
+      path: "/onboarding";
+      fullPath: "/onboarding";
+      preLoaderRoute: typeof OnboardingRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/login": {
+      id: "/login";
+      path: "/login";
+      fullPath: "/login";
+      preLoaderRoute: typeof LoginRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/forum": {
+      id: "/forum";
+      path: "/forum";
+      fullPath: "/forum";
+      preLoaderRoute: typeof ForumRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/examples": {
+      id: "/examples";
+      path: "/examples";
+      fullPath: "/examples";
+      preLoaderRoute: typeof ExamplesRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/dashboard": {
+      id: "/dashboard";
+      path: "/dashboard";
+      fullPath: "/dashboard";
+      preLoaderRoute: typeof DashboardRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/add": {
+      id: "/add";
+      path: "/add";
+      fullPath: "/add";
+      preLoaderRoute: typeof AddRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    "/": {
+      id: "/";
+      path: "/";
+      fullPath: "/";
+      preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
 
@@ -225,7 +225,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
   ReviewRoute: ReviewRoute,
-}
+};
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>()
+  ._addFileTypes<FileRouteTypes>();

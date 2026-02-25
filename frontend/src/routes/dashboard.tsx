@@ -19,7 +19,8 @@ function DashboardPage() {
         <CardHeader>
           <CardTitle className="text-2xl">Dashboard</CardTitle>
           <CardDescription>
-            Signed in as {user?.email ?? "unknown user"}. Pick where you want to continue.
+            Signed in as {(user as any)?.user_metadata?.full_name ?? user?.email ?? "unknown user"}.
+            Pick where you want to continue.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
