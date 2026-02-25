@@ -318,36 +318,42 @@ function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(event) => {
-                  const nextFile = event.target.files?.[0] ?? null;
-                  setAvatarFile(nextFile);
-                  if (nextFile) {
-                    const localPreview = URL.createObjectURL(nextFile);
-                    setAvatarPreview(localPreview);
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="h-4 w-4" />
-                <span>Choose avatar</span>
-              </Button>
-              {(avatarPreview || metadata.avatar_path || metadata.avatar_url) && (
+            {editing && (
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const nextFile = event.target.files?.[0] ?? null;
+                    setAvatarFile(nextFile);
+                    if (nextFile) {
+                      const localPreview = URL.createObjectURL(nextFile);
+                      setAvatarPreview(localPreview);
+                    }
+                  }}
+                />
                 <Button
                   type="button"
-                  variant="ghost"
-                  disabled={saving}
-                  onClick={() => void handleRemoveAvatar()}
+                  variant="outline"
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  Remove
+                  <Upload className="h-4 w-4" />
+                  <span>Choose avatar</span>
                 </Button>
-              )}
-            </div>
+                {(avatarPreview || metadata.avatar_path || metadata.avatar_url) && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    disabled={saving}
+                    onClick={() => void handleRemoveAvatar()}
+                  >
+                    Remove
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           {!editing ? (
