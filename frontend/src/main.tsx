@@ -8,8 +8,11 @@ import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 import { router } from "./router";
 import { AuthProvider } from "./lib/auth";
+import { initializeTheme } from "./lib/theme";
 
 const queryClient = new QueryClient();
+const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
+initializeTheme();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
@@ -17,7 +20,7 @@ createRoot(document.getElementById("root")!).render(
       <AuthProvider>
         <RouterProvider router={router} />
       </AuthProvider>
-      <ReactQueryDevtools initialIsOpen={false} />
+      {showDevtools && <ReactQueryDevtools initialIsOpen={false} />}
     </QueryClientProvider>
   </StrictMode>,
 );

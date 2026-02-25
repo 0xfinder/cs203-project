@@ -4,6 +4,8 @@ import { useAuth } from "@/lib/auth";
 import { APP_NAV_ITEMS, isAppShellPath, isNavItemActive } from "@/lib/app-nav";
 import { cn } from "@/lib/utils";
 
+const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
+
 export const Route = createRootRoute({
   errorComponent: ({ error }) => (
     <div className="m-8 rounded border border-red-300 bg-red-50 p-6 text-sm">
@@ -28,7 +30,7 @@ function RootComponent() {
         <div className="flex flex-1 flex-col">
           <Outlet />
         </div>
-        <TanStackRouterDevtools />
+        {showDevtools && <TanStackRouterDevtools />}
       </div>
     );
   }
@@ -52,14 +54,14 @@ function RootComponent() {
                   key={item.to}
                   to={item.to}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                     active
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
-                  <span>{item.label}</span>
+                  <span className={cn("font-semibold", active && "font-bold")}>{item.label}</span>
                 </Link>
               );
             })}
@@ -80,7 +82,10 @@ function RootComponent() {
       </div>
 
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
-        <div className="grid h-16 grid-cols-4">
+        <div
+          className="grid h-16"
+          style={{ gridTemplateColumns: `repeat(${APP_NAV_ITEMS.length}, minmax(0, 1fr))` }}
+        >
           {APP_NAV_ITEMS.map((item) => {
             const Icon = item.icon;
             const active = isNavItemActive(pathname, item.to);
@@ -103,7 +108,7 @@ function RootComponent() {
       </nav>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-16 h-px bg-border md:hidden" />
-      <TanStackRouterDevtools />
+      {showDevtools && <TanStackRouterDevtools />}
     </div>
   );
 }

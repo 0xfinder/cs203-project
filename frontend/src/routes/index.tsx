@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { getValidAccessToken } from "@/lib/session";
 
@@ -10,28 +9,6 @@ export const Route = createFileRoute("/")({
     }
   },
   component: () => {
-    const [dark, setDark] = useState<boolean>(() => {
-      try {
-        const saved = localStorage.getItem("theme");
-        if (saved) return saved === "dark";
-        return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-      } catch {
-        return true;
-      }
-    });
-
-    useEffect(() => {
-      try {
-        if (dark) {
-          document.documentElement.classList.add("dark");
-          localStorage.setItem("theme", "dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-          localStorage.setItem("theme", "light");
-        }
-      } catch {}
-    }, [dark]);
-
     return (
       <div className="al-hero">
         <div className="al-deco-pink" />
@@ -49,23 +26,12 @@ export const Route = createFileRoute("/")({
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                aria-label="Toggle theme"
-                onClick={() => setDark((d) => !d)}
-                className="al-toggle"
-              >
-                <span className="w-6 h-6 flex items-center justify-center rounded-full bg-white/12">
-                  {dark ? "🌙" : "☀️"}
-                </span>
-                <span className="sr-only">Toggle theme</span>
-              </button>
-            </div>
+            <div className="flex items-center gap-3"></div>
           </div>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center gap-4">
-            <Link to="/login" className="al-cta">
-              Enter
+            <Link to="/login" hash="signup" className="al-cta">
+              Sign up
             </Link>
 
             <Link to="/forum" className="al-cta">

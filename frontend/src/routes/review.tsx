@@ -53,12 +53,14 @@ function ReviewPage() {
   }
 
   if (error) {
-    return <div className="p-8 text-center text-red-600">Error loading items: {error.message}</div>;
+    return (
+      <div className="p-8 text-center text-destructive">Error loading items: {error.message}</div>
+    );
   }
 
   if (!response || response.content.length === 0) {
     return (
-      <div className="p-8 text-center text-gray-600">
+      <div className="p-8 text-center text-muted-foreground">
         <h2 className="text-xl font-semibold mb-2">No items to review</h2>
         <p>All pending items have been reviewed.</p>
       </div>
@@ -73,7 +75,7 @@ function ReviewPage() {
     <div className="flex-1 p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-2">Review Items</h1>
-        <p className="text-gray-600 mb-6">
+        <p className="text-muted-foreground mb-6">
           Page {page + 1} of {totalPages} • Showing {pendingContents.length} of {totalElements}{" "}
           pending {totalElements === 1 ? "item" : "items"}
         </p>
@@ -82,24 +84,26 @@ function ReviewPage() {
           {pendingContents.map((content: any) => (
             <Card key={content.id} className="p-6">
               <div className="mb-4">
-                <h2 className="text-2xl font-bold text-blue-600">{content.term}</h2>
-                <p className="text-sm text-gray-500 mt-1">Submitted by: {content.submittedBy}</p>
+                <h2 className="text-2xl font-bold text-primary">{content.term}</h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Submitted by: {content.submittedBy}
+                </p>
               </div>
 
               <div className="space-y-3 mb-6">
                 <div>
                   <Label className="font-semibold">Definition</Label>
-                  <p className="text-gray-700 mt-2">{content.definition}</p>
+                  <p className="text-foreground mt-2">{content.definition}</p>
                 </div>
 
                 {content.example && (
                   <div>
                     <Label className="font-semibold">Example</Label>
-                    <p className="text-gray-700 mt-2">{content.example}</p>
+                    <p className="text-foreground mt-2">{content.example}</p>
                   </div>
                 )}
 
-                <div className="text-xs text-gray-500">
+                <div className="text-xs text-muted-foreground">
                   Created: {new Date(content.createdAt).toLocaleDateString()}
                 </div>
               </div>
@@ -107,7 +111,7 @@ function ReviewPage() {
               <div className="flex gap-3">
                 <Button
                   onClick={() => setExpandedId(expandedId === content.id ? null : content.id)}
-                  className="bg-green-600 hover:bg-green-700"
+                  variant="success"
                 >
                   Approve
                 </Button>
@@ -162,7 +166,7 @@ function ReviewPage() {
                   <div className="flex gap-2">
                     <Button
                       onClick={() => handleApprove(content.id)}
-                      className="bg-green-600 hover:bg-green-700"
+                      variant="success"
                       disabled={approveMutation.isPending}
                     >
                       {approveMutation.isPending ? "Approving..." : "Confirm Approve"}
@@ -240,7 +244,7 @@ function ReviewPage() {
           >
             ← Previous
           </Button>
-          <span className="text-sm text-gray-600">
+          <span className="text-sm text-muted-foreground">
             Page {page + 1} of {totalPages}
           </span>
           <Button

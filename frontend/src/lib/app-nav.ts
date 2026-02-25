@@ -1,14 +1,14 @@
 import {
   ClipboardCheck,
+  BookOpenCheck,
   type LucideIcon,
-  LayoutDashboard,
+  House,
   SquarePlus,
   UserRound,
   MessageCircleMore,
-  BookOpenCheck,
 } from "lucide-react";
 
-export type AppNavPath = "/dashboard" | "/add" | "/course" |"/review" | "/profile" | "/forum" ;
+export type AppNavPath = "/dashboard" | "/add" | "/course" | "/review" | "/profile" | "/forum";
 
 export interface AppNavItem {
   to: AppNavPath;
@@ -20,7 +20,7 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   {
     to: "/dashboard",
     label: "Dashboard",
-    icon: LayoutDashboard,
+    icon: House,
   },
   {
     to: "/add",
@@ -38,24 +38,34 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     icon: ClipboardCheck,
   },
   {
-    to: "/profile",
-    label: "Profile",
-    icon: UserRound,
-  },
-  {
     to: "/forum",
     label: "Forum",
     icon: MessageCircleMore,
   },
+  {
+    to: "/profile",
+    label: "Profile",
+    icon: UserRound,
+  },
 ] as const;
 
+const APP_SHELL_EXTRA_PATHS = ["/examples"] as const;
+
+function isPathSegmentMatch(pathname: string, to: string): boolean {
+  const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
+  const normalizedTo = to.replace(/\/+$/, "") || "/";
+  const escapedTarget = normalizedTo.slice(1).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp(`(?:^|/)${escapedTarget}(?:/|$)`);
+  return pattern.test(normalizedPathname);
+}
+
 export function isAppShellPath(pathname: string): boolean {
-  if (pathname.startsWith("/forum")) {
-    return false;
-  }  
-  return APP_NAV_ITEMS.some((item) => isNavItemActive(pathname, item.to));
+  return (
+    APP_NAV_ITEMS.some((item) => isPathSegmentMatch(pathname, item.to)) ||
+    APP_SHELL_EXTRA_PATHS.some((path) => isPathSegmentMatch(pathname, path))
+  );
 }
 
 export function isNavItemActive(pathname: string, to: AppNavPath): boolean {
-  return pathname === to || pathname.startsWith(`${to}/`);
+  return isPathSegmentMatch(pathname, to);
 }
