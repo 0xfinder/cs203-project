@@ -8,7 +8,7 @@ import {
   MessageCircleMore,
 } from "lucide-react";
 
-export type AppNavPath = "/lessons" | "/add" | "/course" | "/review" | "/profile" | "/forum";
+export type AppNavPath = "/lessons" | "/add" | "/dictionary" | "/review" | "/profile" | "/forum";
 
 export interface AppNavItem {
   to: AppNavPath;
@@ -28,7 +28,7 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     icon: SquarePlus,
   },
   {
-    to: "/course",
+    to: "/dictionary",
     label: "Dictionary",
     icon: BookOpen,
   },
