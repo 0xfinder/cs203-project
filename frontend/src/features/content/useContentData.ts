@@ -14,6 +14,22 @@ export interface ContentItem {
   reviewComment?: string;
 }
 
+export type ContentVoteType = "THUMBS_UP" | "THUMBS_DOWN";
+
+export interface ContentVoteSummaryResponse {
+  contentId: number;
+  thumbsUp: number;
+  thumbsDown: number;
+  userVote: ContentVoteType | null;
+}
+
+export interface ContentWithVotesResponse {
+  content: ContentItem;
+  thumbsUp: number;
+  thumbsDown: number;
+  userVote: ContentVoteType | null;
+}
+
 export interface PaginatedResponse<T> {
   content: T[];
   totalElements: number;
@@ -23,11 +39,19 @@ export interface PaginatedResponse<T> {
 }
 
 const CONTENTS_KEY = ["contents"] as const;
+const CONTENTS_WITH_VOTES_KEY = ["contents", "approved-with-votes"] as const;
 
 export function useContents() {
   return useQuery({
     queryKey: CONTENTS_KEY,
     queryFn: () => api.get("contents/approved").json<ContentItem[]>(),
+  });
+}
+
+export function useApprovedContentsWithVotes() {
+  return useQuery({
+    queryKey: CONTENTS_WITH_VOTES_KEY,
+    queryFn: () => api.get("contents/approved-with-votes").json<ContentWithVotesResponse[]>(),
   });
 }
 
@@ -66,6 +90,7 @@ export function useSubmitContent() {
       api.post("contents", { json: content }).json<ContentItem>(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: CONTENTS_KEY });
+      void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
     },
   });
 }
@@ -96,6 +121,7 @@ export function useApproveContent() {
       void queryClient.invalidateQueries({ queryKey: [...CONTENTS_KEY, "pending"] });
       void queryClient.invalidateQueries({ queryKey: [...CONTENTS_KEY, "pending", "paginated"] });
       void queryClient.invalidateQueries({ queryKey: CONTENTS_KEY });
+      void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
     },
   });
 }
@@ -122,6 +148,33 @@ export function useRejectContent() {
       void queryClient.invalidateQueries({ queryKey: [...CONTENTS_KEY, "pending"] });
       void queryClient.invalidateQueries({ queryKey: [...CONTENTS_KEY, "pending", "paginated"] });
       void queryClient.invalidateQueries({ queryKey: CONTENTS_KEY });
+      void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+    },
+  });
+}
+
+export function useCastContentVote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ contentId, voteType }: { contentId: number; voteType: ContentVoteType }) =>
+      api
+        .post(`contents/${contentId}/votes`, { json: { voteType } })
+        .json<ContentVoteSummaryResponse>(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+    },
+  });
+}
+
+export function useClearContentVote() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ contentId }: { contentId: number }) =>
+      api.delete(`contents/${contentId}/votes`).json<ContentVoteSummaryResponse>(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
     },
   });
 }
@@ -131,7 +184,7 @@ export function useSearchExistingTerm(term: string) {
     queryKey: [...CONTENTS_KEY, "search", term.toLowerCase()],
     queryFn: async () => {
       const contents = await api.get("contents/approved").json<ContentItem[]>();
-      return contents.filter((content) => 
+      return contents.filter((content) =>
         content.term.toLowerCase() === term.toLowerCase()
       );
     },
