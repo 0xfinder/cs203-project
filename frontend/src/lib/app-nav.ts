@@ -1,6 +1,6 @@
 import {
   ClipboardCheck,
-  BookOpenCheck,
+  BookOpen,
   type LucideIcon,
   House,
   SquarePlus,
@@ -29,8 +29,8 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   },
   {
     to: "/course",
-    label: "Course",
-    icon: BookOpenCheck,
+    label: "Dictionary",
+    icon: BookOpen,
   },
   {
     to: "/review",
