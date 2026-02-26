@@ -75,7 +75,7 @@ function OnboardingPage() {
         displayName: trimmedDisplayName,
         roleIntent,
       });
-      void navigate({ to: "/dashboard" });
+      void navigate({ to: "/lessons" });
     } catch (requestError) {
       if (requestError instanceof HTTPError) {
         try {
@@ -175,7 +175,7 @@ function OnboardingPage() {
               disabled={saving || !displayNameIsValid}
               className="w-full sm:w-auto"
             >
-              {saving ? "Saving profile..." : "Continue to dashboard"}
+              {saving ? "Saving profile..." : "Continue to lessons"}
             </Button>
           </form>
         </CardContent>

@@ -90,7 +90,7 @@ export async function requireOnboardingPending() {
   try {
     const me = await getMe();
     if (me.onboardingCompleted) {
-      throw redirect({ to: "/dashboard" });
+      throw redirect({ to: "/lessons" });
     }
   } catch (error) {
     if (error instanceof HTTPError && error.response.status === 401) {
