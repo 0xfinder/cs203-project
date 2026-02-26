@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import type { CSSProperties } from "react";
 import { Trophy, Flame, Star, Lock, ChevronRight, Lightbulb } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireOnboardingCompleted } from "@/lib/auth";
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/lessons")({
 
 // s-curve offsets for the winding duolingo-style path (px)
 const PATH_OFFSETS = [0, -56, 0, 56] as const;
+const MOBILE_PATH_OFFSET_SCALE = 0.5;
 
 function LessonsPage() {
   const { progress, streak, totalXP } = useLessonProgress();
@@ -86,6 +88,10 @@ function LessonsPage() {
           const isCurrent = lesson.id === currentLessonId;
           const lessonProgress = progress[lesson.id];
           const offset = PATH_OFFSETS[i % PATH_OFFSETS.length];
+          const offsetStyle = {
+            "--lesson-offset-mobile": `${Math.round(offset * MOBILE_PATH_OFFSET_SCALE)}px`,
+            "--lesson-offset-desktop": `${offset}px`,
+          } as CSSProperties;
 
           return (
             <div key={lesson.id} className="flex flex-col items-center">
@@ -104,16 +110,16 @@ function LessonsPage() {
                 params={{ lessonId: lesson.id }}
                 preload={false}
                 className={cn(
-                  "group flex items-center gap-5 rounded-2xl p-2 transition-transform duration-200",
+                  "group flex items-center gap-3 rounded-2xl p-2 transition-transform duration-200 translate-x-[var(--lesson-offset-mobile)] sm:gap-5 sm:translate-x-[var(--lesson-offset-desktop)]",
                   !unlocked && "pointer-events-none",
                   unlocked && "hover:scale-[1.03]",
                 )}
-                style={{ transform: `translateX(${offset}px)` }}
+                style={offsetStyle}
               >
                 {/* orb */}
                 <div
                   className={cn(
-                    "relative flex size-20 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-4xl shadow-lg transition-shadow duration-200",
+                    "relative flex size-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-3xl shadow-lg transition-shadow duration-200 sm:size-20 sm:text-4xl",
                     lesson.color,
                     !unlocked && "opacity-40 saturate-0",
                     unlocked && "group-hover:shadow-xl",
@@ -123,12 +129,12 @@ function LessonsPage() {
                   {unlocked ? (
                     <span className="drop-shadow">{lesson.icon}</span>
                   ) : (
-                    <Lock className="size-8 text-white/80" />
+                    <Lock className="size-6 text-white/80 sm:size-8" />
                   )}
 
                   {/* completed badge */}
                   {completed && (
-                    <span className="absolute -right-1 -top-1 flex size-7 items-center justify-center rounded-full bg-success text-sm font-bold text-success-foreground shadow">
+                    <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow sm:size-7 sm:text-sm">
                       ✓
                     </span>
                   )}
@@ -159,7 +165,9 @@ function LessonsPage() {
                 </div>
 
                 {/* chevron for unlocked */}
-                {unlocked && <ChevronRight className="size-5 shrink-0 text-muted-foreground/50" />}
+                {unlocked && (
+                  <ChevronRight className="hidden size-5 shrink-0 text-muted-foreground/50 sm:block" />
+                )}
               </Link>
             </div>
           );

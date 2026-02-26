@@ -280,9 +280,7 @@ function ProfilePage() {
   const displayName = profile.name || user?.email || "unknown user";
   const initials = getInitials(displayName);
   const avatarColor = profile.avatar_color || metadata.avatar_color || "#475569";
-  const formattedRole = userRole
-    ? `${userRole.slice(0, 1)}${userRole.slice(1).toLowerCase()}`
-    : "Unknown";
+  const formattedRole = userRole ? userRole.toUpperCase() : "UNKNOWN";
 
   return (
     <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
@@ -342,7 +340,7 @@ function ProfilePage() {
               <p className="font-medium">{displayName}</p>
               <p className="text-sm text-muted-foreground">{user?.email ?? "unknown user"}</p>
               <Badge variant="secondary" className="mt-1">
-                Role: {formattedRole}
+                {formattedRole}
               </Badge>
             </div>
           </div>
