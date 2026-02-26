@@ -23,7 +23,7 @@ function ReviewPage() {
 
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [reviewData, setReviewData] = useState<{
-    [key: number]: { comment: string; reviewer: string };
+    [key: number]: { comment: string };
   }>({});
 
   useEffect(() => {
@@ -39,7 +39,8 @@ function ReviewPage() {
   }, []);
 
   const handleApprove = async (id: number) => {
-    const reviewer = reviewData[id]?.reviewer || "Admin";
+    const me = await getMe();
+    const reviewer = me.email ?? "Unknown";
     const comment = reviewData[id]?.comment;
 
     approveMutation.mutate({ id, reviewer, reviewComment: comment });
@@ -52,7 +53,8 @@ function ReviewPage() {
   };
 
   const handleReject = async (id: number) => {
-    const reviewer = reviewData[id]?.reviewer || "Admin";
+    const me = await getMe();
+    const reviewer = me.email ?? "Unknown";
     const comment = reviewData[id]?.comment || "No reason provided";
 
     rejectMutation.mutate({ id, reviewer, reviewComment: comment });
@@ -167,25 +169,6 @@ function ReviewPage() {
                     <div className="mt-4 space-y-4 border-t pt-4">
                       <h3 className="font-semibold">Approve "{content.term}"</h3>
                       <div>
-                        <Label htmlFor={`reviewer-${content.id}`}>Your Name</Label>
-                        <input
-                          id={`reviewer-${content.id}`}
-                          type="text"
-                          placeholder="Admin"
-                          value={reviewData[content.id]?.reviewer || ""}
-                          onChange={(e) =>
-                            setReviewData((prev) => ({
-                              ...prev,
-                              [content.id]: {
-                                ...prev[content.id],
-                                reviewer: e.target.value,
-                              },
-                            }))
-                          }
-                          className="w-full px-3 py-2 border rounded-md mt-1"
-                        />
-                      </div>
-                      <div>
                         <Label htmlFor={`approve-comment-${content.id}`}>Comment (Optional)</Label>
                         <textarea
                           id={`approve-comment-${content.id}`}
@@ -195,7 +178,6 @@ function ReviewPage() {
                             setReviewData((prev) => ({
                               ...prev,
                               [content.id]: {
-                                ...prev[content.id],
                                 comment: e.target.value,
                               },
                             }))
@@ -223,25 +205,6 @@ function ReviewPage() {
                     <div className="mt-4 space-y-4 border-t pt-4">
                       <h3 className="font-semibold">Reject "{content.term}"</h3>
                       <div>
-                        <Label htmlFor={`reject-reviewer-${content.id}`}>Your Name</Label>
-                        <input
-                          id={`reject-reviewer-${content.id}`}
-                          type="text"
-                          placeholder="Admin"
-                          value={reviewData[content.id]?.reviewer || ""}
-                          onChange={(e) =>
-                            setReviewData((prev) => ({
-                              ...prev,
-                              [content.id]: {
-                                ...prev[content.id],
-                                reviewer: e.target.value,
-                              },
-                            }))
-                          }
-                          className="w-full px-3 py-2 border rounded-md mt-1"
-                        />
-                      </div>
-                      <div>
                         <Label htmlFor={`reject-comment-${content.id}`}>Reason for Rejection</Label>
                         <textarea
                           id={`reject-comment-${content.id}`}
@@ -251,7 +214,6 @@ function ReviewPage() {
                             setReviewData((prev) => ({
                               ...prev,
                               [content.id]: {
-                                ...prev[content.id],
                                 comment: e.target.value,
                               },
                             }))
