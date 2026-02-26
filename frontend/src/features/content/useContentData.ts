@@ -125,3 +125,16 @@ export function useRejectContent() {
     },
   });
 }
+
+export function useSearchExistingTerm(term: string) {
+  return useQuery({
+    queryKey: [...CONTENTS_KEY, "search", term.toLowerCase()],
+    queryFn: async () => {
+      const contents = await api.get("contents/approved").json<ContentItem[]>();
+      return contents.filter((content) => 
+        content.term.toLowerCase() === term.toLowerCase()
+      );
+    },
+    enabled: term.trim().length > 0,
+  });
+}

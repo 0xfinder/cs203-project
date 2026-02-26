@@ -29,6 +29,8 @@ function SubmitContentPage() {
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [existingTerms, setExistingTerms] = useState<any[]>([]);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   useEffect(() => {
     const checkRole = async () => {
@@ -46,6 +48,29 @@ function SubmitContentPage() {
     event.preventDefault();
     setError(null);
     setSuccess(null);
+
+    // Check if term exists and we haven't confirmed yet
+    if (!showConfirmation) {
+      setLoading(true);
+      try {
+        const contents = await api.get("contents/approved").json<any[]>();
+        const matches = contents.filter((content) =>
+          content.term.toLowerCase() === term.trim().toLowerCase()
+        );
+
+        if (matches.length > 0) {
+          setExistingTerms(matches);
+          setShowConfirmation(true);
+          setLoading(false);
+          return;
+        }
+      } catch (err) {
+        console.error("Error checking for existing terms:", err);
+        // Continue with submission if check fails
+      }
+      setLoading(false);
+    }
+
     setLoading(true);
 
     try {
@@ -53,6 +78,7 @@ function SubmitContentPage() {
       const submittedBy = me.email ?? "";
       if (!submittedBy) {
         setError("You must be logged in to submit content.");
+        setLoading(false);
         return;
       }
 
@@ -84,6 +110,8 @@ function SubmitContentPage() {
       setTerm("");
       setDefinition("");
       setExample("");
+      setExistingTerms([]);
+      setShowConfirmation(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Submission failed.";
       setError(message);
@@ -129,12 +157,43 @@ function SubmitContentPage() {
               <Input
                 id="term"
                 value={term}
-                onChange={(event) => setTerm(event.target.value)}
+                onChange={(event) => {
+                  setTerm(event.target.value);
+                  setShowConfirmation(false);
+                  setExistingTerms([]);
+                }}
                 placeholder="e.g. rizz"
                 maxLength={100}
                 required
               />
             </div>
+
+            {existingTerms && existingTerms.length > 0 && showConfirmation && (
+              <div className="rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4">
+                <h3 className="font-semibold text-yellow-900 dark:text-yellow-200 mb-2">
+                  ⚠️ This term already exists!
+                </h3>
+                <p className="text-sm text-yellow-800 dark:text-yellow-300 mb-3">
+                  Found {existingTerms.length} existing {existingTerms.length === 1 ? "definition" : "definitions"} for "{term}":
+                </p>
+                <div className="space-y-2 max-h-40 overflow-y-auto">
+                  {existingTerms.map((existing) => (
+                    <div key={existing.id} className="bg-white dark:bg-gray-800 p-3 rounded border">
+                      <p className="text-sm font-medium">{existing.definition}</p>
+                      {existing.example && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Example: {existing.example}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-sm text-yellow-800 dark:text-yellow-300 mt-3 font-medium">
+                  Click "Yes, Submit Anyway" if you still want to add your definition, or "Cancel" to edit further.
+                </p>
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="definition">Definition</Label>
               <Input
@@ -156,9 +215,29 @@ function SubmitContentPage() {
                 maxLength={500}
               />
             </div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Submitting…" : "Submit"}
-            </Button>
+            {showConfirmation ? (
+              <div className="flex gap-2">
+                <Button type="submit" className="flex-1" disabled={loading}>
+                  {loading ? "Submitting..." : "Yes, Submit Anyway"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setShowConfirmation(false);
+                    setExistingTerms([]);
+                  }}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Checking..." : "Submit"}
+              </Button>
+            )}
           </form>
         </CardContent>
       </Card>
