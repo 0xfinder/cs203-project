@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { JsHelloCard } from "@/components/examples/JsHelloCard";
 import { PrimaryButton } from "@/components/PrimaryButton";
 import { useExamples } from "@/features/example/useExampleData";
-import { requireAuth } from "@/lib/auth";
+import { requireOnboardingCompleted } from "@/lib/auth";
 
 function ExampleDataList() {
   const { data, isLoading, error } = useExamples();
@@ -20,7 +20,7 @@ function ExampleDataList() {
 }
 
 export const Route = createFileRoute("/examples")({
-  beforeLoad: requireAuth,
+  beforeLoad: requireOnboardingCompleted,
   component: ExamplesPage,
 });
 
