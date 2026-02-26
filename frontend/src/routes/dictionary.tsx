@@ -8,7 +8,7 @@ import { useContents, type ContentItem } from "@/features/content/useContentData
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
-export const Route = createFileRoute("/course")({
+export const Route = createFileRoute("/dictionary")({
   beforeLoad: requireOnboardingCompleted,
   component: DictionaryPage,
 });
