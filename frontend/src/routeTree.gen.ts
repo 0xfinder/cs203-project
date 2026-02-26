@@ -15,7 +15,6 @@ import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LessonsRouteImport } from './routes/lessons'
 import { Route as ForumRouteImport } from './routes/forum'
-import { Route as ExamplesRouteImport } from './routes/examples'
 import { Route as DictionaryRouteImport } from './routes/dictionary'
 import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
@@ -51,11 +50,6 @@ const ForumRoute = ForumRouteImport.update({
   path: '/forum',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ExamplesRoute = ExamplesRouteImport.update({
-  id: '/examples',
-  path: '/examples',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const DictionaryRoute = DictionaryRouteImport.update({
   id: '/dictionary',
   path: '/dictionary',
@@ -81,7 +75,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/dictionary': typeof DictionaryRoute
-  '/examples': typeof ExamplesRoute
   '/forum': typeof ForumRoute
   '/lessons': typeof LessonsRoute
   '/login': typeof LoginRoute
@@ -94,7 +87,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/dictionary': typeof DictionaryRoute
-  '/examples': typeof ExamplesRoute
   '/forum': typeof ForumRoute
   '/lessons': typeof LessonsRoute
   '/login': typeof LoginRoute
@@ -108,7 +100,6 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
   '/dictionary': typeof DictionaryRoute
-  '/examples': typeof ExamplesRoute
   '/forum': typeof ForumRoute
   '/lessons': typeof LessonsRoute
   '/login': typeof LoginRoute
@@ -123,7 +114,6 @@ export interface FileRouteTypes {
     | '/'
     | '/add'
     | '/dictionary'
-    | '/examples'
     | '/forum'
     | '/lessons'
     | '/login'
@@ -136,7 +126,6 @@ export interface FileRouteTypes {
     | '/'
     | '/add'
     | '/dictionary'
-    | '/examples'
     | '/forum'
     | '/lessons'
     | '/login'
@@ -149,7 +138,6 @@ export interface FileRouteTypes {
     | '/'
     | '/add'
     | '/dictionary'
-    | '/examples'
     | '/forum'
     | '/lessons'
     | '/login'
@@ -163,7 +151,6 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddRoute: typeof AddRoute
   DictionaryRoute: typeof DictionaryRoute
-  ExamplesRoute: typeof ExamplesRoute
   ForumRoute: typeof ForumRoute
   LessonsRoute: typeof LessonsRoute
   LoginRoute: typeof LoginRoute
@@ -217,13 +204,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ForumRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/examples': {
-      id: '/examples'
-      path: '/examples'
-      fullPath: '/examples'
-      preLoaderRoute: typeof ExamplesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/dictionary': {
       id: '/dictionary'
       path: '/dictionary'
@@ -259,7 +239,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddRoute: AddRoute,
   DictionaryRoute: DictionaryRoute,
-  ExamplesRoute: ExamplesRoute,
   ForumRoute: ForumRoute,
   LessonsRoute: LessonsRoute,
   LoginRoute: LoginRoute,

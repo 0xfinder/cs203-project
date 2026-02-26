@@ -49,8 +49,6 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   },
 ] as const;
 
-const APP_SHELL_EXTRA_PATHS = ["/examples"] as const;
-
 function isPathSegmentMatch(pathname: string, to: string): boolean {
   const normalizedPathname = pathname.replace(/\/+$/, "") || "/";
   const normalizedTo = to.replace(/\/+$/, "") || "/";
@@ -60,10 +58,7 @@ function isPathSegmentMatch(pathname: string, to: string): boolean {
 }
 
 export function isAppShellPath(pathname: string): boolean {
-  return (
-    APP_NAV_ITEMS.some((item) => isPathSegmentMatch(pathname, item.to)) ||
-    APP_SHELL_EXTRA_PATHS.some((path) => isPathSegmentMatch(pathname, path))
-  );
+  return APP_NAV_ITEMS.some((item) => isPathSegmentMatch(pathname, item.to));
 }
 
 export function isNavItemActive(pathname: string, to: AppNavPath): boolean {

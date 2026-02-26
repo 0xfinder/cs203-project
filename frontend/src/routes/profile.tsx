@@ -5,7 +5,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RoleBadge } from "@/components/role-badge";
 import { requireAuth, useAuth } from "@/lib/auth";
+import { getMe, type UserRole } from "@/lib/me";
 import { supabase } from "@/lib/supabase";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 
@@ -85,6 +87,8 @@ function ProfilePage() {
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [apiDisplayName, setApiDisplayName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dark, setDark] = useState<boolean>(() => getStoredTheme() === "dark");
 
@@ -95,6 +99,27 @@ function ProfilePage() {
   useEffect(() => {
     setProfile(toProfileState(metadata));
   }, [metadata]);
+
+  useEffect(() => {
+    let active = true;
+    void getMe()
+      .then((me) => {
+        if (active) {
+          setUserRole(me.role);
+          setApiDisplayName(me.displayName?.trim() || null);
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setUserRole(null);
+          setApiDisplayName(null);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -255,7 +280,7 @@ function ProfilePage() {
     }
   };
 
-  const displayName = profile.name || user?.email || "unknown user";
+  const displayName = apiDisplayName || profile.name.trim() || "unknown user";
   const initials = getInitials(displayName);
   const avatarColor = profile.avatar_color || metadata.avatar_color || "#475569";
 
@@ -316,6 +341,7 @@ function ProfilePage() {
             <div>
               <p className="font-medium">{displayName}</p>
               <p className="text-sm text-muted-foreground">{user?.email ?? "unknown user"}</p>
+              <RoleBadge role={userRole} className="mt-1" />
             </div>
           </div>
 

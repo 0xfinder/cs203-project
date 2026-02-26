@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2, XCircle, ArrowRight, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ function LessonPage() {
   const [showExplanation, setShowExplanation] = useState(false);
   const [answers, setAnswers] = useState<Answer[]>([]);
   const [showResults, setShowResults] = useState(false);
+  const hasSavedProgressRef = useRef(false);
 
   const lesson = lessons.find((l) => l.id === lessonId);
 
@@ -46,6 +47,7 @@ function LessonPage() {
     setShowExplanation(false);
     setAnswers([]);
     setShowResults(false);
+    hasSavedProgressRef.current = false;
   }, [lessonId]);
 
   if (!lesson) {
@@ -126,14 +128,22 @@ function LessonPage() {
     setShowExplanation(false);
     setAnswers([]);
     setShowResults(false);
+    hasSavedProgressRef.current = false;
   };
+
+  useEffect(() => {
+    if (!showResults) return;
+    if (hasSavedProgressRef.current) return;
+
+    saveProgress();
+    hasSavedProgressRef.current = true;
+  }, [showResults]);
 
   // ---------- results screen ----------
   if (showResults) {
     const score = calculateScore();
     const correctCount = answers.filter((a) => a.correct).length;
     const passed = score >= 60;
-    saveProgress();
 
     return (
       <div className="flex min-h-screen items-center justify-center bg-background p-4">
