@@ -1,21 +1,39 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/auth";
+import { getValidAccessToken } from "@/lib/session";
+import { getMe } from "@/lib/me";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { HTTPError } from "ky";
 
 export const Route = createFileRoute("/login")({
+  beforeLoad: async () => {
+    const token = await getValidAccessToken();
+    if (!token) {
+      return;
+    }
+
+    try {
+      const me = await getMe();
+      throw redirect({ to: me.onboardingCompleted ? "/lessons" : "/onboarding" });
+    } catch (error) {
+      if (error instanceof HTTPError && error.response.status === 401) {
+        await supabase.auth.signOut();
+        return;
+      }
+      throw error;
+    }
+  },
   component: LoginPage,
 });
 
 function LoginPage() {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,17 +51,6 @@ function LoginPage() {
     return "login";
   });
 
-  // redirect if already logged in
-  useEffect(() => {
-    if (user) {
-      void navigate({ to: "/dashboard" });
-    }
-  }, [user, navigate]);
-
-  if (authLoading || user) {
-    return null;
-  }
-
   const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
@@ -58,7 +65,10 @@ function LoginPage() {
     setLoading(false);
     if (error) {
       setError(error.message);
+      return;
     }
+
+    void navigate({ to: "/lessons" });
   };
 
   const handleSignUp = async (e: React.SyntheticEvent<HTMLFormElement>) => {
@@ -102,11 +112,17 @@ function LoginPage() {
                 ? "Log in to your AlphaLingo account"
                 : "Sign up to start learning Gen-Alpha culture"}
             </CardDescription>
-            <TabsList className="mt-3 w-full">
-              <TabsTrigger value="login" className="flex-1">
+            <TabsList className="mt-3 w-full gap-0 border-2 border-primary/40 bg-card/80 p-1 shadow-sm">
+              <TabsTrigger
+                value="login"
+                className="flex-1 rounded-r-none border-r border-primary/35 data-[state=active]:bg-primary/20 data-[state=active]:text-foreground"
+              >
                 Sign In
               </TabsTrigger>
-              <TabsTrigger value="signup" className="flex-1">
+              <TabsTrigger
+                value="signup"
+                className="flex-1 rounded-l-none data-[state=active]:bg-primary/20 data-[state=active]:text-foreground"
+              >
                 Sign Up
               </TabsTrigger>
             </TabsList>

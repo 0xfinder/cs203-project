@@ -25,7 +25,7 @@ export async function getValidAccessToken(): Promise<string | null> {
 
   const { data, error } = await supabase.auth.refreshSession();
   if (error || !data.session?.access_token) {
-    return currentToken;
+    return expiresAt > now ? currentToken : null;
   }
 
   return data.session.access_token;

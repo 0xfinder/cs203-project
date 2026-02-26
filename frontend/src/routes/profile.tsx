@@ -265,7 +265,7 @@ function ProfilePage() {
       <Card className="w-full">
         <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <CardTitle className="text-2xl">Profile</CardTitle>
+            <CardTitle className="text-2xl font-bold">Profile</CardTitle>
             <CardDescription>Manage your profile, avatar, and theme preference.</CardDescription>
           </div>
           <Button
