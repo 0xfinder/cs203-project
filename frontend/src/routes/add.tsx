@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface ContentPayload {
   term: string;
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/add")({
 });
 
 function SubmitContentPage() {
+  const [activeTab, setActiveTab] = useState("term");
   const [term, setTerm] = useState("");
   const [definition, setDefinition] = useState("");
   const [example, setExample] = useState("");
@@ -137,21 +139,29 @@ function SubmitContentPage() {
     <div className="flex flex-1 items-center justify-center px-4 py-10">
       <Card className="w-full max-w-lg">
         <CardHeader>
-          <CardTitle className="text-2xl">Add a new Lingo</CardTitle>
-          <CardDescription>Share a word or phrase for review.</CardDescription>
+          <CardTitle className="text-2xl">Add New Item</CardTitle>
+          <CardDescription>Share a word, phrase, quiz, or lesson for review.</CardDescription>
         </CardHeader>
         <CardContent>
-          {error && (
-            <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          {success && (
-            <p className="mb-4 rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
-              {success}
-            </p>
-          )}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-6 grid w-full grid-cols-3">
+              <TabsTrigger value="term">Add Term</TabsTrigger>
+              <TabsTrigger value="quiz">Add Quiz</TabsTrigger>
+              <TabsTrigger value="lesson">Add Lesson</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="term">
+              {error && (
+                <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+              {success && (
+                <p className="mb-4 rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+                  {success}
+                </p>
+              )}
+              <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="term">Lingo</Label>
               <Input
@@ -238,7 +248,23 @@ function SubmitContentPage() {
                 {loading ? "Checking..." : "Submit"}
               </Button>
             )}
-          </form>
+              </form>
+            </TabsContent>
+
+            <TabsContent value="quiz" className="space-y-4">
+              <div className="p-8 text-center text-muted-foreground">
+                <h2 className="text-xl font-semibold mb-2">Add Quiz</h2>
+                <p>The quiz submission feature is coming soon.</p>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="lesson" className="space-y-4">
+              <div className="p-8 text-center text-muted-foreground">
+                <h2 className="text-xl font-semibold mb-2">Add Lesson</h2>
+                <p>The lesson submission feature is coming soon.</p>
+              </div>
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
     </div>
