@@ -112,12 +112,14 @@ function ReviewPage() {
                 <Button
                   onClick={() => setExpandedId(expandedId === content.id ? null : content.id)}
                   variant="success"
+                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
                 >
                   Approve
                 </Button>
                 <Button
                   onClick={() => setExpandedId(expandedId === -content.id ? null : -content.id)}
                   variant="destructive"
+                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
                 >
                   Reject
                 </Button>
@@ -167,6 +169,7 @@ function ReviewPage() {
                     <Button
                       onClick={() => handleApprove(content.id)}
                       variant="success"
+                      className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
                       disabled={approveMutation.isPending}
                     >
                       {approveMutation.isPending ? "Approving..." : "Confirm Approve"}
@@ -222,6 +225,7 @@ function ReviewPage() {
                     <Button
                       onClick={() => handleReject(content.id)}
                       variant="destructive"
+                      className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
                       disabled={rejectMutation.isPending}
                     >
                       {rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}

@@ -58,7 +58,7 @@ function SubmitContentPage() {
       }
 
       await api
-        .post("contents/submit", {
+        .post("contents", {
           json: payload,
           headers: {
             Authorization: `Bearer ${token}`,
