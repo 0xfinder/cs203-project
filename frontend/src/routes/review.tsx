@@ -4,16 +4,18 @@ import {
   useApproveContent,
   useRejectContent,
 } from "@/features/content/useContentData";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { requireOnboardingCompleted } from "@/lib/auth";
+import { getMe } from "@/lib/me";
 
 function ReviewPage() {
   const [page, setPage] = useState(0);
   const [activeTab, setActiveTab] = useState("term");
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const pageSize = 10;
   const { data: response, isLoading, error } = usePendingContentsPaginated(page, pageSize);
   const approveMutation = useApproveContent();
@@ -23,6 +25,18 @@ function ReviewPage() {
   const [reviewData, setReviewData] = useState<{
     [key: number]: { comment: string; reviewer: string };
   }>({});
+
+  useEffect(() => {
+    const checkRole = async () => {
+      try {
+        const me = await getMe();
+        setHasAccess(me.role === "MODERATOR" || me.role === "ADMIN");
+      } catch {
+        setHasAccess(false);
+      }
+    };
+    checkRole();
+  }, []);
 
   const handleApprove = async (id: number) => {
     const reviewer = reviewData[id]?.reviewer || "Admin";
@@ -50,8 +64,17 @@ function ReviewPage() {
     setExpandedId(null);
   };
 
-  if (isLoading) {
+  if (isLoading || hasAccess === null) {
     return <div className="p-8 text-center">Loading pending items...</div>;
+  }
+
+  if (hasAccess === false) {
+    return (
+      <div className="p-8 text-center text-destructive">
+        <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+        <p>Only moderators and admins can review items.</p>
+      </div>
+    );
   }
 
   if (error) {
