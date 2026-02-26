@@ -2,6 +2,8 @@ package com.group7.app.user;
 
 import java.util.UUID;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 
 import org.springframework.http.HttpStatus;
@@ -16,6 +18,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/users")
+@Tag(name = "Users", description = "User profile and onboarding endpoints")
 public class UserController {
 
     private final UserService userService;
@@ -25,6 +28,7 @@ public class UserController {
     }
 
     @GetMapping("/me")
+    @Operation(summary = "Get current user profile")
     public UserMeResponse getMe(@AuthenticationPrincipal Jwt jwt) {
         UUID userId = parseUserId(jwt);
         User user = userService.findById(userId)
@@ -33,6 +37,7 @@ public class UserController {
     }
 
     @PatchMapping("/me")
+    @Operation(summary = "Update current user profile")
     public UserMeResponse updateMe(
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody UpdateMeRequest request) {
