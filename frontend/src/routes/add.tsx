@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { requireOnboardingCompleted, useAuth } from "@/lib/auth";
+import { requireOnboardingCompleted } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { getMe } from "@/lib/me";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,7 +22,6 @@ export const Route = createFileRoute("/add")({
 });
 
 function SubmitContentPage() {
-  const { user } = useAuth();
   const [term, setTerm] = useState("");
   const [definition, setDefinition] = useState("");
   const [example, setExample] = useState("");
@@ -36,7 +36,8 @@ function SubmitContentPage() {
     setLoading(true);
 
     try {
-      const submittedBy = user?.email ?? "";
+      const me = await getMe();
+      const submittedBy = me.email ?? "";
       if (!submittedBy) {
         setError("You must be logged in to submit content.");
         return;
@@ -66,7 +67,7 @@ function SubmitContentPage() {
         })
         .json();
 
-      setSuccess("Thanks! Your term is now pending review.");
+      setSuccess("Thanks! Your lingo is now pending review.");
       setTerm("");
       setDefinition("");
       setExample("");
