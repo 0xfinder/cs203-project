@@ -63,7 +63,7 @@ export function useSubmitContent() {
 
   return useMutation({
     mutationFn: (content: Omit<ContentItem, "id" | "createdAt" | "updatedAt" | "status">) =>
-      api.post("contents/submit", { json: content }).json<ContentItem>(),
+      api.post("contents", { json: content }).json<ContentItem>(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: CONTENTS_KEY });
     },
@@ -84,8 +84,12 @@ export function useApproveContent() {
       reviewComment?: string;
     }) =>
       api
-        .put(`contents/approve/${id}`, {
-          searchParams: { reviewer, ...(reviewComment ? { reviewComment } : {}) },
+        .put(`contents/${id}/review`, {
+          searchParams: {
+            reviewer,
+            decision: "APPROVE",
+            ...(reviewComment ? { reviewComment } : {}),
+          },
         })
         .json<ContentItem>(),
     onSuccess: () => {
@@ -110,8 +114,8 @@ export function useRejectContent() {
       reviewComment: string;
     }) =>
       api
-        .put(`contents/reject/${id}`, {
-          searchParams: { reviewer, reviewComment },
+        .put(`contents/${id}/review`, {
+          searchParams: { reviewer, decision: "REJECT", reviewComment },
         })
         .json<ContentItem>(),
     onSuccess: () => {

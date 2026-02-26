@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { requireOnboardingCompleted, useAuth } from "@/lib/auth";
+import { requireOnboardingCompleted } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { getMe } from "@/lib/me";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,13 +22,25 @@ export const Route = createFileRoute("/add")({
 });
 
 function SubmitContentPage() {
-  const { user } = useAuth();
   const [term, setTerm] = useState("");
   const [definition, setDefinition] = useState("");
   const [example, setExample] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkRole = async () => {
+      try {
+        const me = await getMe();
+        setHasAccess(me.role === "CONTRIBUTOR" || me.role === "MODERATOR" || me.role === "ADMIN");
+      } catch {
+        setHasAccess(false);
+      }
+    };
+    checkRole();
+  }, []);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -36,7 +49,8 @@ function SubmitContentPage() {
     setLoading(true);
 
     try {
-      const submittedBy = user?.email ?? "";
+      const me = await getMe();
+      const submittedBy = me.email ?? "";
       if (!submittedBy) {
         setError("You must be logged in to submit content.");
         return;
@@ -58,7 +72,7 @@ function SubmitContentPage() {
       }
 
       await api
-        .post("contents/submit", {
+        .post("contents", {
           json: payload,
           headers: {
             Authorization: `Bearer ${token}`,
@@ -66,7 +80,7 @@ function SubmitContentPage() {
         })
         .json();
 
-      setSuccess("Thanks! Your term is now pending review.");
+      setSuccess("Thanks! Your lingo is now pending review.");
       setTerm("");
       setDefinition("");
       setExample("");
@@ -77,6 +91,19 @@ function SubmitContentPage() {
       setLoading(false);
     }
   };
+
+  if (hasAccess === null) {
+    return <div className="p-8 text-center">Loading...</div>;
+  }
+
+  if (hasAccess === false) {
+    return (
+      <div className="p-8 text-center text-destructive">
+        <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+        <p>Only contributors and moderators can submit content.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-1 items-center justify-center px-4 py-10">
