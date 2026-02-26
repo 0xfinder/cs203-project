@@ -18,8 +18,6 @@ src/
 │   ├── ui/              # shadcn components (auto-generated, don't edit too much)
 │   └── PrimaryButton.tsx  # custom reusable components
 ├── features/            # feature-specific logic (hooks, types, api calls)
-│   └── example/
-│       └── useExampleData.ts
 ├── lib/                 # shared utilities and config
 │   ├── api.ts           # ky instance with auth header
 │   ├── auth.tsx         # auth provider, useAuth hook, requireAuth guard
@@ -28,8 +26,7 @@ src/
 ├── routes/              # file-based routes (TanStack Router)
 │   ├── __root.tsx       # root layout (nav bar, outlet)
 │   ├── index.tsx        # /
-│   ├── login.tsx        # /login
-│   └── examples.tsx     # /examples
+│   └── login.tsx        # /login
 ├── index.css            # tailwind + shadcn theme
 ├── main.tsx             # app entrypoint
 ├── router.tsx           # router instance
