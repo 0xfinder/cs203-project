@@ -1,10 +1,16 @@
 import { Link, Outlet, createRootRoute, useRouterState } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useAuth } from "@/lib/auth";
-import { APP_NAV_ITEMS, isAppShellPath, isNavItemActive } from "@/lib/app-nav";
+import { type AppNavPath, APP_NAV_ITEMS, isAppShellPath, isNavItemActive } from "@/lib/app-nav";
 import { cn } from "@/lib/utils";
 
 const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
+const navPriority: Partial<Record<AppNavPath, number>> = {
+  "/lessons": 0,
+  "/dictionary": 1,
+  "/add": 2,
+  "/review": 3,
+};
 
 export const Route = createRootRoute({
   errorComponent: ({ error }) => (
@@ -23,6 +29,22 @@ function RootComponent() {
     select: (state) => state.location.pathname,
   });
   const showAppShell = isAppShellPath(pathname);
+  const navItems = [...APP_NAV_ITEMS].sort((a, b) => {
+    const aOrder = navPriority[a.to];
+    const bOrder = navPriority[b.to];
+
+    if (aOrder === undefined && bOrder === undefined) {
+      return 0;
+    }
+    if (aOrder === undefined) {
+      return 1;
+    }
+    if (bOrder === undefined) {
+      return -1;
+    }
+
+    return aOrder - bOrder;
+  });
 
   if (!showAppShell) {
     return (
@@ -46,7 +68,7 @@ function RootComponent() {
           </div>
 
           <nav className="mt-4 flex flex-1 flex-col gap-1">
-            {APP_NAV_ITEMS.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const active = isNavItemActive(pathname, item.to);
               return (
@@ -84,9 +106,9 @@ function RootComponent() {
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
         <div
           className="grid h-16"
-          style={{ gridTemplateColumns: `repeat(${APP_NAV_ITEMS.length}, minmax(0, 1fr))` }}
+          style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
         >
-          {APP_NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const Icon = item.icon;
             const active = isNavItemActive(pathname, item.to);
             return (
