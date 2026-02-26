@@ -85,18 +85,10 @@ function ReviewPage() {
     );
   }
 
-  if (!response || response.content.length === 0) {
-    return (
-      <div className="p-8 text-center text-muted-foreground">
-        <h2 className="text-xl font-semibold mb-2">No items to review</h2>
-        <p>All pending items have been reviewed.</p>
-      </div>
-    );
-  }
-
-  const pendingContents = response.content;
-  const totalPages = response.totalPages;
-  const totalElements = response.totalElements;
+  const pendingContents = response?.content || [];
+  const totalPages = response?.totalPages || 0;
+  const totalElements = response?.totalElements || 0;
+  const hasItems = response && response.content.length > 0;
 
   return (
     <div className="flex-1 p-8">
@@ -111,12 +103,19 @@ function ReviewPage() {
           </TabsList>
 
           <TabsContent value="term" className="space-y-4">
-            <p className="text-muted-foreground mb-6">
-              Page {page + 1} of {totalPages} • Showing {pendingContents.length} of {totalElements}{" "}
-              pending {totalElements === 1 ? "item" : "items"}
-            </p>
+            {!hasItems ? (
+              <div className="p-8 text-center text-muted-foreground">
+                <h2 className="text-xl font-semibold mb-2">No items to review</h2>
+                <p>All pending items have been reviewed.</p>
+              </div>
+            ) : (
+              <>
+                <p className="text-muted-foreground mb-6">
+                  Page {page + 1} of {totalPages} • Showing {pendingContents.length} of {totalElements}{" "}
+                  pending {totalElements === 1 ? "item" : "items"}
+                </p>
 
-            <div className="grid gap-4">
+                <div className="grid gap-4">
               {pendingContents.map((content: any) => (
                 <Card key={content.id} className="p-6">
                   <div className="mb-4">
@@ -259,6 +258,8 @@ function ReviewPage() {
                 Next →
               </Button>
             </div>
+              </>
+            )}
           </TabsContent>
 
           <TabsContent value="quiz" className="space-y-4">
