@@ -3,9 +3,9 @@ import { Moon, Sun, Upload } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RoleBadge } from "@/components/role-badge";
 import { requireAuth, useAuth } from "@/lib/auth";
 import { getMe, type UserRole } from "@/lib/me";
 import { supabase } from "@/lib/supabase";
@@ -88,6 +88,7 @@ function ProfilePage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [apiDisplayName, setApiDisplayName] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dark, setDark] = useState<boolean>(() => getStoredTheme() === "dark");
 
@@ -105,11 +106,13 @@ function ProfilePage() {
       .then((me) => {
         if (active) {
           setUserRole(me.role);
+          setApiDisplayName(me.displayName?.trim() || null);
         }
       })
       .catch(() => {
         if (active) {
           setUserRole(null);
+          setApiDisplayName(null);
         }
       });
 
@@ -277,10 +280,9 @@ function ProfilePage() {
     }
   };
 
-  const displayName = profile.name || user?.email || "unknown user";
+  const displayName = apiDisplayName || profile.name.trim() || "unknown user";
   const initials = getInitials(displayName);
   const avatarColor = profile.avatar_color || metadata.avatar_color || "#475569";
-  const formattedRole = userRole ? userRole.toUpperCase() : "UNKNOWN";
 
   return (
     <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
@@ -339,9 +341,7 @@ function ProfilePage() {
             <div>
               <p className="font-medium">{displayName}</p>
               <p className="text-sm text-muted-foreground">{user?.email ?? "unknown user"}</p>
-              <Badge variant="secondary" className="mt-1">
-                {formattedRole}
-              </Badge>
+              <RoleBadge role={userRole} className="mt-1" />
             </div>
           </div>
 

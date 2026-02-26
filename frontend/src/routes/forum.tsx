@@ -13,6 +13,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RoleBadge } from "@/components/role-badge";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -302,9 +303,7 @@ function ForumPage() {
             <span className="hidden items-center gap-2 text-sm sm:flex">
               <Avatar name={authorName} imageUrl={currentUserAvatarUrl} />
               <span className="max-w-[140px] truncate font-medium">{authorName}</span>
-              <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground capitalize">
-                {profile.role.toLowerCase()}
-              </span>
+              <RoleBadge role={profile.role} className="text-muted-foreground" />
             </span>
           ) : null}
 
