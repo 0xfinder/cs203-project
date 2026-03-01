@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import type { User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import {
   MessageCircle,
@@ -14,6 +13,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RoleBadge } from "@/components/role-badge";
+import { getMe, type MeResponse } from "@/lib/me";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
@@ -38,24 +38,10 @@ type Question = {
   answers: Answer[];
 };
 
-/** mirrors the spring user entity fields we care about */
-type UserProfile = {
-  id: string;
-  email: string;
-  displayName: string | null;
-  role: "LEARNER" | "CONTRIBUTOR" | "MODERATOR" | "ADMIN";
-};
+type UserProfile = MeResponse;
 
 const API = "http://localhost:8080/api/forum";
-const USER_API = "http://localhost:8080/api/users";
 const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
-
-type UserMetadata = {
-  full_name?: string;
-  name?: string;
-  avatar_url?: string;
-  avatar_path?: string;
-};
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 function timeAgo(iso: string) {
@@ -92,13 +78,6 @@ function avatarColor(name: string) {
 function displayLabel(profile: UserProfile | null): string {
   if (!profile) return "Guest";
   return profile.displayName?.trim() || profile.email.split("@")[0];
-}
-
-function readMetadata(user: User | null): UserMetadata {
-  if (!user || typeof user.user_metadata !== "object" || user.user_metadata === null) {
-    return {};
-  }
-  return user.user_metadata as UserMetadata;
 }
 
 /* ── Sub-components ───────────────────────────────────────────────────────── */
@@ -164,30 +143,21 @@ function ForumPage() {
           return;
         }
 
-        const token = session.access_token;
-        const metadata = readMetadata(session.user);
+        const userProfile = await getMe();
+        setProfile(userProfile);
 
-        if (metadata.avatar_path) {
+        if (userProfile.avatarPath) {
           const { data: signedData, error: signedError } = await supabase.storage
             .from(AVATAR_BUCKET)
-            .createSignedUrl(metadata.avatar_path, 60 * 60);
+            .createSignedUrl(userProfile.avatarPath, 60 * 60);
           if (!signedError && signedData?.signedUrl) {
             setCurrentUserAvatarUrl(signedData.signedUrl);
           } else {
-            setCurrentUserAvatarUrl(metadata.avatar_url ?? null);
+            setCurrentUserAvatarUrl(null);
           }
         } else {
-          setCurrentUserAvatarUrl(metadata.avatar_url ?? null);
+          setCurrentUserAvatarUrl(null);
         }
-
-        const res = await fetch(`${USER_API}/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error("Could not load user profile");
-
-        const userProfile: UserProfile = await res.json();
-        setProfile(userProfile);
       } catch (err) {
         setProfile(null);
         setCurrentUserAvatarUrl(null);

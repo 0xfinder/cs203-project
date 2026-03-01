@@ -42,7 +42,7 @@ public class UserController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody UpdateMeRequest request) {
         UUID userId = parseUserId(jwt);
-        userService.findById(userId)
+        User user = userService.findById(userId)
                 .orElseGet(() -> userService.createFromAuth(userId, getEmail(jwt)));
 
         String displayName = request.displayName().trim();
@@ -52,12 +52,30 @@ public class UserController {
                     "displayName must be 2 to 32 characters after trimming");
         }
 
-        Role role = switch (request.roleIntent()) {
-            case LEARNER -> Role.LEARNER;
-            case CONTRIBUTOR -> Role.CONTRIBUTOR;
-        };
+        Role role = user.getRole();
+        if (request.roleIntent() != null) {
+            role = switch (request.roleIntent()) {
+                case LEARNER -> Role.LEARNER;
+                case CONTRIBUTOR -> Role.CONTRIBUTOR;
+            };
+        }
 
-        User updated = userService.updateProfile(userId, displayName, role);
+        String avatarPath = normalizeOptional(request.avatarPath());
+        if (avatarPath != null && !avatarPath.startsWith("uploads/" + userId + "/")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "avatarPath must be in the authenticated user's uploads path");
+        }
+
+        User updated = userService.updateProfile(
+                userId,
+                displayName,
+                role,
+                normalizeOptional(request.bio()),
+                request.age(),
+                normalizeOptional(request.gender()),
+                normalizeOptional(request.avatarColor()),
+                avatarPath);
         return UserMeResponse.fromUser(updated, userService.isOnboardingCompleted(updated));
     }
 
@@ -79,5 +97,13 @@ public class UserController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "missing email claim");
         }
         return email;
+    }
+
+    private static String normalizeOptional(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

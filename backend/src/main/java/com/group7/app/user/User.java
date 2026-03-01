@@ -29,6 +29,19 @@ public class User {
     @Column(name = "display_name")
     private String displayName;
 
+    @Column(columnDefinition = "text")
+    private String bio;
+
+    private Integer age;
+
+    private String gender;
+
+    @Column(name = "avatar_color")
+    private String avatarColor;
+
+    @Column(name = "avatar_path")
+    private String avatarPath;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     // default role is LEARNER
@@ -66,6 +79,46 @@ public class User {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
+    }
+
+    public Integer getAge() {
+        return age;
+    }
+
+    public void setAge(Integer age) {
+        this.age = age;
+    }
+
+    public String getGender() {
+        return gender;
+    }
+
+    public void setGender(String gender) {
+        this.gender = gender;
+    }
+
+    public String getAvatarColor() {
+        return avatarColor;
+    }
+
+    public void setAvatarColor(String avatarColor) {
+        this.avatarColor = avatarColor;
+    }
+
+    public String getAvatarPath() {
+        return avatarPath;
+    }
+
+    public void setAvatarPath(String avatarPath) {
+        this.avatarPath = avatarPath;
     }
 
     public Role getRole() {
