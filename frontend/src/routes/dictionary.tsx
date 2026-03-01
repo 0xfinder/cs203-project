@@ -241,7 +241,6 @@ function DictionaryPage() {
 
                     <div className="space-y-3">
                       {group.entries.map((entry) => {
-                        const submittedBy = entry.content.submittedBy.split("@")[0];
                         const userVote = entry.userVote;
                         const voteBusy = castVote.isPending || clearVote.isPending;
 
@@ -260,7 +259,7 @@ function DictionaryPage() {
                           >
                             <div className="flex flex-wrap items-center justify-between gap-2">
                               <Badge variant="secondary" className="shrink-0 capitalize">
-                                {submittedBy}
+                                {entry.submittedByDisplayName}
                               </Badge>
                               <div className="flex items-center gap-1">
                                 <Button

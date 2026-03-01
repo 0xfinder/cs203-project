@@ -28,6 +28,7 @@ export interface ContentWithVotesResponse {
   thumbsUp: number;
   thumbsDown: number;
   userVote: ContentVoteType | null;
+  submittedByDisplayName: string;
 }
 
 export interface PaginatedResponse<T> {

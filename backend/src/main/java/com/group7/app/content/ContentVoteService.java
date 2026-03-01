@@ -65,11 +65,16 @@ public class ContentVoteService {
         return contentRepository.findByStatus(Content.Status.APPROVED).stream()
                 .map(content -> {
                     ContentVoteSummaryResponse summary = buildSummary(content.getId(), userId);
+                    String displayName = userRepository.findByEmailIgnoreCase(content.getSubmittedBy())
+                            .map(user -> user.getDisplayName() != null ? user.getDisplayName()
+                                    : content.getSubmittedBy())
+                            .orElse(content.getSubmittedBy());
                     return new ContentWithVotesResponse(
                             content,
                             summary.thumbsUp(),
                             summary.thumbsDown(),
-                            summary.userVote());
+                            summary.userVote(),
+                            displayName);
                 })
                 .toList();
     }
