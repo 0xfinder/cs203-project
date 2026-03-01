@@ -5,8 +5,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RoleBadge } from "@/components/role-badge";
+import {
+  requiredCurrentUserViewQueryOptions,
+  resolveAvatarSignedUrl,
+  setCurrentUserViewCache,
+} from "@/lib/current-user-view";
 import { requireAuth, useAuth } from "@/lib/auth";
-import { getMe, patchMe, type MeResponse, type RoleIntent, type UserRole } from "@/lib/me";
+import { patchMe, type MeResponse, type RoleIntent, type UserRole } from "@/lib/me";
+import { queryClient } from "@/lib/query-client";
 import { supabase } from "@/lib/supabase";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 
@@ -19,32 +25,6 @@ interface ProfileState {
   age: string;
   gender: string;
   avatarColor: string;
-}
-
-const EMPTY_PROFILE: ProfileState = {
-  name: "",
-  bio: "",
-  age: "",
-  gender: "",
-  avatarColor: "",
-};
-
-export const Route = createFileRoute("/profile")({
-  beforeLoad: requireAuth,
-  component: ProfilePage,
-});
-
-function getInitials(value: string): string {
-  return (
-    value
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase() || "U"
-  );
 }
 
 function toProfileState(me: MeResponse): ProfileState {
@@ -64,71 +44,59 @@ function toRoleIntent(role: UserRole): RoleIntent | undefined {
   return undefined;
 }
 
-async function resolveAvatarPreview(avatarPath: string | null): Promise<string | null> {
-  if (!avatarPath) {
-    return null;
-  }
-
-  const { data, error } = await supabase.storage
-    .from(AVATAR_BUCKET)
-    .createSignedUrl(avatarPath, 60 * 60);
-  if (error) {
-    return null;
-  }
-
-  return data.signedUrl ?? null;
+function getInitials(value: string): string {
+  return (
+    value
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "U"
+  );
 }
+
+async function loadProfilePageData() {
+  const data = await queryClient.ensureQueryData(requiredCurrentUserViewQueryOptions());
+  if (!data.profile) {
+    throw new Error("Could not load current user profile");
+  }
+  return data;
+}
+
+export const Route = createFileRoute("/profile")({
+  beforeLoad: requireAuth,
+  loader: loadProfilePageData,
+  component: ProfilePage,
+});
 
 function ProfilePage() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const [meProfile, setMeProfile] = useState<MeResponse | null>(null);
-  const [profile, setProfile] = useState<ProfileState>(EMPTY_PROFILE);
+  const loaderData = Route.useLoaderData();
+  const initialProfile = loaderData.profile;
+
+  if (!initialProfile) {
+    throw new Error("Could not load current user profile");
+  }
+
+  const [meProfile, setMeProfile] = useState<MeResponse>(initialProfile);
+  const [profile, setProfile] = useState<ProfileState>(() => toProfileState(initialProfile));
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [meAvatarUrl, setMeAvatarUrl] = useState<string | null>(loaderData.avatarUrl);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(loaderData.avatarUrl);
+  const [userRole, setUserRole] = useState<UserRole | null>(initialProfile.role);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dark, setDark] = useState<boolean>(() => getStoredTheme() === "dark");
 
   useEffect(() => {
     applyTheme(dark ? "dark" : "light");
   }, [dark]);
-
-  useEffect(() => {
-    let active = true;
-
-    void getMe()
-      .then(async (me) => {
-        if (!active) {
-          return;
-        }
-
-        setMeProfile(me);
-        setUserRole(me.role);
-        setProfile(toProfileState(me));
-
-        const preview = await resolveAvatarPreview(me.avatarPath);
-        if (active) {
-          setAvatarPreview(preview);
-        }
-      })
-      .catch(() => {
-        if (!active) {
-          return;
-        }
-        setMeProfile(null);
-        setUserRole(null);
-        setAvatarPreview(null);
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const resetAvatarInput = () => {
     setAvatarFile(null);
@@ -157,10 +125,6 @@ function ProfilePage() {
   };
 
   const buildPatchPayload = (avatarPath: string | null) => {
-    if (!meProfile) {
-      throw new Error("Profile is not loaded");
-    }
-
     const displayName = profile.name.trim();
     if (displayName.length < 2 || displayName.length > 32) {
       throw new Error("Display name must be 2 to 32 characters");
@@ -183,11 +147,6 @@ function ProfilePage() {
   };
 
   const handleRemoveAvatar = async () => {
-    if (!meProfile) {
-      setSaveError("Profile is still loading");
-      return;
-    }
-
     setSaveError(null);
     setSaveSuccess(null);
     setSaving(true);
@@ -199,7 +158,12 @@ function ProfilePage() {
       setMeProfile(updated);
       setUserRole(updated.role);
       setProfile(toProfileState(updated));
+      setMeAvatarUrl(null);
       setAvatarPreview(null);
+      setCurrentUserViewCache(queryClient, {
+        profile: updated,
+        avatarUrl: null,
+      });
       resetAvatarInput();
       setSaveSuccess("Avatar removed");
     } catch (error) {
@@ -216,18 +180,13 @@ function ProfilePage() {
       return;
     }
 
-    if (!meProfile) {
-      setSaveError("Profile is still loading");
-      return;
-    }
-
     setSaveError(null);
     setSaveSuccess(null);
     setSaving(true);
 
     try {
       let avatarPath = meProfile.avatarPath ?? null;
-      let avatarSignedUrl: string | null = null;
+      let nextAvatarUrl = meAvatarUrl;
 
       if (avatarFile) {
         if (!avatarFile.type.startsWith("image/")) {
@@ -261,22 +220,25 @@ function ProfilePage() {
           return;
         }
 
-        avatarSignedUrl = await resolveAvatarPreview(avatarPath);
+        nextAvatarUrl = await resolveAvatarSignedUrl(avatarPath);
       }
 
       const payload = buildPatchPayload(avatarPath);
       const updated = await patchMe(payload);
 
+      if (!updated.avatarPath) {
+        nextAvatarUrl = null;
+      }
+
       setMeProfile(updated);
       setUserRole(updated.role);
       setProfile(toProfileState(updated));
-
-      if (avatarSignedUrl) {
-        setAvatarPreview(avatarSignedUrl);
-      } else {
-        const refreshedPreview = await resolveAvatarPreview(updated.avatarPath);
-        setAvatarPreview(refreshedPreview);
-      }
+      setMeAvatarUrl(nextAvatarUrl);
+      setAvatarPreview(nextAvatarUrl);
+      setCurrentUserViewCache(queryClient, {
+        profile: updated,
+        avatarUrl: nextAvatarUrl,
+      });
 
       resetAvatarInput();
       setEditing(false);
@@ -374,7 +336,7 @@ function ProfilePage() {
                 <Upload className="h-4 w-4" />
                 <span>Choose avatar</span>
               </Button>
-              {(avatarPreview || meProfile?.avatarPath) && (
+              {(avatarPreview || meProfile.avatarPath) && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -468,12 +430,8 @@ function ProfilePage() {
                 variant="outline"
                 onClick={() => {
                   setEditing(false);
-                  if (meProfile) {
-                    setProfile(toProfileState(meProfile));
-                    void resolveAvatarPreview(meProfile.avatarPath).then((preview) => {
-                      setAvatarPreview(preview);
-                    });
-                  }
+                  setProfile(toProfileState(meProfile));
+                  setAvatarPreview(meAvatarUrl);
                   resetAvatarInput();
                 }}
               >

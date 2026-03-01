@@ -13,11 +13,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RoleBadge } from "@/components/role-badge";
-import { getMe, type MeResponse } from "@/lib/me";
-import { supabase } from "@/lib/supabase";
+import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
+import { type MeResponse } from "@/lib/me";
+import { queryClient } from "@/lib/query-client";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/forum")({
+  loader: () => queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
   component: ForumPage,
 });
 
@@ -41,7 +43,6 @@ type Question = {
 type UserProfile = MeResponse;
 
 const API = "http://localhost:8080/api/forum";
-const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 function timeAgo(iso: string) {
@@ -111,13 +112,13 @@ function AnswerBadge({ count }: { count: number }) {
 
 /* ── Main Component ───────────────────────────────────────────────────────── */
 function ForumPage() {
+  const loaderData = Route.useLoaderData();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
-  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string | null>(null);
+  const [profile] = useState<UserProfile | null>(loaderData.profile);
+  const [currentUserAvatarUrl] = useState<string | null>(loaderData.avatarUrl);
 
   const [showAskForm, setShowAskForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -127,48 +128,6 @@ function ForumPage() {
   const [answerDraft, setAnswerDraft] = useState<Record<number, string>>({});
   const [postingAnswer, setPostingAnswer] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-
-  /* ── load current user's spring profile ── */
-  useEffect(() => {
-    const loadProfile = async () => {
-      setProfileLoading(true);
-
-      try {
-        const { data } = await supabase.auth.getSession();
-        const session = data.session;
-
-        if (!session) {
-          setProfile(null);
-          setCurrentUserAvatarUrl(null);
-          return;
-        }
-
-        const userProfile = await getMe();
-        setProfile(userProfile);
-
-        if (userProfile.avatarPath) {
-          const { data: signedData, error: signedError } = await supabase.storage
-            .from(AVATAR_BUCKET)
-            .createSignedUrl(userProfile.avatarPath, 60 * 60);
-          if (!signedError && signedData?.signedUrl) {
-            setCurrentUserAvatarUrl(signedData.signedUrl);
-          } else {
-            setCurrentUserAvatarUrl(null);
-          }
-        } else {
-          setCurrentUserAvatarUrl(null);
-        }
-      } catch (err) {
-        setProfile(null);
-        setCurrentUserAvatarUrl(null);
-        console.error("Failed to load profile:", err);
-      } finally {
-        setProfileLoading(false);
-      }
-    };
-
-    void loadProfile();
-  }, []);
 
   /* ── fetch questions (answers are embedded — no N+1) ── */
   const fetchQuestions = async () => {
@@ -267,9 +226,7 @@ function ForumPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {profileLoading ? (
-            <div className="h-8 w-20 animate-pulse rounded-md bg-muted" />
-          ) : profile ? (
+          {profile ? (
             <span className="hidden items-center gap-2 text-sm sm:flex">
               <Avatar name={authorName} imageUrl={currentUserAvatarUrl} />
               <span className="max-w-[140px] truncate font-medium">{authorName}</span>
