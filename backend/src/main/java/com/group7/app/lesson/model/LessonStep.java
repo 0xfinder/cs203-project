@@ -40,7 +40,7 @@ public class LessonStep {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "question_id")
-    private Question question;
+    private LessonQuestion question;
 
     @Column(name = "dialogue_text")
     private String dialogueText;
@@ -96,11 +96,11 @@ public class LessonStep {
         this.vocabItem = vocabItem;
     }
 
-    public Question getQuestion() {
+    public LessonQuestion getQuestion() {
         return question;
     }
 
-    public void setQuestion(Question question) {
+    public void setQuestion(LessonQuestion question) {
         this.question = question;
     }
 

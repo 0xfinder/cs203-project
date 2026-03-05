@@ -2,17 +2,17 @@ package com.group7.app.lesson;
 
 import com.group7.app.lesson.model.Choice;
 import com.group7.app.lesson.model.Lesson;
+import com.group7.app.lesson.model.LessonQuestion;
 import com.group7.app.lesson.model.LessonStatus;
 import com.group7.app.lesson.model.LessonStep;
-import com.group7.app.lesson.model.Question;
 import com.group7.app.lesson.model.QuestionType;
 import com.group7.app.lesson.model.StepType;
 import com.group7.app.lesson.model.Unit;
 import com.group7.app.lesson.model.VocabItem;
 import com.group7.app.lesson.repository.ChoiceRepository;
+import com.group7.app.lesson.repository.LessonQuestionRepository;
 import com.group7.app.lesson.repository.LessonRepository;
 import com.group7.app.lesson.repository.LessonStepRepository;
-import com.group7.app.lesson.repository.QuestionRepository;
 import com.group7.app.lesson.repository.UnitRepository;
 import com.group7.app.lesson.repository.VocabItemRepository;
 import java.time.Instant;
@@ -25,7 +25,7 @@ public class LessonSeeder implements CommandLineRunner {
     private final UnitRepository unitRepository;
     private final LessonRepository lessonRepository;
     private final VocabItemRepository vocabItemRepository;
-    private final QuestionRepository questionRepository;
+    private final LessonQuestionRepository lessonQuestionRepository;
     private final ChoiceRepository choiceRepository;
     private final LessonStepRepository lessonStepRepository;
 
@@ -33,13 +33,13 @@ public class LessonSeeder implements CommandLineRunner {
             UnitRepository unitRepository,
             LessonRepository lessonRepository,
             VocabItemRepository vocabItemRepository,
-            QuestionRepository questionRepository,
+            LessonQuestionRepository lessonQuestionRepository,
             ChoiceRepository choiceRepository,
             LessonStepRepository lessonStepRepository) {
         this.unitRepository = unitRepository;
         this.lessonRepository = lessonRepository;
         this.vocabItemRepository = vocabItemRepository;
-        this.questionRepository = questionRepository;
+        this.lessonQuestionRepository = lessonQuestionRepository;
         this.choiceRepository = choiceRepository;
         this.lessonStepRepository = lessonStepRepository;
     }
@@ -73,7 +73,7 @@ public class LessonSeeder implements CommandLineRunner {
                 "that move gave you +1000 aura",
                 "noun"));
 
-        Question q1 = questionRepository.save(new Question(
+        LessonQuestion q1 = lessonQuestionRepository.save(new LessonQuestion(
                 QuestionType.MCQ,
                 "what does rizz mean?",
                 "rizz means charisma, especially in social situations"));
@@ -83,7 +83,7 @@ public class LessonSeeder implements CommandLineRunner {
         choiceRepository.save(new Choice(q1, "a kind of food", false, 3));
         choiceRepository.save(new Choice(q1, "a dance move", false, 4));
 
-        Question q2 = questionRepository.save(new Question(
+        LessonQuestion q2 = lessonQuestionRepository.save(new LessonQuestion(
                 QuestionType.MCQ,
                 "if someone has aura, they have...",
                 "aura refers to social presence and vibe"));

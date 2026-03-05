@@ -2,9 +2,9 @@ package com.group7.app.lesson.controller;
 
 import com.group7.app.lesson.model.Choice;
 import com.group7.app.lesson.model.Lesson;
+import com.group7.app.lesson.model.LessonQuestion;
 import com.group7.app.lesson.model.LessonStatus;
 import com.group7.app.lesson.model.LessonStep;
-import com.group7.app.lesson.model.Question;
 import com.group7.app.lesson.model.QuestionClozeAnswer;
 import com.group7.app.lesson.model.QuestionMatchPair;
 import com.group7.app.lesson.model.QuestionType;
@@ -204,7 +204,7 @@ public class LessonController {
             return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, null, step.getDialogueText());
         }
 
-        Question question = lessonService.getQuestionForStep(step);
+        LessonQuestion question = lessonService.getQuestionForStep(step);
         if (question == null) {
             return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, null, null);
         }

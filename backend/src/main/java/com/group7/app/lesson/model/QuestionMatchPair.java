@@ -11,7 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "question_match_pairs")
+@Table(name = "lesson_question_match_pairs")
 public class QuestionMatchPair {
 
     @Id
@@ -20,7 +20,7 @@ public class QuestionMatchPair {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "question_id", nullable = false)
-    private Question question;
+    private LessonQuestion question;
 
     @Column(name = "left_text", nullable = false)
     private String leftText;
@@ -34,7 +34,7 @@ public class QuestionMatchPair {
     protected QuestionMatchPair() {
     }
 
-    public QuestionMatchPair(Question question, String leftText, String rightText, Integer orderIndex) {
+    public QuestionMatchPair(LessonQuestion question, String leftText, String rightText, Integer orderIndex) {
         this.question = question;
         this.leftText = leftText;
         this.rightText = rightText;
@@ -45,11 +45,11 @@ public class QuestionMatchPair {
         return id;
     }
 
-    public Question getQuestion() {
+    public LessonQuestion getQuestion() {
         return question;
     }
 
-    public void setQuestion(Question question) {
+    public void setQuestion(LessonQuestion question) {
         this.question = question;
     }
 

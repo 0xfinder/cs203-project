@@ -12,9 +12,9 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-@Entity
-@Table(name = "questions")
-public class Question {
+@Entity(name = "LessonQuestion")
+@Table(name = "lesson_questions")
+public class LessonQuestion {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -36,10 +36,10 @@ public class Question {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    protected Question() {
+    protected LessonQuestion() {
     }
 
-    public Question(QuestionType questionType, String prompt, String explanation) {
+    public LessonQuestion(QuestionType questionType, String prompt, String explanation) {
         this.questionType = questionType;
         this.prompt = prompt;
         this.explanation = explanation;

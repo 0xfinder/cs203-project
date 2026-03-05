@@ -11,7 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "question_cloze_answers")
+@Table(name = "lesson_question_cloze_answers")
 public class QuestionClozeAnswer {
 
     @Id
@@ -20,7 +20,7 @@ public class QuestionClozeAnswer {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "question_id", nullable = false)
-    private Question question;
+    private LessonQuestion question;
 
     @Column(name = "answer_text", nullable = false)
     private String answerText;
@@ -31,7 +31,7 @@ public class QuestionClozeAnswer {
     protected QuestionClozeAnswer() {
     }
 
-    public QuestionClozeAnswer(Question question, String answerText, Integer orderIndex) {
+    public QuestionClozeAnswer(LessonQuestion question, String answerText, Integer orderIndex) {
         this.question = question;
         this.answerText = answerText;
         this.orderIndex = orderIndex;
@@ -41,11 +41,11 @@ public class QuestionClozeAnswer {
         return id;
     }
 
-    public Question getQuestion() {
+    public LessonQuestion getQuestion() {
         return question;
     }
 
-    public void setQuestion(Question question) {
+    public void setQuestion(LessonQuestion question) {
         this.question = question;
     }
 

@@ -7,9 +7,9 @@ import com.group7.app.lesson.model.Choice;
 import com.group7.app.lesson.model.Lesson;
 import com.group7.app.lesson.model.LessonAttempt;
 import com.group7.app.lesson.model.LessonAttemptResult;
+import com.group7.app.lesson.model.LessonQuestion;
 import com.group7.app.lesson.model.LessonStatus;
 import com.group7.app.lesson.model.LessonStep;
-import com.group7.app.lesson.model.Question;
 import com.group7.app.lesson.model.QuestionClozeAnswer;
 import com.group7.app.lesson.model.QuestionMatchPair;
 import com.group7.app.lesson.model.QuestionType;
@@ -292,7 +292,7 @@ public class LessonAttemptService {
     }
 
     private Evaluation evaluateAnswer(LessonStep step, AnswerInput input) {
-        Question question = step.getQuestion();
+        LessonQuestion question = step.getQuestion();
         if (question == null) {
             return new Evaluation(false, null, null);
         }

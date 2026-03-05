@@ -2,9 +2,9 @@ package com.group7.app.lesson.service;
 
 import com.group7.app.lesson.model.Choice;
 import com.group7.app.lesson.model.Lesson;
+import com.group7.app.lesson.model.LessonQuestion;
 import com.group7.app.lesson.model.LessonStatus;
 import com.group7.app.lesson.model.LessonStep;
-import com.group7.app.lesson.model.Question;
 import com.group7.app.lesson.model.QuestionClozeAnswer;
 import com.group7.app.lesson.model.QuestionMatchPair;
 import com.group7.app.lesson.model.QuestionType;
@@ -12,11 +12,11 @@ import com.group7.app.lesson.model.StepType;
 import com.group7.app.lesson.model.Unit;
 import com.group7.app.lesson.model.VocabItem;
 import com.group7.app.lesson.repository.ChoiceRepository;
+import com.group7.app.lesson.repository.LessonQuestionRepository;
 import com.group7.app.lesson.repository.LessonRepository;
 import com.group7.app.lesson.repository.LessonStepRepository;
 import com.group7.app.lesson.repository.QuestionClozeAnswerRepository;
 import com.group7.app.lesson.repository.QuestionMatchPairRepository;
-import com.group7.app.lesson.repository.QuestionRepository;
 import com.group7.app.lesson.repository.UnitRepository;
 import com.group7.app.lesson.repository.VocabItemRepository;
 import com.group7.app.user.Role;
@@ -26,7 +26,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -39,7 +38,7 @@ public class LessonService {
     private final LessonRepository lessonRepository;
     private final LessonStepRepository lessonStepRepository;
     private final VocabItemRepository vocabItemRepository;
-    private final QuestionRepository questionRepository;
+    private final LessonQuestionRepository lessonQuestionRepository;
     private final ChoiceRepository choiceRepository;
     private final QuestionClozeAnswerRepository questionClozeAnswerRepository;
     private final QuestionMatchPairRepository questionMatchPairRepository;
@@ -49,7 +48,7 @@ public class LessonService {
             LessonRepository lessonRepository,
             LessonStepRepository lessonStepRepository,
             VocabItemRepository vocabItemRepository,
-            QuestionRepository questionRepository,
+            LessonQuestionRepository lessonQuestionRepository,
             ChoiceRepository choiceRepository,
             QuestionClozeAnswerRepository questionClozeAnswerRepository,
             QuestionMatchPairRepository questionMatchPairRepository) {
@@ -57,7 +56,7 @@ public class LessonService {
         this.lessonRepository = lessonRepository;
         this.lessonStepRepository = lessonStepRepository;
         this.vocabItemRepository = vocabItemRepository;
-        this.questionRepository = questionRepository;
+        this.lessonQuestionRepository = lessonQuestionRepository;
         this.choiceRepository = choiceRepository;
         this.questionClozeAnswerRepository = questionClozeAnswerRepository;
         this.questionMatchPairRepository = questionMatchPairRepository;
@@ -185,7 +184,7 @@ public class LessonService {
         normalizeStepOrder(lessonId);
     }
 
-    public Question getQuestionForStep(LessonStep step) {
+    public LessonQuestion getQuestionForStep(LessonStep step) {
         if (step.getQuestion() == null) {
             return null;
         }
@@ -268,17 +267,17 @@ public class LessonService {
                 step.setQuestion(null);
             }
             case QUESTION -> {
-                Question question;
+                LessonQuestion question;
                 if (input.questionId() != null) {
-                    question = questionRepository.findById(input.questionId())
+                    question = lessonQuestionRepository.findById(input.questionId())
                             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "question not found"));
                 } else {
                     if (input.questionType() == null || isBlank(input.prompt())) {
                         throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                                 "questionType and prompt are required when questionId is not provided");
                     }
-                    question = new Question(input.questionType(), input.prompt().trim(), trimToNull(input.explanation()));
-                    question = questionRepository.save(question);
+                    question = new LessonQuestion(input.questionType(), input.prompt().trim(), trimToNull(input.explanation()));
+                    question = lessonQuestionRepository.save(question);
                     writeQuestionPayload(question, input);
                 }
                 step.setQuestion(question);
@@ -288,7 +287,7 @@ public class LessonService {
         }
     }
 
-    private void writeQuestionPayload(Question question, StepWriteInput input) {
+    private void writeQuestionPayload(LessonQuestion question, StepWriteInput input) {
         if (question.getQuestionType() == QuestionType.MCQ) {
             if (input.options() == null || input.options().size() < 2 || input.correctOptionIndex() == null) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

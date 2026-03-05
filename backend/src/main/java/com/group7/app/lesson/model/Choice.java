@@ -11,7 +11,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "choices")
+@Table(name = "lesson_choices")
 public class Choice {
 
     @Id
@@ -20,7 +20,7 @@ public class Choice {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "question_id", nullable = false)
-    private Question question;
+    private LessonQuestion question;
 
     @Column(nullable = false)
     private String text;
@@ -34,7 +34,7 @@ public class Choice {
     protected Choice() {
     }
 
-    public Choice(Question question, String text, boolean isCorrect, Integer orderIndex) {
+    public Choice(LessonQuestion question, String text, boolean isCorrect, Integer orderIndex) {
         this.question = question;
         this.text = text;
         this.isCorrect = isCorrect;
@@ -45,11 +45,11 @@ public class Choice {
         return id;
     }
 
-    public Question getQuestion() {
+    public LessonQuestion getQuestion() {
         return question;
     }
 
-    public void setQuestion(Question question) {
+    public void setQuestion(LessonQuestion question) {
         this.question = question;
     }
 
