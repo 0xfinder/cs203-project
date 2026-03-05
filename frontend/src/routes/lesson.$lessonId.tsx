@@ -24,6 +24,7 @@ function LessonPage() {
   const navigate = useNavigate();
   const { lessonId } = Route.useParams();
   const numericLessonId = Number(lessonId);
+  const hasValidLessonId = Number.isInteger(numericLessonId) && numericLessonId > 0;
 
   const { data, isLoading, error } = useLessonPlay(numericLessonId);
   const submitAttempt = useSubmitLessonAttempt();
@@ -56,11 +57,24 @@ function LessonPage() {
     setTempAnswer(answersByStep[currentStep.id] ?? "");
   }, [currentStep, answersByStep]);
 
+  if (!hasValidLessonId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="text-center">
+          <p className="text-xl text-muted-foreground">Invalid lesson ID</p>
+          <Button className="mt-4" onClick={() => navigate({ to: "/lessons" })}>
+            Back to Lessons
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return <div className="p-8 text-center">Loading lesson...</div>;
   }
 
-  if (error || !data || !currentStep) {
+  if (error || !data) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="text-center">
@@ -69,6 +83,24 @@ function LessonPage() {
             Back to Lessons
           </Button>
         </div>
+      </div>
+    );
+  }
+
+  if (!currentStep) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6 text-center">
+            <h2 className="text-xl font-semibold">Lesson Content Coming Soon</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              This lesson exists, but no steps have been published yet.
+            </p>
+            <Button className="mt-4" onClick={() => navigate({ to: "/lessons" })}>
+              Back to Lessons
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }

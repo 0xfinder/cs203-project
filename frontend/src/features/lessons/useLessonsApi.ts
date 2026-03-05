@@ -125,6 +125,8 @@ export function useLessonPlay(lessonId: number) {
     queryKey: [...LESSONS_KEY, "play", lessonId],
     queryFn: () => api.get(`lessons/${lessonId}/content`).json<LessonPlayResponse>(),
     enabled: Number.isFinite(lessonId),
+    // avoid long loading states on not-found/unauthorized responses
+    retry: false,
   });
 }
 
