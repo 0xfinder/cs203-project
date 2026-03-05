@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
 const navPriority: Partial<Record<AppNavPath, number>> = {
   "/lessons": 0,
-  "/dictionary": 1,
-  "/add": 2,
-  "/review": 3,
+  "/revise": 1,
+  "/dictionary": 2,
+  "/add": 3,
+  "/review": 4,
 };
 
 export const Route = createRootRoute({

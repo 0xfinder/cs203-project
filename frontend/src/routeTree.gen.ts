@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ReviseRouteImport } from './routes/revise'
 import { Route as ReviewRouteImport } from './routes/review'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -20,6 +21,11 @@ import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LessonLessonIdRouteImport } from './routes/lesson.$lessonId'
 
+const ReviseRoute = ReviseRouteImport.update({
+  id: '/revise',
+  path: '/revise',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ReviewRoute = ReviewRouteImport.update({
   id: '/review',
   path: '/review',
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/review': typeof ReviewRoute
+  '/revise': typeof ReviseRoute
   '/lesson/$lessonId': typeof LessonLessonIdRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/review': typeof ReviewRoute
+  '/revise': typeof ReviseRoute
   '/lesson/$lessonId': typeof LessonLessonIdRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/profile': typeof ProfileRoute
   '/review': typeof ReviewRoute
+  '/revise': typeof ReviseRoute
   '/lesson/$lessonId': typeof LessonLessonIdRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/profile'
     | '/review'
+    | '/revise'
     | '/lesson/$lessonId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/profile'
     | '/review'
+    | '/revise'
     | '/lesson/$lessonId'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/profile'
     | '/review'
+    | '/revise'
     | '/lesson/$lessonId'
   fileRoutesById: FileRoutesById
 }
@@ -157,11 +169,19 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   ProfileRoute: typeof ProfileRoute
   ReviewRoute: typeof ReviewRoute
+  ReviseRoute: typeof ReviseRoute
   LessonLessonIdRoute: typeof LessonLessonIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/revise': {
+      id: '/revise'
+      path: '/revise'
+      fullPath: '/revise'
+      preLoaderRoute: typeof ReviseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/review': {
       id: '/review'
       path: '/review'
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   ProfileRoute: ProfileRoute,
   ReviewRoute: ReviewRoute,
+  ReviseRoute: ReviseRoute,
   LessonLessonIdRoute: LessonLessonIdRoute,
 }
 export const routeTree = rootRouteImport
