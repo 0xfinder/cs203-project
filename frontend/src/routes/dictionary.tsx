@@ -1,10 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Search, BookOpen, Quote, Sparkles } from "lucide-react";
+import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { useContents, type ContentItem } from "@/features/content/useContentData";
+import {
+  useApprovedContentsWithVotes,
+  useCastContentVote,
+  useClearContentVote,
+  type ContentVoteType,
+  type ContentWithVotesResponse,
+} from "@/features/content/useContentData";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -16,42 +23,71 @@ export const Route = createFileRoute("/dictionary")({
 /* ── helpers ── */
 const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
 
+interface TermGroup {
+  term: string;
+  entries: ContentWithVotesResponse[];
+}
+
 function letterKey(term: string): string {
   const first = term.trim().charAt(0).toUpperCase();
   return /[A-Z]/.test(first) ? first : "#";
 }
 
-function groupByLetter(items: ContentItem[]): Record<string, ContentItem[]> {
-  const groups: Record<string, ContentItem[]> = {};
+function normalizeTerm(term: string): string {
+  return term.trim().toLowerCase();
+}
+
+function buildTermGroups(items: ContentWithVotesResponse[]): TermGroup[] {
+  const groups = new Map<string, TermGroup>();
+
   for (const item of items) {
-    const key = letterKey(item.term);
-    (groups[key] ??= []).push(item);
+    const key = normalizeTerm(item.content.term);
+    const existing = groups.get(key);
+    if (existing) {
+      existing.entries.push(item);
+    } else {
+      groups.set(key, { term: item.content.term.trim(), entries: [item] });
+    }
   }
-  // sort terms within each group
-  for (const key of Object.keys(groups)) {
-    groups[key].sort((a, b) => a.term.localeCompare(b.term));
+
+  return Array.from(groups.values()).sort((a, b) => a.term.localeCompare(b.term));
+}
+
+function groupByLetter(groups: TermGroup[]): Record<string, TermGroup[]> {
+  const grouped: Record<string, TermGroup[]> = {};
+  for (const group of groups) {
+    const key = letterKey(group.term);
+    (grouped[key] ??= []).push(group);
   }
-  return groups;
+  for (const key of Object.keys(grouped)) {
+    grouped[key].sort((a, b) => a.term.localeCompare(b.term));
+  }
+  return grouped;
 }
 
 function DictionaryPage() {
-  const { data: contents, isLoading, error } = useContents();
+  const { data: contents, isLoading, error } = useApprovedContentsWithVotes();
+  const castVote = useCastContentVote();
+  const clearVote = useClearContentVote();
   const [search, setSearch] = useState("");
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
-  const filtered = useMemo(() => {
-    if (!contents) return [];
-    const q = search.trim().toLowerCase();
-    if (!q) return contents;
-    return contents.filter(
-      (c) =>
-        c.term.toLowerCase().includes(q) ||
-        c.definition.toLowerCase().includes(q) ||
-        c.example?.toLowerCase().includes(q),
-    );
-  }, [contents, search]);
+  const termGroups = useMemo(() => (contents ? buildTermGroups(contents) : []), [contents]);
 
-  const grouped = useMemo(() => groupByLetter(filtered), [filtered]);
+  const filteredGroups = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return termGroups;
+    return termGroups.filter((group) => {
+      if (group.term.toLowerCase().includes(q)) return true;
+      return group.entries.some((entry) => {
+        const definitionMatch = entry.content.definition.toLowerCase().includes(q);
+        const exampleMatch = entry.content.example?.toLowerCase().includes(q);
+        return definitionMatch || exampleMatch;
+      });
+    });
+  }, [termGroups, search]);
+
+  const grouped = useMemo(() => groupByLetter(filteredGroups), [filteredGroups]);
 
   // letters that actually have content
   const availableLetters = useMemo(() => {
@@ -98,7 +134,7 @@ function DictionaryPage() {
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Sparkles className="size-3.5" />
             <span>
-              {filtered.length} {filtered.length === 1 ? "term" : "terms"}
+              {filteredGroups.length} {filteredGroups.length === 1 ? "term" : "terms"}
               {search && ` matching "${search}"`}
             </span>
           </div>
@@ -156,7 +192,7 @@ function DictionaryPage() {
       )}
 
       {/* empty state */}
-      {!isLoading && !error && filtered.length === 0 && (
+      {!isLoading && !error && filteredGroups.length === 0 && (
         <div className="py-20 text-center">
           <p className="mb-3 text-4xl">📖</p>
           {search ? (
@@ -193,26 +229,80 @@ function DictionaryPage() {
             </div>
 
             <div className="space-y-3">
-              {grouped[letter].map((item) => (
-                <Card key={item.id} className="transition-colors hover:border-primary/20">
-                  <CardContent className="space-y-2">
+              {grouped[letter].map((group) => (
+                <Card key={group.term} className="transition-colors hover:border-primary/20">
+                  <CardContent className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
-                      <h3 className="text-lg font-bold leading-tight">{item.term}</h3>
-                      <Badge variant="secondary" className="shrink-0 capitalize">
-                        {item.submittedBy.split("@")[0]}
+                      <h3 className="text-lg font-bold leading-tight">{group.term}</h3>
+                      <Badge variant="secondary" className="shrink-0">
+                        {group.entries.length} {group.entries.length === 1 ? "definition" : "definitions"}
                       </Badge>
                     </div>
 
-                    <p className="text-sm leading-relaxed text-muted-foreground">
-                      {item.definition}
-                    </p>
+                    <div className="space-y-3">
+                      {group.entries.map((entry) => {
+                        const userVote = entry.userVote;
+                        const voteBusy = castVote.isPending || clearVote.isPending;
 
-                    {item.example && (
-                      <div className="flex gap-2 rounded-lg bg-muted/50 px-3 py-2">
-                        <Quote className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
-                        <p className="text-sm italic text-muted-foreground">{item.example}</p>
-                      </div>
-                    )}
+                        const handleVote = (voteType: ContentVoteType) => {
+                          if (userVote === voteType) {
+                            clearVote.mutate({ contentId: entry.content.id });
+                          } else {
+                            castVote.mutate({ contentId: entry.content.id, voteType });
+                          }
+                        };
+
+                        return (
+                          <div
+                            key={entry.content.id}
+                            className="space-y-2 rounded-lg border border-border/60 bg-background/60 p-3"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <Badge variant="secondary" className="shrink-0 capitalize">
+                                {entry.submittedByDisplayName}
+                              </Badge>
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  type="button"
+                                  variant={userVote === "THUMBS_UP" ? "secondary" : "ghost"}
+                                  size="xs"
+                                  onClick={() => handleVote("THUMBS_UP")}
+                                  disabled={voteBusy}
+                                  className="gap-1"
+                                >
+                                  <ThumbsUp className="size-3" />
+                                  <span>{entry.thumbsUp}</span>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant={userVote === "THUMBS_DOWN" ? "secondary" : "ghost"}
+                                  size="xs"
+                                  onClick={() => handleVote("THUMBS_DOWN")}
+                                  disabled={voteBusy}
+                                  className="gap-1"
+                                >
+                                  <ThumbsDown className="size-3" />
+                                  <span>{entry.thumbsDown}</span>
+                                </Button>
+                              </div>
+                            </div>
+
+                            <p className="text-sm leading-relaxed text-muted-foreground">
+                              {entry.content.definition}
+                            </p>
+
+                            {entry.content.example && (
+                              <div className="flex gap-2 rounded-lg bg-muted/50 px-3 py-2">
+                                <Quote className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
+                                <p className="text-sm italic text-muted-foreground">
+                                  {entry.content.example}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </CardContent>
                 </Card>
               ))}
