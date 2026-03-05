@@ -88,6 +88,7 @@ export interface ProgressItem {
   bestScore: number;
   attempts: number;
   completedAt: string | null;
+  lastStepId: number | null;
 }
 
 export interface VocabMemoryItem {

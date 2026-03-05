@@ -9,6 +9,7 @@ import {
   type LessonAnswer,
   type LessonStepPayload,
   useLessonPlay,
+  useLessonProgress,
   useUpdateLessonProgress,
   useSubmitLessonAttempt,
 } from "@/features/lessons/useLessonsApi";
@@ -28,6 +29,7 @@ function LessonPage() {
   const hasValidLessonId = Number.isInteger(numericLessonId) && numericLessonId > 0;
 
   const { data, isLoading, error } = useLessonPlay(numericLessonId);
+  const { data: progressItems } = useLessonProgress();
   const submitAttempt = useSubmitLessonAttempt();
   const updateProgress = useUpdateLessonProgress();
 
@@ -38,6 +40,7 @@ function LessonPage() {
   const progressThrottleMs = 1200;
   const lastProgressSentAtRef = useRef(0);
   const pendingProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const resumeAppliedRef = useRef(false);
 
   useEffect(() => {
     setCurrentIndex(0);
@@ -45,6 +48,7 @@ function LessonPage() {
     setTempAnswer("");
     setResult(null);
     lastProgressSentAtRef.current = 0;
+    resumeAppliedRef.current = false;
     if (pendingProgressTimerRef.current) {
       clearTimeout(pendingProgressTimerRef.current);
       pendingProgressTimerRef.current = null;
@@ -86,6 +90,31 @@ function LessonPage() {
 
     setTempAnswer("");
   }, [currentStep, answersByStep]);
+
+  useEffect(() => {
+    if (resumeAppliedRef.current) {
+      return;
+    }
+    if (!data || steps.length === 0) {
+      return;
+    }
+
+    const progressItem = progressItems?.find((item) => item.lessonId === numericLessonId);
+    if (!progressItem?.lastStepId || progressItem.completedAt) {
+      resumeAppliedRef.current = true;
+      return;
+    }
+
+    const lastStepIndex = steps.findIndex((step) => step.id === progressItem.lastStepId);
+    if (lastStepIndex < 0) {
+      resumeAppliedRef.current = true;
+      return;
+    }
+
+    const resumeIndex = Math.min(lastStepIndex + 1, steps.length - 1);
+    setCurrentIndex(resumeIndex);
+    resumeAppliedRef.current = true;
+  }, [data, steps, progressItems, numericLessonId]);
 
   if (!hasValidLessonId) {
     return (

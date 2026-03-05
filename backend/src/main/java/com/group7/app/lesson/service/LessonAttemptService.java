@@ -162,12 +162,7 @@ public class LessonAttemptService {
 
     public List<ProgressItem> getProgress(User actor) {
         return userLessonProgressRepository.findByUserId(actor.getId()).stream()
-                .map(progress -> new ProgressItem(
-                        progress.getLesson().getId(),
-                        progress.getLesson().getTitle(),
-                        progress.getBestScore(),
-                        progress.getAttemptCount(),
-                        progress.getCompletedAt()))
+                .map(this::toProgressItem)
                 .toList();
     }
 
@@ -268,7 +263,8 @@ public class LessonAttemptService {
                 progress.getLesson().getTitle(),
                 progress.getBestScore(),
                 progress.getAttemptCount(),
-                progress.getCompletedAt());
+                progress.getCompletedAt(),
+                progress.getLastStep() == null ? null : progress.getLastStep().getId());
     }
 
     private void updateLessonVocabMemory(java.util.UUID userId, Long lessonId, boolean passed) {
@@ -424,7 +420,13 @@ public class LessonAttemptService {
             List<ResultItem> results) {
     }
 
-    public record ProgressItem(Long lessonId, String lessonTitle, int bestScore, int attempts, Instant completedAt) {
+    public record ProgressItem(
+            Long lessonId,
+            String lessonTitle,
+            int bestScore,
+            int attempts,
+            Instant completedAt,
+            Long lastStepId) {
     }
 
     public record VocabMemoryItem(
