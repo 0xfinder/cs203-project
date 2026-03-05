@@ -1,5 +1,6 @@
 package com.group7.app.lesson.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.group7.app.lesson.service.AuthContextService;
 import com.group7.app.lesson.service.LessonAttemptService;
 import com.group7.app.user.User;
@@ -92,7 +93,7 @@ public class LearningProgressController {
 
     public record AttemptAnswerRequest(
             @NotNull Long stepId,
-            String answer) {
+            JsonNode answer) {
     }
 
     public record SubmitVocabMemoryAttemptRequest(@NotNull List<VocabMemoryAnswerRequest> answers) {

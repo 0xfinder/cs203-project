@@ -1,7 +1,7 @@
 package com.group7.app.lesson.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.group7.app.lesson.model.Choice;
 import com.group7.app.lesson.model.Lesson;
@@ -297,7 +297,7 @@ public class LessonAttemptService {
             return new Evaluation(false, null, null);
         }
 
-        String submitted = input == null ? null : input.answer();
+        JsonNode submitted = input == null ? null : input.answer();
         QuestionType type = question.getQuestionType();
 
         if (type == QuestionType.MCQ) {
@@ -306,14 +306,14 @@ public class LessonAttemptService {
                     .filter(Choice::isCorrect)
                     .findFirst()
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "question has no correct choice"));
-            boolean correct = normalize(submitted).equals(normalize(correctChoice.getText()));
+            boolean correct = normalize(extractStringAnswer(submitted)).equals(normalize(correctChoice.getText()));
             return new Evaluation(correct, correctChoice.getText(), question.getExplanation());
         }
 
         if (type == QuestionType.CLOZE || type == QuestionType.SHORT_ANSWER) {
             List<QuestionClozeAnswer> acceptedAnswers =
                     questionClozeAnswerRepository.findByQuestionIdOrderByOrderIndexAsc(question.getId());
-            String normalizedSubmitted = normalize(submitted);
+            String normalizedSubmitted = normalize(extractStringAnswer(submitted));
             boolean correct = acceptedAnswers.stream()
                     .anyMatch(answer -> normalize(answer.getAnswerText()).equals(normalizedSubmitted));
             String expected = acceptedAnswers.stream().map(QuestionClozeAnswer::getAnswerText).findFirst().orElse("");
@@ -340,27 +340,45 @@ public class LessonAttemptService {
         return new Evaluation(false, null, question.getExplanation());
     }
 
-    private Map<String, String> parseMatchAnswer(String raw) {
-        if (raw == null || raw.isBlank()) {
+    private Map<String, String> parseMatchAnswer(JsonNode raw) {
+        if (raw == null || !raw.isObject()) {
             return Map.of();
         }
 
-        try {
-            Map<String, String> map = objectMapper.readValue(raw, new TypeReference<Map<String, String>>() {
-            });
-            Map<String, String> normalized = new HashMap<>();
-            for (Map.Entry<String, String> entry : map.entrySet()) {
-                normalized.put(normalize(entry.getKey()), normalize(entry.getValue()));
+        Map<String, String> normalized = new HashMap<>();
+        raw.fields().forEachRemaining(entry -> {
+            if (entry.getValue().isTextual()) {
+                normalized.put(normalize(entry.getKey()), normalize(entry.getValue().asText()));
             }
-            return normalized;
-        } catch (JsonProcessingException ex) {
-            return Map.of();
-        }
+        });
+        return normalized;
     }
 
-    private String asResponseJson(String answer) {
+    private String extractStringAnswer(JsonNode answer) {
+        if (answer == null || answer.isNull()) {
+            return null;
+        }
+
+        if (answer.isTextual()) {
+            return answer.asText();
+        }
+
+        if (answer.isObject()) {
+            JsonNode nestedAnswer = answer.get("answer");
+            if (nestedAnswer != null && nestedAnswer.isTextual()) {
+                return nestedAnswer.asText();
+            }
+        }
+
+        return answer.toString();
+    }
+
+    private String asResponseJson(JsonNode answer) {
+        if (answer == null || answer.isNull()) {
+            return "{}";
+        }
         try {
-            return objectMapper.writeValueAsString(Map.of("answer", answer));
+            return objectMapper.writeValueAsString(answer);
         } catch (JsonProcessingException e) {
             return "{}";
         }
@@ -376,7 +394,7 @@ public class LessonAttemptService {
     private record Evaluation(boolean correct, String correctAnswer, String explanation) {
     }
 
-    public record AnswerInput(Long stepId, String answer) {
+    public record AnswerInput(Long stepId, JsonNode answer) {
     }
 
     public record ResultItem(Long stepId, boolean correct, String correctAnswer, String explanation) {

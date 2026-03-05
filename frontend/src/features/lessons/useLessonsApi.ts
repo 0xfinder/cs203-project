@@ -39,6 +39,7 @@ export interface QuestionPayload {
   choices: ChoicePayload[];
   matchPairs: MatchPairPayload[];
   acceptedAnswers: string[];
+  shuffledRights: string[];
 }
 
 export interface VocabPayload {
@@ -62,6 +63,8 @@ export interface LessonPlayResponse {
   lesson: LessonSummary;
   steps: LessonStepPayload[];
 }
+
+export type LessonAnswer = string | Record<string, string>;
 
 export interface AttemptResultItem {
   stepId: number;
@@ -139,7 +142,7 @@ export function useSubmitLessonAttempt() {
       answers,
     }: {
       lessonId: number;
-      answers: Array<{ stepId: number; answer: string }>;
+      answers: Array<{ stepId: number; answer: LessonAnswer }>;
     }) =>
       api
         .post("lesson-attempts", {

@@ -18,6 +18,8 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -204,7 +206,7 @@ public class LessonController {
             return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, null, step.getDialogueText());
         }
 
-        LessonQuestion question = lessonService.getQuestionForStep(step);
+        LessonQuestion question = step.getQuestion();
         if (question == null) {
             return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, null, null);
         }
@@ -225,11 +227,16 @@ public class LessonController {
                     question.getExplanation(),
                     choices,
                     List.of(),
+                    List.of(),
                     List.of());
         } else if (question.getQuestionType() == QuestionType.MATCH) {
             List<MatchPairPayload> pairs = lessonService.getMatchPairs(question.getId()).stream()
                     .map(pair -> new MatchPairPayload(pair.getId(), pair.getLeftText(), pair.getRightText(), pair.getOrderIndex()))
                     .toList();
+            // provide right values as a shuffled list so the frontend can display
+            // draggable tiles without revealing the correct left-right mapping
+            List<String> shuffledRights = new ArrayList<>(pairs.stream().map(MatchPairPayload::right).toList());
+            Collections.shuffle(shuffledRights);
             payload = new QuestionPayload(
                     question.getId(),
                     question.getQuestionType(),
@@ -239,7 +246,8 @@ public class LessonController {
                     includeAnswers
                             ? pairs
                             : pairs.stream().map(pair -> new MatchPairPayload(pair.id(), pair.left(), null, pair.orderIndex())).toList(),
-                    List.of());
+                    List.of(),
+                    includeAnswers ? List.of() : shuffledRights);
         } else {
             List<String> acceptedAnswers = includeAnswers
                     ? lessonService.getClozeAnswers(question.getId()).stream().map(QuestionClozeAnswer::getAnswerText).toList()
@@ -251,7 +259,8 @@ public class LessonController {
                     question.getExplanation(),
                     List.of(),
                     List.of(),
-                    acceptedAnswers);
+                    acceptedAnswers,
+                    List.of());
         }
 
         return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, payload, null);
@@ -359,7 +368,8 @@ public class LessonController {
             String explanation,
             List<ChoicePayload> choices,
             List<MatchPairPayload> matchPairs,
-            List<String> acceptedAnswers) {
+            List<String> acceptedAnswers,
+            List<String> shuffledRights) {
     }
 
     public record ChoicePayload(Long id, String text, Boolean isCorrect, Integer orderIndex) {

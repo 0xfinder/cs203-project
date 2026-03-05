@@ -184,13 +184,6 @@ public class LessonService {
         normalizeStepOrder(lessonId);
     }
 
-    public LessonQuestion getQuestionForStep(LessonStep step) {
-        if (step.getQuestion() == null) {
-            return null;
-        }
-        return step.getQuestion();
-    }
-
     public List<Choice> getChoices(Long questionId) {
         return choiceRepository.findByQuestionIdOrderByOrderIndexAsc(questionId);
     }

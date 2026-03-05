@@ -3,15 +3,15 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { requireOnboardingCompleted } from "@/lib/auth";
-import { cn } from "@/lib/utils";
 import {
   type AttemptResult,
+  type LessonAnswer,
   type LessonStepPayload,
   useLessonPlay,
   useSubmitLessonAttempt,
 } from "@/features/lessons/useLessonsApi";
+import { QuestionStep } from "@/features/lessons/components/question-step";
 
 export const Route = createFileRoute("/lesson/$lessonId")({
   beforeLoad: async () => {
@@ -30,8 +30,8 @@ function LessonPage() {
   const submitAttempt = useSubmitLessonAttempt();
 
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [answersByStep, setAnswersByStep] = useState<Record<number, string>>({});
-  const [tempAnswer, setTempAnswer] = useState("");
+  const [answersByStep, setAnswersByStep] = useState<Record<number, LessonAnswer>>({});
+  const [tempAnswer, setTempAnswer] = useState<LessonAnswer>("");
   const [result, setResult] = useState<AttemptResult | null>(null);
 
   useEffect(() => {
@@ -54,7 +54,18 @@ function LessonPage() {
       return;
     }
 
-    setTempAnswer(answersByStep[currentStep.id] ?? "");
+    const existingAnswer = answersByStep[currentStep.id];
+    if (existingAnswer !== undefined) {
+      setTempAnswer(existingAnswer);
+      return;
+    }
+
+    if (currentStep.question?.questionType === "MATCH") {
+      setTempAnswer({});
+      return;
+    }
+
+    setTempAnswer("");
   }, [currentStep, answersByStep]);
 
   if (!hasValidLessonId) {
@@ -126,14 +137,24 @@ function LessonPage() {
 
   const canContinue = (() => {
     if (currentStep.stepType !== "QUESTION") return true;
-    return tempAnswer.trim().length > 0;
+    if (currentStep.question?.questionType === "MATCH") {
+      if (typeof tempAnswer === "string") return false;
+      const requiredPairs = currentStep.question.matchPairs.length;
+      const filled = currentStep.question.matchPairs.filter((pair) => {
+        const value = tempAnswer[pair.left];
+        return typeof value === "string" && value.trim().length > 0;
+      }).length;
+      return requiredPairs > 0 && filled === requiredPairs;
+    }
+    return typeof tempAnswer === "string" && tempAnswer.trim().length > 0;
   })();
 
   const persistCurrentAnswer = () => {
     if (currentStep.stepType !== "QUESTION") return;
+    const normalizedAnswer = typeof tempAnswer === "string" ? tempAnswer.trim() : tempAnswer;
     setAnswersByStep((prev) => ({
       ...prev,
-      [currentStep.id]: tempAnswer.trim(),
+      [currentStep.id]: normalizedAnswer,
     }));
   };
 
@@ -149,16 +170,19 @@ function LessonPage() {
 
     const finalAnswers = {
       ...answersByStep,
-      ...(currentStep.stepType === "QUESTION" ? { [currentStep.id]: tempAnswer.trim() } : {}),
+      ...(currentStep.stepType === "QUESTION"
+        ? { [currentStep.id]: typeof tempAnswer === "string" ? tempAnswer.trim() : tempAnswer }
+        : {}),
     };
 
     const payloadAnswers = questionSteps
       .map((step) => {
         const answer = finalAnswers[step.id];
-        if (!answer) return null;
+        if (answer === undefined) return null;
+        if (typeof answer === "string" && answer.length === 0) return null;
         return { stepId: step.id, answer };
       })
-      .filter((item): item is { stepId: number; answer: string } => item !== null);
+      .filter((item): item is { stepId: number; answer: LessonAnswer } => item !== null);
 
     const submission = await submitAttempt.mutateAsync({
       lessonId: numericLessonId,
@@ -206,7 +230,7 @@ function LessonPage() {
             onClick={() => {
               void goNext();
             }}
-            disabled={!canContinue || submitAttempt.isPending}
+            disabled={submitAttempt.isPending || !canContinue}
           >
             {isLast ? (submitAttempt.isPending ? "Submitting..." : "See Results") : "Continue"}
             <ArrowRight className="size-4" />
@@ -223,8 +247,8 @@ function StepBody({
   setTempAnswer,
 }: {
   step: LessonStepPayload;
-  tempAnswer: string;
-  setTempAnswer: (value: string) => void;
+  tempAnswer: LessonAnswer;
+  setTempAnswer: (value: LessonAnswer) => void;
 }) {
   if (step.stepType === "TEACH" && step.vocab) {
     return (
@@ -254,70 +278,7 @@ function StepBody({
     );
   }
 
-  if (!step.question) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <p>Question payload missing.</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (step.question.questionType === "MCQ") {
-    return (
-      <div>
-        <h2 className="mb-8 text-2xl font-bold sm:text-3xl">{step.question.prompt}</h2>
-        <div className="space-y-3">
-          {step.question.choices.map((choice) => {
-            const selected = tempAnswer === choice.text;
-            return (
-              <button
-                key={choice.id}
-                type="button"
-                onClick={() => setTempAnswer(choice.text)}
-                className={cn(
-                  "w-full rounded-xl border-2 p-4 text-left text-base font-medium transition-all sm:text-lg",
-                  selected
-                    ? "border-primary bg-primary/10 text-foreground"
-                    : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-accent",
-                )}
-              >
-                {choice.text}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  if (step.question.questionType === "MATCH") {
-    return (
-      <div>
-        <h2 className="mb-4 text-2xl font-bold sm:text-3xl">{step.question.prompt}</h2>
-        <p className="mb-3 text-sm text-muted-foreground">
-          Enter JSON object for matches, e.g. {'{"term":"meaning"}'}
-        </p>
-        <Input
-          value={tempAnswer}
-          onChange={(event) => setTempAnswer(event.target.value)}
-          placeholder='{"rizz":"charisma"}'
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div>
-      <h2 className="mb-4 text-2xl font-bold sm:text-3xl">{step.question.prompt}</h2>
-      <Input
-        value={tempAnswer}
-        onChange={(event) => setTempAnswer(event.target.value)}
-        placeholder="Type your answer"
-      />
-    </div>
-  );
+  return <QuestionStep step={step} value={tempAnswer} onChange={setTempAnswer} />;
 }
 
 function ResultView({
