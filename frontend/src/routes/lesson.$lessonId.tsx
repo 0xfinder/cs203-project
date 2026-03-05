@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import {
   type LessonAnswer,
   type LessonStepPayload,
   useLessonPlay,
+  useUpdateLessonProgress,
   useSubmitLessonAttempt,
 } from "@/features/lessons/useLessonsApi";
 import { QuestionStep } from "@/features/lessons/components/question-step";
@@ -28,18 +29,36 @@ function LessonPage() {
 
   const { data, isLoading, error } = useLessonPlay(numericLessonId);
   const submitAttempt = useSubmitLessonAttempt();
+  const updateProgress = useUpdateLessonProgress();
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answersByStep, setAnswersByStep] = useState<Record<number, LessonAnswer>>({});
   const [tempAnswer, setTempAnswer] = useState<LessonAnswer>("");
   const [result, setResult] = useState<AttemptResult | null>(null);
+  const progressThrottleMs = 1200;
+  const lastProgressSentAtRef = useRef(0);
+  const pendingProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     setCurrentIndex(0);
     setAnswersByStep({});
     setTempAnswer("");
     setResult(null);
+    lastProgressSentAtRef.current = 0;
+    if (pendingProgressTimerRef.current) {
+      clearTimeout(pendingProgressTimerRef.current);
+      pendingProgressTimerRef.current = null;
+    }
   }, [numericLessonId]);
+
+  useEffect(() => {
+    return () => {
+      if (pendingProgressTimerRef.current) {
+        clearTimeout(pendingProgressTimerRef.current);
+        pendingProgressTimerRef.current = null;
+      }
+    };
+  }, []);
 
   const steps = data?.steps ?? [];
   const currentStep = steps[currentIndex];
@@ -158,12 +177,41 @@ function LessonPage() {
     }));
   };
 
+  const queueProgressUpdate = (lastStepId: number) => {
+    const now = Date.now();
+    const elapsedMs = now - lastProgressSentAtRef.current;
+
+    const send = () => {
+      lastProgressSentAtRef.current = Date.now();
+      updateProgress.mutate({ lessonId: numericLessonId, lastStepId });
+    };
+
+    if (elapsedMs >= progressThrottleMs) {
+      if (pendingProgressTimerRef.current) {
+        clearTimeout(pendingProgressTimerRef.current);
+        pendingProgressTimerRef.current = null;
+      }
+      send();
+      return;
+    }
+
+    if (pendingProgressTimerRef.current) {
+      clearTimeout(pendingProgressTimerRef.current);
+    }
+
+    pendingProgressTimerRef.current = setTimeout(() => {
+      send();
+      pendingProgressTimerRef.current = null;
+    }, progressThrottleMs - elapsedMs);
+  };
+
   const goNext = async () => {
     if (!canContinue) return;
 
     persistCurrentAnswer();
 
     if (!isLast) {
+      queueProgressUpdate(currentStep.id);
       setCurrentIndex((value) => value + 1);
       return;
     }

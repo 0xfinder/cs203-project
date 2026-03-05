@@ -166,6 +166,22 @@ export function useLessonProgress() {
   });
 }
 
+export function useUpdateLessonProgress() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ lessonId, lastStepId }: { lessonId: number; lastStepId: number }) =>
+      api
+        .patch(`user-lesson-progress/${lessonId}`, {
+          json: { lastStepId },
+        })
+        .json<ProgressItem>(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: PROGRESS_KEY });
+    },
+  });
+}
+
 export function useVocabMemoryDue(limit: number = 20) {
   return useQuery({
     queryKey: [...VOCAB_MEMORY_KEY, "due", limit],
