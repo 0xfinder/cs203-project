@@ -15,7 +15,6 @@ import com.group7.app.lesson.model.QuestionMatchPair;
 import com.group7.app.lesson.model.QuestionType;
 import com.group7.app.lesson.model.StepType;
 import com.group7.app.lesson.model.UserLessonProgress;
-import com.group7.app.lesson.model.UserStepEvent;
 import com.group7.app.lesson.model.UserVocabMemory;
 import com.group7.app.lesson.model.VocabItem;
 import com.group7.app.lesson.repository.ChoiceRepository;
@@ -26,7 +25,6 @@ import com.group7.app.lesson.repository.LessonStepRepository;
 import com.group7.app.lesson.repository.QuestionClozeAnswerRepository;
 import com.group7.app.lesson.repository.QuestionMatchPairRepository;
 import com.group7.app.lesson.repository.UserLessonProgressRepository;
-import com.group7.app.lesson.repository.UserStepEventRepository;
 import com.group7.app.lesson.repository.UserVocabMemoryRepository;
 import com.group7.app.lesson.repository.VocabItemRepository;
 import com.group7.app.user.User;
@@ -56,7 +54,6 @@ public class LessonAttemptService {
     private final LessonAttemptRepository lessonAttemptRepository;
     private final LessonAttemptResultRepository lessonAttemptResultRepository;
     private final UserLessonProgressRepository userLessonProgressRepository;
-    private final UserStepEventRepository userStepEventRepository;
     private final UserVocabMemoryRepository userVocabMemoryRepository;
     private final VocabItemRepository vocabItemRepository;
     private final ObjectMapper objectMapper;
@@ -70,7 +67,6 @@ public class LessonAttemptService {
             LessonAttemptRepository lessonAttemptRepository,
             LessonAttemptResultRepository lessonAttemptResultRepository,
             UserLessonProgressRepository userLessonProgressRepository,
-            UserStepEventRepository userStepEventRepository,
             UserVocabMemoryRepository userVocabMemoryRepository,
             VocabItemRepository vocabItemRepository,
             ObjectMapper objectMapper) {
@@ -82,19 +78,13 @@ public class LessonAttemptService {
         this.lessonAttemptRepository = lessonAttemptRepository;
         this.lessonAttemptResultRepository = lessonAttemptResultRepository;
         this.userLessonProgressRepository = userLessonProgressRepository;
-        this.userStepEventRepository = userStepEventRepository;
         this.userVocabMemoryRepository = userVocabMemoryRepository;
         this.vocabItemRepository = vocabItemRepository;
         this.objectMapper = objectMapper;
     }
 
     public AttemptSubmissionResult submitAttempt(User actor, Long lessonId, List<AnswerInput> answers) {
-        Lesson lesson = lessonRepository.findById(lessonId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "lesson not found"));
-
-        if (lesson.getStatus() != LessonStatus.APPROVED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "only approved lessons can be attempted");
-        }
+        Lesson lesson = requireApprovedLesson(lessonId);
 
         List<LessonStep> questionSteps = lessonStepRepository.findByLessonIdAndQuestionIsNotNullOrderByOrderIndexAsc(lessonId);
         Map<Long, AnswerInput> answersByStep = new HashMap<>();
@@ -125,7 +115,6 @@ public class LessonAttemptService {
                 new LessonAttempt(actor.getId(), lesson, score, totalQuestions, correctCount, passed));
 
         List<LessonAttemptResult> attemptResults = new ArrayList<>();
-        List<UserStepEvent> userEvents = new ArrayList<>();
         for (ResultItem resultItem : resultItems) {
             AnswerInput input = answersByStep.get(resultItem.stepId());
             LessonStep step = questionSteps.stream()
@@ -141,14 +130,8 @@ public class LessonAttemptService {
                     submittedAnswer,
                     resultItem.correctAnswer(),
                     resultItem.explanation()));
-            userEvents.add(new UserStepEvent(
-                    actor.getId(),
-                    step,
-                    submittedAnswer == null ? "{}" : submittedAnswer,
-                    resultItem.correct()));
         }
         lessonAttemptResultRepository.saveAll(attemptResults);
-        userStepEventRepository.saveAll(userEvents);
 
         upsertProgress(actor.getId(), lesson, questionSteps, score, passed);
         updateLessonVocabMemory(actor.getId(), lessonId, passed);
@@ -234,6 +217,20 @@ public class LessonAttemptService {
         return listDueVocabMemory(actor, 20, true);
     }
 
+    public ProgressItem updateProgressPosition(User actor, Long lessonId, Long lastStepId) {
+        Lesson lesson = requireApprovedLesson(lessonId);
+        LessonStep lastStep = lessonStepRepository.findByIdAndLessonId(lastStepId, lessonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "lesson step not found"));
+
+        UserLessonProgress progress = userLessonProgressRepository
+                .findByUserIdAndLessonId(actor.getId(), lesson.getId())
+                .orElseGet(() -> new UserLessonProgress(actor.getId(), lesson));
+
+        progress.setLastStep(lastStep);
+        UserLessonProgress saved = userLessonProgressRepository.save(progress);
+        return toProgressItem(saved);
+    }
+
     private void upsertProgress(
             java.util.UUID userId,
             Lesson lesson,
@@ -254,6 +251,24 @@ public class LessonAttemptService {
         }
 
         userLessonProgressRepository.save(progress);
+    }
+
+    private Lesson requireApprovedLesson(Long lessonId) {
+        Lesson lesson = lessonRepository.findById(lessonId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "lesson not found"));
+        if (lesson.getStatus() != LessonStatus.APPROVED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "only approved lessons can be accessed by learners");
+        }
+        return lesson;
+    }
+
+    private ProgressItem toProgressItem(UserLessonProgress progress) {
+        return new ProgressItem(
+                progress.getLesson().getId(),
+                progress.getLesson().getTitle(),
+                progress.getBestScore(),
+                progress.getAttemptCount(),
+                progress.getCompletedAt());
     }
 
     private void updateLessonVocabMemory(java.util.UUID userId, Long lessonId, boolean passed) {

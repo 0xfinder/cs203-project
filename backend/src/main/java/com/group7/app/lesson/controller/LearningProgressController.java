@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -64,6 +65,16 @@ public class LearningProgressController {
         return lessonAttemptService.getProgress(actor);
     }
 
+    @PatchMapping("/user-lesson-progress/{lessonId}")
+    @Operation(summary = "Update current user lesson position")
+    public LessonAttemptService.ProgressItem updateProgressPosition(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long lessonId,
+            @Valid @RequestBody UpdateProgressRequest request) {
+        User actor = authContextService.resolveUser(jwt);
+        return lessonAttemptService.updateProgressPosition(actor, lessonId, request.lastStepId());
+    }
+
     @GetMapping("/vocab-memory")
     @Operation(summary = "Get vocab memory queue")
     public List<LessonAttemptService.VocabMemoryItem> getVocabMemory(
@@ -94,6 +105,9 @@ public class LearningProgressController {
     public record AttemptAnswerRequest(
             @NotNull Long stepId,
             JsonNode answer) {
+    }
+
+    public record UpdateProgressRequest(@NotNull Long lastStepId) {
     }
 
     public record SubmitVocabMemoryAttemptRequest(@NotNull List<VocabMemoryAnswerRequest> answers) {
