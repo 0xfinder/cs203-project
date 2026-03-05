@@ -18,29 +18,43 @@ public class ContentController {
     }
 
     // Contributor submits a new term
-    @PostMapping("/submit")
-    @Operation(summary = "Submit new content")
+    @PostMapping
+    @Operation(summary = "Create new content")
     // Added @Valid so Spring actually checks your @NotBlank and @Size constraints
     public Content submitContent(@Valid @RequestBody Content content) {
         return contentService.submitContent(content);
     }
 
-    // Admin approves a term with reviewer username and optional comment
-    @PutMapping("/approve/{id}")
-    @Operation(summary = "Approve pending content")
-    public Content approveContent(@PathVariable Long id,
+    // Admin reviews a term with reviewer username and optional comment
+    @PutMapping("/{id}/review")
+    @Operation(summary = "Review pending content")
+    public Content reviewContent(@PathVariable Long id,
             @RequestParam String reviewer,
+            @RequestParam String decision,
             @RequestParam(required = false) String reviewComment) {
-        return contentService.approveContent(id, reviewer, reviewComment);
-    }
+        if (decision == null || decision.isBlank()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                    org.springframework.http.HttpStatus.BAD_REQUEST,
+                    "decision is required");
+        }
 
-    // Admin rejects a term with reviewer username and comment
-    @PutMapping("/reject/{id}")
-    @Operation(summary = "Reject pending content")
-    public Content rejectContent(@PathVariable Long id,
-            @RequestParam String reviewer,
-            @RequestParam String reviewComment) {
-        return contentService.rejectContent(id, reviewer, reviewComment);
+        String normalizedDecision = decision.trim().toUpperCase();
+        if ("APPROVE".equals(normalizedDecision) || "APPROVED".equals(normalizedDecision)) {
+            return contentService.approveContent(id, reviewer, reviewComment);
+        }
+
+        if ("REJECT".equals(normalizedDecision) || "REJECTED".equals(normalizedDecision)) {
+            if (reviewComment == null || reviewComment.isBlank()) {
+                throw new org.springframework.web.server.ResponseStatusException(
+                        org.springframework.http.HttpStatus.BAD_REQUEST,
+                        "reviewComment is required when rejecting content");
+            }
+            return contentService.rejectContent(id, reviewer, reviewComment);
+        }
+
+        throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.BAD_REQUEST,
+                "decision must be APPROVE/APPROVED or REJECT/REJECTED");
     }
 
     // Get all approved terms (for normal users)

@@ -44,10 +44,23 @@ public class UserService {
     }
 
     @Transactional
-    public User updateProfile(UUID id, String displayName, Role role) {
+    public User updateProfile(
+            UUID id,
+            String displayName,
+            Role role,
+            String bio,
+            Integer age,
+            String gender,
+            String avatarColor,
+            String avatarPath) {
         User user = userRepository.findById(id).orElseThrow();
         user.setDisplayName(displayName);
         user.setRole(role);
+        user.setBio(bio);
+        user.setAge(age);
+        user.setGender(gender);
+        user.setAvatarColor(avatarColor);
+        user.setAvatarPath(avatarPath);
         return userRepository.save(user);
     }
 
