@@ -44,3 +44,13 @@ tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
 	environment("SPRINGDOTENV_DIRECTORY", projectDir.absolutePath)
 	environment("SPRINGDOTENV_FILENAME", ".env")
 }
+
+tasks.register<JavaExec>("applyStoragePolicy") {
+	group = "tools"
+	description = "Apply storage RLS policy for forum-media using JDBC"
+	classpath = sourceSets.main.get().runtimeClasspath
+	mainClass.set("com.group7.app.tools.ApplyStoragePolicy")
+	// ensure .env is available to the JVM
+	environment("SPRINGDOTENV_DIRECTORY", projectDir.absolutePath)
+	environment("SPRINGDOTENV_FILENAME", ".env")
+}

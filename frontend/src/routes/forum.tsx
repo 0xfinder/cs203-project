@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   MessageCircle,
   Plus,
@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Paperclip,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { RoleBadge } from "@/components/role-badge";
 import { getMe, type MeResponse } from "@/lib/me";
 import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/api";
+import { getValidAccessToken } from "@/lib/session";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/forum")({
@@ -40,8 +43,9 @@ type Question = {
 
 type UserProfile = MeResponse;
 
-const API = "http://localhost:8080/api/forum";
+const API = "forum";
 const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
+const FORUM_MEDIA_BUCKET = import.meta.env.VITE_SUPABASE_FORUM_BUCKET?.trim() || "forum-media";
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 function timeAgo(iso: string) {
@@ -63,6 +67,90 @@ function getInitials(name: string) {
       .join("")
       .toUpperCase() || "U"
   );
+}
+
+// Render content: convert markdown image/video links and plain URLs into <img> or <video>
+function renderContent(content: string) {
+  if (!content) return null;
+
+  type Part = { type: "text" | "img" | "video"; value: string };
+  const parts: Part[] = [];
+  const mdLink = /!\[\]\(([^)]+)\)/g;
+  let lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = mdLink.exec(content)) !== null) {
+    if (m.index > lastIndex) {
+      parts.push({ type: "text", value: content.slice(lastIndex, m.index) });
+    }
+    const url = m[1];
+    const isVideo = /\.(mp4|webm|ogg|mov)(?:\?|$)/i.test(url);
+    parts.push({ type: isVideo ? "video" : "img", value: url });
+    lastIndex = mdLink.lastIndex;
+  }
+  if (lastIndex < content.length) {
+    parts.push({ type: "text", value: content.slice(lastIndex) });
+  }
+
+  // Split text parts further into text + URL parts so plain links render as media
+  const urlRegex = /(https?:\/\/[\w\-./?=%&+#:,]+(?:\.(?:png|jpg|jpeg|gif|svg|mp4|webm|ogg|mov))(?:\?[^\s]*)?)/gi;
+  const rendered: JSX.Element[] = [];
+  parts.forEach((p, idx) => {
+    if (p.type === "img") {
+      rendered.push(
+        <div key={`img-${idx}`} className="my-2">
+          <img src={p.value} alt="attachment" className="max-h-48 w-auto rounded-md" />
+        </div>
+      );
+      return;
+    }
+    if (p.type === "video") {
+      rendered.push(
+        <div key={`vid-${idx}`} className="my-2">
+          <video src={p.value} controls className="max-h-56 w-auto rounded-md" />
+        </div>
+      );
+      return;
+    }
+
+    // for text parts, detect inline URLs that point to images/videos and split
+    const text = p.value;
+    let last = 0;
+    let um: RegExpExecArray | null;
+    while ((um = urlRegex.exec(text)) !== null) {
+      if (um.index > last) {
+        rendered.push(
+          <p key={`t-${idx}-${last}`} className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+            {text.slice(last, um.index)}
+          </p>
+        );
+      }
+      const url = um[1];
+      const isVideo = /\.(mp4|webm|ogg|mov)(?:\?|$)/i.test(url);
+      if (isVideo) {
+        rendered.push(
+          <div key={`vt-${idx}-${um.index}`} className="my-2">
+            <video src={url} controls className="max-h-56 w-auto rounded-md" />
+          </div>
+        );
+      } else {
+        rendered.push(
+          <div key={`it-${idx}-${um.index}`} className="my-2">
+            <img src={url} alt="attachment" className="max-h-48 w-auto rounded-md" />
+          </div>
+        );
+      }
+      last = urlRegex.lastIndex;
+    }
+    if (last < text.length) {
+      rendered.push(
+        <p key={`t-${idx}-end`} className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+          {text.slice(last)}
+        </p>
+      );
+    }
+  });
+
+  return <div>{rendered}</div>;
 }
 
 // deterministic palette of hex colors to match profile styling
@@ -143,10 +231,30 @@ function ForumPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [posting, setPosting] = useState(false);
+  const [selectedMediaFile, setSelectedMediaFile] = useState<File | null>(null);
+  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  
 
   const [answerDraft, setAnswerDraft] = useState<Record<number, string>>({});
   const [postingAnswer, setPostingAnswer] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [debugMessage, setDebugMessage] = useState<string | null>(null);
+  const debugTimeoutRef = useRef<number | null>(null);
+
+  function showDebug(msg: string) {
+    console.log(msg);
+    setDebugMessage(msg);
+    if (debugTimeoutRef.current) window.clearTimeout(debugTimeoutRef.current);
+    debugTimeoutRef.current = window.setTimeout(() => setDebugMessage(null), 3500);
+  }
+
+  useEffect(() => {
+    return () => {
+      if (debugTimeoutRef.current) window.clearTimeout(debugTimeoutRef.current);
+    };
+  }, []);
 
   /* ── load current user's spring profile ── */
   useEffect(() => {
@@ -178,20 +286,9 @@ function ForumPage() {
         } else {
           setCurrentUserAvatarUrl(null);
         }
-<<<<<<< HEAD
-        // capture user-selected avatar color from Supabase user metadata if present
-        setCurrentUserAvatarColor((metadata as any)?.avatar_color ?? null);
 
-        const res = await fetch(`${USER_API}/me`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error("Could not load user profile");
-
-        const userProfile: UserProfile = await res.json();
-        setProfile(userProfile);
-=======
->>>>>>> 89c3dab777e1563e3855a350950e4de74fdf5a11
+        // capture user-selected avatar color from the API response if present
+        setCurrentUserAvatarColor(userProfile.avatarColor ?? null);
       } catch (err) {
         setProfile(null);
         setCurrentUserAvatarUrl(null);
@@ -207,9 +304,7 @@ function ForumPage() {
   /* ── fetch questions (answers are embedded — no N+1) ── */
   const fetchQuestions = async () => {
     try {
-      const res = await fetch(`${API}/questions`);
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const data: Question[] = await res.json();
+      const data: Question[] = await api.get(`${API}/questions`).json();
       setQuestions(data);
       setError(null);
     } catch (e) {
@@ -233,18 +328,75 @@ function ForumPage() {
     if (!newTitle.trim() || !newContent.trim() || !canPost) return;
     setPosting(true);
     try {
-      const res = await fetch(`${API}/questions`, {
+      let contentToSend = newContent.trim();
+
+      // if a media file is selected, upload it to Supabase Storage and append
+      // a markdown link to the content so backend can store it as part of the question
+      if (selectedMediaFile) {
+        // sanitize filename to avoid characters that can cause storage 400 errors
+        const safeName = (selectedMediaFile.name || "file").replace(/\s+/g, "_").replace(/[^A-Za-z0-9._-]/g, "");
+        const mediaPath = `uploads/forum/${Date.now()}_${safeName}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from(FORUM_MEDIA_BUCKET)
+          .upload(mediaPath, selectedMediaFile, { upsert: true });
+
+        if (uploadError) {
+          console.error("Supabase upload error:", uploadError, uploadData);
+          throw new Error(uploadError.message || "Failed to upload media");
+        }
+
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from(FORUM_MEDIA_BUCKET)
+          .createSignedUrl(mediaPath, 60 * 60);
+
+        const mediaUrl = !signedError && signedData?.signedUrl ? signedData.signedUrl : null;
+        if (mediaUrl) {
+          // append as markdown image by default; users can paste other content too
+          contentToSend += `\n\n![](${mediaUrl})`;
+        }
+      }
+
+      // use explicit fetch with a valid bearer token to ensure the server
+      // receives a plain JSON object (avoids any double-encoding issues)
+      const token = await getValidAccessToken();
+      // ensure DB varchar(255) limits are respected (title/author)
+      const safeTitle = newTitle.trim().slice(0, 255);
+      const safeAuthor = authorName.slice(0, 255);
+      if (safeTitle.length < newTitle.trim().length) {
+        console.warn("Title truncated to 255 chars to fit DB column");
+      }
+      if (safeAuthor.length < authorName.length) {
+        console.warn("Author truncated to 255 chars to fit DB column");
+      }
+
+      const payload = {
+        title: safeTitle,
+        content: contentToSend,
+        author: safeAuthor,
+      };
+
+      // debug: log payload (will not include file binary)
+      console.debug("Posting question payload:", payload);
+
+      const res = await fetch("http://localhost:8080/api/forum/questions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: newTitle.trim(),
-          content: newContent.trim(),
-          author: authorName,
-        }),
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error("Failed to post question");
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => "<no body>");
+        console.error("POST /api/forum/questions failed:", res.status, text);
+        throw new Error(`Failed to post question: ${res.status} ${text}`);
+      }
       setNewTitle("");
       setNewContent("");
+      setSelectedMediaFile(null);
+      setMediaPreviewUrl(null);
       setShowAskForm(false);
       await fetchQuestions();
     } catch (e) {
@@ -256,19 +408,16 @@ function ForumPage() {
 
   /* ── post answer ── */
   const handlePostAnswer = async (qId: number) => {
-    const content = answerDraft[qId]?.trim();
+    let content = answerDraft[qId]?.trim();
     if (!content || !canPost) return;
     setPostingAnswer(qId);
     try {
-      const res = await fetch(`${API}/questions/${qId}/answers`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      await api.post(`${API}/questions/${qId}/answers`, {
+        json: {
           content,
           author: authorName,
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to post answer");
+        },
+      }).json();
       setAnswerDraft((prev) => ({ ...prev, [qId]: "" }));
       await fetchQuestions();
     } catch (e) {
@@ -281,18 +430,21 @@ function ForumPage() {
   /* ── deletes ── */
   const handleDeleteQuestion = async (qId: number) => {
     if (!confirm("Delete this question and all its answers?")) return;
-    await fetch(`${API}/questions/${qId}`, { method: "DELETE" });
+    await api.delete(`${API}/questions/${qId}`);
     await fetchQuestions();
   };
 
   const handleDeleteAnswer = async (aId: number) => {
-    await fetch(`${API}/answers/${aId}`, { method: "DELETE" });
+    await api.delete(`${API}/answers/${aId}`);
     await fetchQuestions();
   };
 
   /* ── render ── */
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
+      {debugMessage && (
+        <div className="mb-4 rounded-md border bg-yellow-50 px-3 py-2 text-sm text-yellow-900">Debug: {debugMessage}</div>
+      )}
       {/* page header */}
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
@@ -389,6 +541,62 @@ function ForumPage() {
               disabled={!canPost}
             />
 
+            {/* media input + preview */}
+            <div className="flex items-center gap-3">
+              <input
+                id="forum-file-input"
+                ref={(el) => (fileInputRef.current = el)}
+                type="file"
+                accept="image/*,video/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  const url = f ? URL.createObjectURL(f) : null;
+                  setSelectedMediaFile(f);
+                  setMediaPreviewUrl(url);
+                }}
+                disabled={!canPost}
+              />
+
+              <Button size="sm" variant="outline" asChild disabled={!canPost}>
+                <label htmlFor="forum-file-input" className="inline-flex items-center gap-2 cursor-pointer">
+                  Attach file
+                </label>
+              </Button>
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate text-sm text-muted-foreground">
+                    {selectedMediaFile ? selectedMediaFile.name : "No file chosen"}
+                  </span>
+                  {selectedMediaFile && (
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      onClick={() => {
+                        setSelectedMediaFile(null);
+                        setMediaPreviewUrl(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      title="Remove attachment"
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+
+                {mediaPreviewUrl && (
+                  <div className="mt-2 rounded-md overflow-hidden">
+                    {selectedMediaFile?.type.startsWith("video/") ? (
+                      <video src={mediaPreviewUrl} controls className="h-24 w-auto rounded-md" />
+                    ) : (
+                      <img src={mediaPreviewUrl} alt="preview" className="h-16 w-auto object-cover rounded-md" />
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
             {canPost && (
               <p className="text-xs text-muted-foreground">
                 Posting as <span className="font-semibold text-foreground">{authorName}</span>
@@ -461,9 +669,9 @@ function ForumPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <h3 className="text-base font-bold leading-snug">{q.title}</h3>
-                      <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
-                        {q.content}
-                      </p>
+                      <div className="mt-1.5">
+                        {renderContent(q.content)}
+                      </div>
                     </div>
                     {isOwner && (
                       <Button
@@ -536,9 +744,9 @@ function ForumPage() {
                                   </button>
                                 )}
                               </div>
-                              <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">
-                                {a.content}
-                              </p>
+                              <div className="mt-0.5">
+                                {renderContent(a.content)}
+                              </div>
                             </div>
                           </li>
                         ))}
@@ -546,28 +754,35 @@ function ForumPage() {
                     )}
 
                     {canPost ? (
-                      <div className="flex gap-2 pt-1">
-                        <Input
-                          placeholder="Go ahead and cook…"
-                          value={answerDraft[q.id] ?? ""}
-                          onChange={(e) =>
-                            setAnswerDraft((prev) => ({ ...prev, [q.id]: e.target.value }))
-                          }
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && !e.shiftKey) {
-                              e.preventDefault();
-                              void handlePostAnswer(q.id);
+                      <div className="space-y-2 pt-1">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Go ahead and cook…"
+                            value={answerDraft[q.id] ?? ""}
+                            onChange={(e) =>
+                              setAnswerDraft((prev) => ({ ...prev, [q.id]: e.target.value }))
                             }
-                          }}
-                          className="flex-1"
-                        />
-                        <Button
-                          size="sm"
-                          onClick={() => handlePostAnswer(q.id)}
-                          disabled={postingAnswer === q.id || !answerDraft[q.id]?.trim()}
-                        >
-                          {postingAnswer === q.id ? "…" : "Post"}
-                        </Button>
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                void handlePostAnswer(q.id);
+                              }
+                            }}
+                            className="flex-1"
+                          />
+
+                          {/* reply attachments removed by request */}
+
+                          <Button
+                            size="sm"
+                            onClick={() => handlePostAnswer(q.id)}
+                            disabled={postingAnswer === q.id || !answerDraft[q.id]?.trim()}
+                          >
+                            {postingAnswer === q.id ? "…" : "Post"}
+                          </Button>
+                        </div>
+
+                        {/* reply attachment preview removed */}
                       </div>
                     ) : profile && !onboardingDone ? (
                       <p className="text-xs italic text-chart-4">
