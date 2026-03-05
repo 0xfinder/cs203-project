@@ -71,8 +71,8 @@ public class LessonController {
         return toDetail(lesson, steps);
     }
 
-    @GetMapping("/{lessonId}/play")
-    @Operation(summary = "Get learner-safe lesson payload")
+    @GetMapping("/{lessonId}/content")
+    @Operation(summary = "Get learner-safe lesson content payload")
     public LessonPlayResponse getLessonForPlay(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable Long lessonId) {

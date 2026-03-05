@@ -123,7 +123,7 @@ export function useLessons(unitId?: number) {
 export function useLessonPlay(lessonId: number) {
   return useQuery({
     queryKey: [...LESSONS_KEY, "play", lessonId],
-    queryFn: () => api.get(`lessons/${lessonId}/play`).json<LessonPlayResponse>(),
+    queryFn: () => api.get(`lessons/${lessonId}/content`).json<LessonPlayResponse>(),
     enabled: Number.isFinite(lessonId),
   });
 }
