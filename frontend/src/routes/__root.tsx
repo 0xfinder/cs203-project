@@ -98,44 +98,39 @@ function RootComponent() {
         </div>
       </aside>
 
-      <div className="flex min-h-dvh min-w-0 flex-1 flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col pb-20 md:pb-0">
         <div className="flex flex-1 flex-col">
           <Outlet />
         </div>
       </div>
 
-      <nav
-        className="fixed inset-x-0 bottom-0 z-40 px-2 md:hidden"
-        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
-      >
-        <div className="rounded-2xl border bg-background/95 shadow-lg backdrop-blur">
-          <div
-            className="grid h-16"
-            style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
-          >
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isNavItemActive(pathname, item.to);
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  aria-label={item.label}
-                  className={cn(
-                    "flex items-center justify-center transition-colors",
-                    active ? "text-primary" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-6 w-6" />
-                  <span className="sr-only">{item.label}</span>
-                </Link>
-              );
-            })}
-          </div>
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
+        <div
+          className="grid h-16"
+          style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
+        >
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = isNavItemActive(pathname, item.to);
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                aria-label={item.label}
+                className={cn(
+                  "flex items-center justify-center transition-colors",
+                  active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Icon className="h-6 w-6" />
+                <span className="sr-only">{item.label}</span>
+              </Link>
+            );
+          })}
         </div>
       </nav>
 
-      <div className="pointer-events-none fixed inset-x-2 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] h-px bg-border md:hidden" />
+      <div className="pointer-events-none fixed inset-x-0 bottom-16 h-px bg-border md:hidden" />
       {showDevtools && <TanStackRouterDevtools />}
     </div>
   );
