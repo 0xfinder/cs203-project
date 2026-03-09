@@ -349,19 +349,6 @@ function LessonPage() {
       </div>
 
       <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 lg:py-10">
-        {currentUnit ? (
-          <div className="mb-5 lg:hidden">
-            <UnitRoadmap
-              unit={currentUnit}
-              progressItems={progressItems}
-              currentLessonId={numericLessonId}
-              title="Unit Lessons"
-              interactive
-              compact
-            />
-          </div>
-        ) : null}
-
         <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)]">
           {currentUnit ? (
             <aside className="hidden lg:block">

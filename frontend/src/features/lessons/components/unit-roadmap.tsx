@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Check, ChevronRight, Lock, Sparkles } from "lucide-react";
+import { Check, ChevronRight, Lock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -27,8 +27,8 @@ export function UnitRoadmap({
   const roadmap = getUnitRoadmap(unit, progressByLessonId, currentLessonId);
 
   return (
-    <Card className="overflow-hidden border-chart-1/20 bg-card/90 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.45)] backdrop-blur">
-      <CardHeader className="border-b border-border/70 bg-[radial-gradient(circle_at_top_left,rgba(244,165,70,0.16),transparent_45%),linear-gradient(135deg,rgba(255,247,237,0.95),rgba(255,255,255,0.85))]">
+    <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
+      <CardHeader className="border-b border-border/70 bg-secondary/20">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-[0.65rem] font-bold uppercase tracking-[0.28em] text-muted-foreground">
@@ -42,16 +42,16 @@ export function UnitRoadmap({
 
           <Badge
             variant="secondary"
-            className="rounded-full border border-chart-4/30 bg-chart-4/15 px-3 py-1 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-chart-3"
+            className="rounded-full border border-border bg-background px-3 py-1 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-foreground"
           >
             {roadmap.completedCount}/{roadmap.totalLessons}
           </Badge>
         </div>
 
         <div className="mt-4">
-          <div className="h-2 overflow-hidden rounded-full bg-secondary/80">
+          <div className="h-2 overflow-hidden rounded-full bg-border/70">
             <div
-              className="h-full rounded-full bg-[linear-gradient(90deg,var(--color-chart-1),var(--color-chart-4),var(--color-chart-2))] transition-all duration-500"
+              className="h-full rounded-full bg-chart-1/70 transition-all duration-500"
               style={{ width: `${roadmap.percentComplete}%` }}
             />
           </div>
@@ -68,24 +68,23 @@ export function UnitRoadmap({
             <div
               className={cn(
                 "group relative flex items-center gap-3 rounded-2xl border px-3 py-3 transition-all",
-                item.current &&
-                  "border-chart-1/35 bg-chart-1/8 shadow-[0_16px_35px_-26px_rgba(245,158,11,0.8)]",
+                item.current && "border-chart-1/25 bg-chart-1/6",
                 !item.current &&
                   item.unlocked &&
-                  "border-border/70 bg-background/70 hover:border-chart-1/25 hover:bg-chart-1/5",
-                !item.unlocked && "border-border/60 bg-muted/50 opacity-70",
+                  "border-border/70 bg-background hover:border-chart-1/20 hover:bg-secondary/20",
+                !item.unlocked && "border-border/60 bg-secondary/20 opacity-70",
               )}
             >
               <div
                 className={cn(
                   "flex size-10 shrink-0 items-center justify-center rounded-2xl border text-sm font-black",
                   item.completed && "border-success/40 bg-success/15 text-success",
-                  item.current && !item.completed && "border-chart-1/40 bg-chart-1/15 text-chart-1",
+                  item.current && !item.completed && "border-chart-1/30 bg-background text-chart-1",
                   !item.current &&
                     !item.completed &&
                     item.unlocked &&
                     "border-border bg-card text-foreground",
-                  !item.unlocked && "border-border bg-muted text-muted-foreground",
+                  !item.unlocked && "border-border bg-secondary text-muted-foreground",
                 )}
               >
                 {item.completed ? (
@@ -98,17 +97,7 @@ export function UnitRoadmap({
               </div>
 
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate text-sm font-bold">{item.lesson.title}</p>
-                  {item.current ? (
-                    <Badge
-                      variant="outline"
-                      className="rounded-full border-chart-1/30 bg-chart-1/10 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-chart-1"
-                    >
-                      live
-                    </Badge>
-                  ) : null}
-                </div>
+                <p className="truncate text-sm font-bold">{item.lesson.title}</p>
                 {item.lesson.learningObjective ? (
                   <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
                     {item.lesson.learningObjective}
@@ -146,16 +135,6 @@ export function UnitRoadmap({
             </Link>
           );
         })}
-
-        {roadmap.nextLesson ? (
-          <div className="rounded-2xl border border-chart-2/25 bg-chart-2/10 px-4 py-3 text-sm">
-            <p className="flex items-center gap-2 font-bold text-foreground">
-              <Sparkles className="size-4 text-chart-2" />
-              Recommended next lesson
-            </p>
-            <p className="mt-1 text-muted-foreground">{roadmap.nextLesson.title}</p>
-          </div>
-        ) : null}
       </CardContent>
     </Card>
   );
