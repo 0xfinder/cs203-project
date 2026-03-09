@@ -31,8 +31,17 @@ public class Lesson {
     @Column(nullable = false)
     private String title;
 
+    @Column(nullable = false, unique = true)
+    private String slug;
+
     @Column(nullable = false)
     private String description;
+
+    @Column(name = "learning_objective")
+    private String learningObjective;
+
+    @Column(name = "estimated_minutes")
+    private Integer estimatedMinutes;
 
     @Column(name = "order_index", nullable = false)
     private Integer orderIndex;
@@ -62,10 +71,21 @@ public class Lesson {
     protected Lesson() {
     }
 
-    public Lesson(Unit unit, String title, String description, Integer orderIndex, UUID createdBy) {
+    public Lesson(
+            Unit unit,
+            String title,
+            String slug,
+            String description,
+            String learningObjective,
+            Integer estimatedMinutes,
+            Integer orderIndex,
+            UUID createdBy) {
         this.unit = unit;
         this.title = title;
+        this.slug = slug;
         this.description = description;
+        this.learningObjective = learningObjective;
+        this.estimatedMinutes = estimatedMinutes;
         this.orderIndex = orderIndex;
         this.createdBy = createdBy;
     }
@@ -90,12 +110,36 @@ public class Lesson {
         this.title = title;
     }
 
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
     public String getDescription() {
         return description;
     }
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getLearningObjective() {
+        return learningObjective;
+    }
+
+    public void setLearningObjective(String learningObjective) {
+        this.learningObjective = learningObjective;
+    }
+
+    public Integer getEstimatedMinutes() {
+        return estimatedMinutes;
+    }
+
+    public void setEstimatedMinutes(Integer estimatedMinutes) {
+        this.estimatedMinutes = estimatedMinutes;
     }
 
     public Integer getOrderIndex() {

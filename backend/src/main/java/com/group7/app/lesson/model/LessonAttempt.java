@@ -40,8 +40,11 @@ public class LessonAttempt {
     @Column(nullable = false)
     private boolean passed;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+    @Column(name = "started_at", nullable = false, updatable = false)
+    private Instant startedAt;
+
+    @Column(name = "submitted_at", nullable = false)
+    private Instant submittedAt;
 
     protected LessonAttempt() {
     }
@@ -83,12 +86,18 @@ public class LessonAttempt {
         return passed;
     }
 
-    public Instant getCreatedAt() {
-        return createdAt;
+    public Instant getStartedAt() {
+        return startedAt;
+    }
+
+    public Instant getSubmittedAt() {
+        return submittedAt;
     }
 
     @PrePersist
     protected void onCreate() {
-        createdAt = Instant.now();
+        Instant now = Instant.now();
+        startedAt = now;
+        submittedAt = now;
     }
 }

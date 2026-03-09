@@ -1,27 +1,19 @@
 package com.group7.app.lesson.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.group7.app.lesson.model.Choice;
 import com.group7.app.lesson.model.Lesson;
 import com.group7.app.lesson.model.LessonAttempt;
 import com.group7.app.lesson.model.LessonAttemptResult;
-import com.group7.app.lesson.model.LessonQuestion;
 import com.group7.app.lesson.model.LessonStatus;
 import com.group7.app.lesson.model.LessonStep;
-import com.group7.app.lesson.model.QuestionClozeAnswer;
-import com.group7.app.lesson.model.QuestionMatchPair;
-import com.group7.app.lesson.model.QuestionType;
 import com.group7.app.lesson.model.StepType;
 import com.group7.app.lesson.model.UserLessonProgress;
 import com.group7.app.lesson.model.UserVocabMemory;
 import com.group7.app.lesson.model.VocabItem;
-import com.group7.app.lesson.repository.ChoiceRepository;
 import com.group7.app.lesson.repository.LessonAttemptRepository;
 import com.group7.app.lesson.repository.LessonAttemptResultRepository;
 import com.group7.app.lesson.repository.LessonRepository;
 import com.group7.app.lesson.repository.LessonStepRepository;
-import com.group7.app.lesson.repository.QuestionClozeAnswerRepository;
-import com.group7.app.lesson.repository.QuestionMatchPairRepository;
 import com.group7.app.lesson.repository.UserLessonProgressRepository;
 import com.group7.app.lesson.repository.UserVocabMemoryRepository;
 import com.group7.app.lesson.repository.VocabItemRepository;
@@ -46,9 +38,7 @@ public class LessonAttemptService {
 
     private final LessonRepository lessonRepository;
     private final LessonStepRepository lessonStepRepository;
-    private final ChoiceRepository choiceRepository;
-    private final QuestionClozeAnswerRepository questionClozeAnswerRepository;
-    private final QuestionMatchPairRepository questionMatchPairRepository;
+    private final LessonStepPayloadService lessonStepPayloadService;
     private final LessonAttemptRepository lessonAttemptRepository;
     private final LessonAttemptResultRepository lessonAttemptResultRepository;
     private final UserLessonProgressRepository userLessonProgressRepository;
@@ -57,9 +47,7 @@ public class LessonAttemptService {
     public LessonAttemptService(
             LessonRepository lessonRepository,
             LessonStepRepository lessonStepRepository,
-            ChoiceRepository choiceRepository,
-            QuestionClozeAnswerRepository questionClozeAnswerRepository,
-            QuestionMatchPairRepository questionMatchPairRepository,
+            LessonStepPayloadService lessonStepPayloadService,
             LessonAttemptRepository lessonAttemptRepository,
             LessonAttemptResultRepository lessonAttemptResultRepository,
             UserLessonProgressRepository userLessonProgressRepository,
@@ -67,9 +55,7 @@ public class LessonAttemptService {
             VocabItemRepository vocabItemRepository) {
         this.lessonRepository = lessonRepository;
         this.lessonStepRepository = lessonStepRepository;
-        this.choiceRepository = choiceRepository;
-        this.questionClozeAnswerRepository = questionClozeAnswerRepository;
-        this.questionMatchPairRepository = questionMatchPairRepository;
+        this.lessonStepPayloadService = lessonStepPayloadService;
         this.lessonAttemptRepository = lessonAttemptRepository;
         this.lessonAttemptResultRepository = lessonAttemptResultRepository;
         this.userLessonProgressRepository = userLessonProgressRepository;
@@ -80,7 +66,8 @@ public class LessonAttemptService {
     public AttemptSubmissionResult submitAttempt(User actor, Long lessonId, List<AnswerInput> answers) {
         Lesson lesson = requireApprovedLesson(lessonId);
 
-        List<LessonStep> questionSteps = lessonStepRepository.findByLessonIdAndQuestionIsNotNullOrderByOrderIndexAsc(lessonId);
+        List<LessonStep> questionSteps = lessonStepRepository.findByLessonIdAndStepTypeOrderByOrderIndexAsc(lessonId, StepType.QUESTION);
+        List<LessonStep> lessonSteps = lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lessonId);
         Map<Long, AnswerInput> answersByStep = new HashMap<>();
         for (AnswerInput answer : answers) {
             answersByStep.put(answer.stepId(), answer);
@@ -90,14 +77,14 @@ public class LessonAttemptService {
         List<ResultItem> resultItems = new ArrayList<>();
         for (LessonStep step : questionSteps) {
             AnswerInput input = answersByStep.get(step.getId());
-            Evaluation evaluation = evaluateAnswer(step, input);
+            LessonStepPayloadService.Evaluation evaluation = evaluateAnswer(step, input);
             if (evaluation.correct()) {
                 correctCount++;
             }
             resultItems.add(new ResultItem(
                     step.getId(),
                     evaluation.correct(),
-                    evaluation.correctAnswer(),
+                    evaluation.correctAnswerText(),
                     evaluation.explanation()));
         }
 
@@ -117,17 +104,20 @@ public class LessonAttemptService {
                     .orElseThrow();
 
             JsonNode submittedAnswer = input == null ? null : input.answer();
+            LessonStepPayloadService.Evaluation evaluation = evaluateAnswer(step, input);
             attemptResults.add(new LessonAttemptResult(
                     attempt,
                     step,
+                    lessonId,
                     resultItem.correct(),
                     submittedAnswer,
-                    resultItem.correctAnswer(),
+                    evaluation.evaluatedAnswer(),
                     resultItem.explanation()));
         }
         lessonAttemptResultRepository.saveAll(attemptResults);
 
-        upsertProgress(actor.getId(), lesson, questionSteps, score, passed);
+        LessonStep lastLessonStep = lessonSteps.isEmpty() ? null : lessonSteps.get(lessonSteps.size() - 1);
+        upsertProgress(actor.getId(), lesson, lastLessonStep, score, passed);
         updateLessonVocabMemory(actor.getId(), lessonId, passed);
 
         return new AttemptSubmissionResult(attempt.getId(), score, totalQuestions, correctCount, passed, resultItems);
@@ -141,7 +131,7 @@ public class LessonAttemptService {
                 .map(result -> new ResultItem(
                         result.getLessonStep().getId(),
                         result.isCorrect(),
-                        result.getCorrectAnswer(),
+                        renderEvaluatedAnswer(result.getEvaluatedAnswer()),
                         result.getExplanation()))
                 .toList();
 
@@ -173,7 +163,7 @@ public class LessonAttemptService {
         } else {
             memories = userVocabMemoryRepository.findByUserIdAndNextDueAtLessThanEqualOrderByNextDueAtAsc(
                     actor.getId(),
-                    Instant.ofEpochSecond(Long.MAX_VALUE),
+                    Instant.parse("9999-12-31T23:59:59Z"),
                     PageRequest.of(0, safeLimit));
         }
 
@@ -223,7 +213,7 @@ public class LessonAttemptService {
     private void upsertProgress(
             java.util.UUID userId,
             Lesson lesson,
-            List<LessonStep> questionSteps,
+            LessonStep lastLessonStep,
             int score,
             boolean passed) {
         UserLessonProgress progress = userLessonProgressRepository
@@ -232,8 +222,9 @@ public class LessonAttemptService {
 
         progress.setAttemptCount(progress.getAttemptCount() + 1);
         progress.setBestScore(Math.max(progress.getBestScore(), score));
-        if (!questionSteps.isEmpty()) {
-            progress.setLastStep(questionSteps.get(questionSteps.size() - 1));
+        progress.setLastAttemptAt(Instant.now());
+        if (lastLessonStep != null) {
+            progress.setLastStep(lastLessonStep);
         }
         if (passed && progress.getCompletedAt() == null) {
             progress.setCompletedAt(Instant.now());
@@ -296,96 +287,34 @@ public class LessonAttemptService {
         memory.setLastSeenAt(now);
     }
 
-    private Evaluation evaluateAnswer(LessonStep step, AnswerInput input) {
-        LessonQuestion question = step.getQuestion();
-        if (question == null) {
-            return new Evaluation(false, null, null);
-        }
-
+    private LessonStepPayloadService.Evaluation evaluateAnswer(LessonStep step, AnswerInput input) {
         JsonNode submitted = input == null ? null : input.answer();
-        QuestionType type = question.getQuestionType();
-
-        if (type == QuestionType.MCQ) {
-            List<Choice> choices = choiceRepository.findByQuestionIdOrderByOrderIndexAsc(question.getId());
-            Choice correctChoice = choices.stream()
-                    .filter(Choice::isCorrect)
-                    .findFirst()
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "question has no correct choice"));
-            boolean correct = normalize(extractStringAnswer(submitted)).equals(normalize(correctChoice.getText()));
-            return new Evaluation(correct, correctChoice.getText(), question.getExplanation());
-        }
-
-        if (type == QuestionType.CLOZE || type == QuestionType.SHORT_ANSWER) {
-            List<QuestionClozeAnswer> acceptedAnswers =
-                    questionClozeAnswerRepository.findByQuestionIdOrderByOrderIndexAsc(question.getId());
-            String normalizedSubmitted = normalize(extractStringAnswer(submitted));
-            boolean correct = acceptedAnswers.stream()
-                    .anyMatch(answer -> normalize(answer.getAnswerText()).equals(normalizedSubmitted));
-            String expected = acceptedAnswers.stream().map(QuestionClozeAnswer::getAnswerText).findFirst().orElse("");
-            return new Evaluation(correct, expected, question.getExplanation());
-        }
-
-        if (type == QuestionType.MATCH) {
-            List<QuestionMatchPair> expectedPairs =
-                    questionMatchPairRepository.findByQuestionIdOrderByOrderIndexAsc(question.getId());
-            Map<String, String> expectedMap = new HashMap<>();
-            for (QuestionMatchPair pair : expectedPairs) {
-                expectedMap.put(normalize(pair.getLeftText()), normalize(pair.getRightText()));
-            }
-
-            Map<String, String> submittedMap = parseMatchAnswer(submitted);
-            boolean correct = expectedMap.equals(submittedMap);
-            String expected = expectedPairs.stream()
-                    .map(pair -> pair.getLeftText() + " = " + pair.getRightText())
-                    .reduce((a, b) -> a + "; " + b)
-                    .orElse("");
-            return new Evaluation(correct, expected, question.getExplanation());
-        }
-
-        return new Evaluation(false, null, question.getExplanation());
+        return lessonStepPayloadService.evaluate(step, submitted);
     }
 
-    private Map<String, String> parseMatchAnswer(JsonNode raw) {
-        if (raw == null || !raw.isObject()) {
-            return Map.of();
-        }
-
-        Map<String, String> normalized = new HashMap<>();
-        raw.fields().forEachRemaining(entry -> {
-            if (entry.getValue().isTextual()) {
-                normalized.put(normalize(entry.getKey()), normalize(entry.getValue().asText()));
-            }
-        });
-        return normalized;
-    }
-
-    private String extractStringAnswer(JsonNode answer) {
-        if (answer == null || answer.isNull()) {
+    private String renderEvaluatedAnswer(JsonNode evaluatedAnswer) {
+        if (evaluatedAnswer == null || evaluatedAnswer.isNull()) {
             return null;
         }
-
-        if (answer.isTextual()) {
-            return answer.asText();
+        JsonNode text = evaluatedAnswer.get("text");
+        if (text != null && text.isTextual()) {
+            return text.asText();
         }
-
-        if (answer.isObject()) {
-            JsonNode nestedAnswer = answer.get("answer");
-            if (nestedAnswer != null && nestedAnswer.isTextual()) {
-                return nestedAnswer.asText();
+        JsonNode answers = evaluatedAnswer.get("acceptedAnswers");
+        if (answers != null && answers.isArray() && !answers.isEmpty() && answers.get(0).isTextual()) {
+            return answers.get(0).asText();
+        }
+        JsonNode pairs = evaluatedAnswer.get("pairs");
+        if (pairs != null && pairs.isArray()) {
+            List<String> rendered = new ArrayList<>();
+            for (JsonNode pair : pairs) {
+                String left = pair.path("left").asText("");
+                String right = pair.path("right").asText("");
+                rendered.add(left + " = " + right);
             }
+            return String.join("; ", rendered);
         }
-
-        return answer.toString();
-    }
-
-    private String normalize(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.trim().toLowerCase();
-    }
-
-    private record Evaluation(boolean correct, String correctAnswer, String explanation) {
+        return evaluatedAnswer.toString();
     }
 
     public record AnswerInput(Long stepId, JsonNode answer) {

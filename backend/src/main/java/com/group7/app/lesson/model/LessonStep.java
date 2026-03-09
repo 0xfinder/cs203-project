@@ -1,5 +1,6 @@
 package com.group7.app.lesson.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -14,6 +15,8 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "lesson_steps")
@@ -38,12 +41,9 @@ public class LessonStep {
     @JoinColumn(name = "vocab_item_id")
     private VocabItem vocabItem;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "question_id")
-    private LessonQuestion question;
-
-    @Column(name = "dialogue_text")
-    private String dialogueText;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
+    private JsonNode payload;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -96,20 +96,12 @@ public class LessonStep {
         this.vocabItem = vocabItem;
     }
 
-    public LessonQuestion getQuestion() {
-        return question;
+    public JsonNode getPayload() {
+        return payload;
     }
 
-    public void setQuestion(LessonQuestion question) {
-        this.question = question;
-    }
-
-    public String getDialogueText() {
-        return dialogueText;
-    }
-
-    public void setDialogueText(String dialogueText) {
-        this.dialogueText = dialogueText;
+    public void setPayload(JsonNode payload) {
+        this.payload = payload;
     }
 
     public Instant getCreatedAt() {
@@ -125,6 +117,9 @@ public class LessonStep {
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
+        if (payload == null) {
+            payload = com.fasterxml.jackson.databind.node.JsonNodeFactory.instance.objectNode();
+        }
     }
 
     @PreUpdate

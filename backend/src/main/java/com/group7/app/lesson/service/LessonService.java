@@ -1,29 +1,22 @@
 package com.group7.app.lesson.service;
 
-import com.group7.app.lesson.model.Choice;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.group7.app.lesson.model.Lesson;
-import com.group7.app.lesson.model.LessonQuestion;
 import com.group7.app.lesson.model.LessonStatus;
 import com.group7.app.lesson.model.LessonStep;
-import com.group7.app.lesson.model.QuestionClozeAnswer;
-import com.group7.app.lesson.model.QuestionMatchPair;
 import com.group7.app.lesson.model.QuestionType;
 import com.group7.app.lesson.model.StepType;
 import com.group7.app.lesson.model.Unit;
 import com.group7.app.lesson.model.VocabItem;
-import com.group7.app.lesson.repository.ChoiceRepository;
-import com.group7.app.lesson.repository.LessonQuestionRepository;
 import com.group7.app.lesson.repository.LessonRepository;
 import com.group7.app.lesson.repository.LessonStepRepository;
-import com.group7.app.lesson.repository.QuestionClozeAnswerRepository;
-import com.group7.app.lesson.repository.QuestionMatchPairRepository;
 import com.group7.app.lesson.repository.UnitRepository;
 import com.group7.app.lesson.repository.VocabItemRepository;
 import com.group7.app.user.Role;
 import com.group7.app.user.User;
 import jakarta.transaction.Transactional;
+import java.text.Normalizer;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.http.HttpStatus;
@@ -38,28 +31,19 @@ public class LessonService {
     private final LessonRepository lessonRepository;
     private final LessonStepRepository lessonStepRepository;
     private final VocabItemRepository vocabItemRepository;
-    private final LessonQuestionRepository lessonQuestionRepository;
-    private final ChoiceRepository choiceRepository;
-    private final QuestionClozeAnswerRepository questionClozeAnswerRepository;
-    private final QuestionMatchPairRepository questionMatchPairRepository;
+    private final LessonStepPayloadService lessonStepPayloadService;
 
     public LessonService(
             UnitRepository unitRepository,
             LessonRepository lessonRepository,
             LessonStepRepository lessonStepRepository,
             VocabItemRepository vocabItemRepository,
-            LessonQuestionRepository lessonQuestionRepository,
-            ChoiceRepository choiceRepository,
-            QuestionClozeAnswerRepository questionClozeAnswerRepository,
-            QuestionMatchPairRepository questionMatchPairRepository) {
+            LessonStepPayloadService lessonStepPayloadService) {
         this.unitRepository = unitRepository;
         this.lessonRepository = lessonRepository;
         this.lessonStepRepository = lessonStepRepository;
         this.vocabItemRepository = vocabItemRepository;
-        this.lessonQuestionRepository = lessonQuestionRepository;
-        this.choiceRepository = choiceRepository;
-        this.questionClozeAnswerRepository = questionClozeAnswerRepository;
-        this.questionMatchPairRepository = questionMatchPairRepository;
+        this.lessonStepPayloadService = lessonStepPayloadService;
     }
 
     public List<Unit> listUnits() {
@@ -71,7 +55,16 @@ public class LessonService {
         Unit unit = unitRepository.findById(input.unitId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "unit not found"));
 
-        Lesson lesson = new Lesson(unit, sanitize(input.title()), sanitize(input.description()), input.orderIndex(), actor.getId());
+        String title = sanitize(input.title());
+        Lesson lesson = new Lesson(
+                unit,
+                title,
+                slugify(title),
+                sanitize(input.description()),
+                trimToNull(input.learningObjective()),
+                input.estimatedMinutes(),
+                input.orderIndex(),
+                actor.getId());
         lesson.setStatus(LessonStatus.DRAFT);
         return lessonRepository.save(lesson);
     }
@@ -83,7 +76,12 @@ public class LessonService {
             applyStatusTransition(actor, lesson, input.status(), input.reviewComment());
         }
 
-        if (input.unitId() != null || input.title() != null || input.description() != null || input.orderIndex() != null) {
+        if (input.unitId() != null
+                || input.title() != null
+                || input.description() != null
+                || input.learningObjective() != null
+                || input.estimatedMinutes() != null
+                || input.orderIndex() != null) {
             if (lesson.getStatus() == LessonStatus.APPROVED && !isAdminOrModerator(actor)) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "approved lessons can only be edited by moderators/admin");
             }
@@ -96,10 +94,18 @@ public class LessonService {
                 lesson.setUnit(unit);
             }
             if (input.title() != null) {
-                lesson.setTitle(sanitize(input.title()));
+                String title = sanitize(input.title());
+                lesson.setTitle(title);
+                lesson.setSlug(slugify(title));
             }
             if (input.description() != null) {
                 lesson.setDescription(sanitize(input.description()));
+            }
+            if (input.learningObjective() != null) {
+                lesson.setLearningObjective(trimToNull(input.learningObjective()));
+            }
+            if (input.estimatedMinutes() != null) {
+                lesson.setEstimatedMinutes(input.estimatedMinutes());
             }
             if (input.orderIndex() != null) {
                 lesson.setOrderIndex(input.orderIndex());
@@ -184,20 +190,8 @@ public class LessonService {
         normalizeStepOrder(lessonId);
     }
 
-    public List<Choice> getChoices(Long questionId) {
-        return choiceRepository.findByQuestionIdOrderByOrderIndexAsc(questionId);
-    }
-
-    public List<QuestionClozeAnswer> getClozeAnswers(Long questionId) {
-        return questionClozeAnswerRepository.findByQuestionIdOrderByOrderIndexAsc(questionId);
-    }
-
-    public List<QuestionMatchPair> getMatchPairs(Long questionId) {
-        return questionMatchPairRepository.findByQuestionIdOrderByOrderIndexAsc(questionId);
-    }
-
     public List<LessonStep> getQuestionSteps(Long lessonId) {
-        return lessonStepRepository.findByLessonIdAndQuestionIsNotNullOrderByOrderIndexAsc(lessonId);
+        return lessonStepRepository.findByLessonIdAndStepTypeOrderByOrderIndexAsc(lessonId, StepType.QUESTION);
     }
 
     private void applyStatusTransition(User actor, Lesson lesson, LessonStatus targetStatus, String reviewComment) {
@@ -248,78 +242,39 @@ public class LessonService {
                 VocabItem vocabItem = vocabItemRepository.findById(input.vocabItemId())
                         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "vocab item not found"));
                 step.setVocabItem(vocabItem);
-                step.setQuestion(null);
-                step.setDialogueText(null);
+                step.setPayload(lessonStepPayloadService.buildTeachPayload(
+                        vocabItem.getTerm(),
+                        vocabItem.getDefinition(),
+                        vocabItem.getExampleSentence(),
+                        vocabItem.getPartOfSpeech()));
             }
             case DIALOGUE -> {
                 if (isBlank(input.dialogueText())) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "dialogueText is required for dialogue step");
                 }
-                step.setDialogueText(input.dialogueText().trim());
                 step.setVocabItem(null);
-                step.setQuestion(null);
+                step.setPayload(lessonStepPayloadService.buildDialoguePayload(input.dialogueText().trim()));
             }
             case QUESTION -> {
-                LessonQuestion question;
-                if (input.questionId() != null) {
-                    question = lessonQuestionRepository.findById(input.questionId())
-                            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "question not found"));
-                } else {
-                    if (input.questionType() == null || isBlank(input.prompt())) {
-                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                                "questionType and prompt are required when questionId is not provided");
-                    }
-                    question = new LessonQuestion(input.questionType(), input.prompt().trim(), trimToNull(input.explanation()));
-                    question = lessonQuestionRepository.save(question);
-                    writeQuestionPayload(question, input);
+                if (input.questionType() == null || isBlank(input.prompt())) {
+                    throw new ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "questionType and prompt are required for question steps");
                 }
-                step.setQuestion(question);
                 step.setVocabItem(null);
-                step.setDialogueText(null);
+                step.setPayload(lessonStepPayloadService.buildQuestionPayload(
+                        input.questionType(),
+                        input.prompt().trim(),
+                        trimToNull(input.explanation()),
+                        sanitizeList(input.options()),
+                        input.correctOptionIndex(),
+                        sanitizeList(input.acceptedAnswers()),
+                        sanitizePairs(input.matchPairs())));
             }
-        }
-    }
-
-    private void writeQuestionPayload(LessonQuestion question, StepWriteInput input) {
-        if (question.getQuestionType() == QuestionType.MCQ) {
-            if (input.options() == null || input.options().size() < 2 || input.correctOptionIndex() == null) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "mcq requires at least two options and correctOptionIndex");
+            case RECAP -> {
+                step.setVocabItem(null);
+                step.setPayload(lessonStepPayloadService.buildRecapPayload(input.payload()));
             }
-            if (input.correctOptionIndex() < 0 || input.correctOptionIndex() >= input.options().size()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "correctOptionIndex out of bounds");
-            }
-            List<Choice> choices = new ArrayList<>();
-            for (int i = 0; i < input.options().size(); i++) {
-                String text = sanitize(input.options().get(i));
-                choices.add(new Choice(question, text, i == input.correctOptionIndex(), i + 1));
-            }
-            choiceRepository.saveAll(choices);
-            return;
-        }
-
-        if (question.getQuestionType() == QuestionType.CLOZE || question.getQuestionType() == QuestionType.SHORT_ANSWER) {
-            if (input.acceptedAnswers() == null || input.acceptedAnswers().isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "acceptedAnswers is required for cloze/short answer");
-            }
-            List<QuestionClozeAnswer> answers = new ArrayList<>();
-            for (int i = 0; i < input.acceptedAnswers().size(); i++) {
-                answers.add(new QuestionClozeAnswer(question, sanitize(input.acceptedAnswers().get(i)), i + 1));
-            }
-            questionClozeAnswerRepository.saveAll(answers);
-            return;
-        }
-
-        if (question.getQuestionType() == QuestionType.MATCH) {
-            if (input.matchPairs() == null || input.matchPairs().isEmpty()) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "matchPairs is required for match type");
-            }
-            List<QuestionMatchPair> pairs = new ArrayList<>();
-            for (int i = 0; i < input.matchPairs().size(); i++) {
-                MatchPairInput pair = input.matchPairs().get(i);
-                pairs.add(new QuestionMatchPair(question, sanitize(pair.left()), sanitize(pair.right()), i + 1));
-            }
-            questionMatchPairRepository.saveAll(pairs);
         }
     }
 
@@ -410,13 +365,49 @@ public class LessonService {
         return value == null || value.trim().isEmpty();
     }
 
-    public record LessonDraftInput(Long unitId, String title, String description, Integer orderIndex) {
+    private static String slugify(String value) {
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}+", "")
+                .toLowerCase()
+                .replaceAll("[^a-z0-9]+", "-")
+                .replaceAll("(^-|-$)", "");
+        if (normalized.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "title cannot produce an empty slug");
+        }
+        return normalized;
+    }
+
+    private static List<String> sanitizeList(List<String> values) {
+        if (values == null) {
+            return null;
+        }
+        return values.stream().map(LessonService::sanitize).toList();
+    }
+
+    private static List<LessonStepPayloadService.MatchPairWrite> sanitizePairs(List<MatchPairInput> pairs) {
+        if (pairs == null) {
+            return null;
+        }
+        return pairs.stream()
+                .map(pair -> new LessonStepPayloadService.MatchPairWrite(sanitize(pair.left()), sanitize(pair.right())))
+                .toList();
+    }
+
+    public record LessonDraftInput(
+            Long unitId,
+            String title,
+            String description,
+            String learningObjective,
+            Integer estimatedMinutes,
+            Integer orderIndex) {
     }
 
     public record LessonPatchInput(
             Long unitId,
             String title,
             String description,
+            String learningObjective,
+            Integer estimatedMinutes,
             Integer orderIndex,
             LessonStatus status,
             String reviewComment) {
@@ -437,6 +428,7 @@ public class LessonService {
             Integer correctOptionIndex,
             List<String> acceptedAnswers,
             List<MatchPairInput> matchPairs,
-            String dialogueText) {
+            String dialogueText,
+            JsonNode payload) {
     }
 }

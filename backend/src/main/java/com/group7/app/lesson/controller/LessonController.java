@@ -1,16 +1,15 @@
 package com.group7.app.lesson.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.group7.app.lesson.model.Choice;
 import com.group7.app.lesson.model.Lesson;
-import com.group7.app.lesson.model.LessonQuestion;
 import com.group7.app.lesson.model.LessonStatus;
 import com.group7.app.lesson.model.LessonStep;
-import com.group7.app.lesson.model.QuestionClozeAnswer;
-import com.group7.app.lesson.model.QuestionMatchPair;
 import com.group7.app.lesson.model.QuestionType;
 import com.group7.app.lesson.model.StepType;
 import com.group7.app.lesson.service.AuthContextService;
 import com.group7.app.lesson.service.LessonService;
+import com.group7.app.lesson.service.LessonStepPayloadService;
 import com.group7.app.user.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,8 +17,6 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -40,10 +37,15 @@ import org.springframework.web.bind.annotation.RestController;
 public class LessonController {
 
     private final LessonService lessonService;
+    private final LessonStepPayloadService lessonStepPayloadService;
     private final AuthContextService authContextService;
 
-    public LessonController(LessonService lessonService, AuthContextService authContextService) {
+    public LessonController(
+            LessonService lessonService,
+            LessonStepPayloadService lessonStepPayloadService,
+            AuthContextService authContextService) {
         this.lessonService = lessonService;
+        this.lessonStepPayloadService = lessonStepPayloadService;
         this.authContextService = authContextService;
     }
 
@@ -98,6 +100,8 @@ public class LessonController {
                         request.unitId(),
                         request.title(),
                         request.description(),
+                        request.learningObjective(),
+                        request.estimatedMinutes(),
                         request.orderIndex()));
 
         return ResponseEntity
@@ -117,6 +121,8 @@ public class LessonController {
                         request.unitId(),
                         request.title(),
                         request.description(),
+                        request.learningObjective(),
+                        request.estimatedMinutes(),
                         request.orderIndex(),
                         request.status(),
                         request.reviewComment()));
@@ -169,6 +175,8 @@ public class LessonController {
                 lesson.getUnit().getId(),
                 lesson.getTitle(),
                 lesson.getDescription(),
+                lesson.getLearningObjective(),
+                lesson.getEstimatedMinutes(),
                 lesson.getOrderIndex(),
                 lesson.getStatus());
     }
@@ -179,6 +187,8 @@ public class LessonController {
                 lesson.getUnit().getId(),
                 lesson.getTitle(),
                 lesson.getDescription(),
+                lesson.getLearningObjective(),
+                lesson.getEstimatedMinutes(),
                 lesson.getOrderIndex(),
                 lesson.getStatus(),
                 lesson.getReviewComment(),
@@ -187,6 +197,10 @@ public class LessonController {
     }
 
     private StepResponse toStepResponse(LessonStep step, boolean includeAnswers) {
+        JsonNode responsePayload = includeAnswers
+                ? step.getPayload()
+                : lessonStepPayloadService.sanitizePayloadForPlay(step);
+
         if (step.getStepType() == StepType.TEACH && step.getVocabItem() != null) {
             return new StepResponse(
                     step.getId(),
@@ -199,71 +213,76 @@ public class LessonController {
                             step.getVocabItem().getExampleSentence(),
                             step.getVocabItem().getPartOfSpeech()),
                     null,
-                    null);
+                    null,
+                    responsePayload);
         }
 
         if (step.getStepType() == StepType.DIALOGUE) {
-            return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, null, step.getDialogueText());
+            return new StepResponse(
+                    step.getId(),
+                    step.getOrderIndex(),
+                    step.getStepType(),
+                    null,
+                    null,
+                    lessonStepPayloadService.readDialogueText(step),
+                    responsePayload);
         }
 
-        LessonQuestion question = step.getQuestion();
-        if (question == null) {
-            return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, null, null);
+        if (step.getStepType() == StepType.RECAP) {
+            return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, null, null, responsePayload);
         }
 
+        LessonStepPayloadService.QuestionContent question = lessonStepPayloadService.readQuestion(step);
         QuestionPayload payload;
-        if (question.getQuestionType() == QuestionType.MCQ) {
-            List<ChoicePayload> choices = lessonService.getChoices(question.getId()).stream()
+        if (question.questionType() == QuestionType.MCQ) {
+            long correctChoiceId = step.getPayload().path("answerKey").path("choiceId").asLong(-1L);
+            List<ChoicePayload> choices = question.choices().stream()
                     .map(choice -> new ChoicePayload(
-                            choice.getId(),
-                            choice.getText(),
-                            includeAnswers ? choice.isCorrect() : null,
-                            choice.getOrderIndex()))
+                            choice.id(),
+                            choice.text(),
+                            includeAnswers ? choice.id() == correctChoiceId : null,
+                            choice.orderIndex()))
                     .toList();
             payload = new QuestionPayload(
-                    question.getId(),
-                    question.getQuestionType(),
-                    question.getPrompt(),
-                    question.getExplanation(),
+                    step.getId(),
+                    question.questionType(),
+                    question.prompt(),
+                    question.explanation(),
                     choices,
                     List.of(),
                     List.of(),
                     List.of());
-        } else if (question.getQuestionType() == QuestionType.MATCH) {
-            List<MatchPairPayload> pairs = lessonService.getMatchPairs(question.getId()).stream()
-                    .map(pair -> new MatchPairPayload(pair.getId(), pair.getLeftText(), pair.getRightText(), pair.getOrderIndex()))
+        } else if (question.questionType() == QuestionType.MATCH) {
+            List<MatchPairPayload> pairs = question.matchPairs().stream()
+                    .map(pair -> new MatchPairPayload(pair.id(), pair.left(), pair.right(), pair.orderIndex()))
                     .toList();
-            // provide right values as a shuffled list so the frontend can display
-            // draggable tiles without revealing the correct left-right mapping
-            List<String> shuffledRights = new ArrayList<>(pairs.stream().map(MatchPairPayload::right).toList());
-            Collections.shuffle(shuffledRights);
             payload = new QuestionPayload(
-                    question.getId(),
-                    question.getQuestionType(),
-                    question.getPrompt(),
-                    question.getExplanation(),
+                    step.getId(),
+                    question.questionType(),
+                    question.prompt(),
+                    question.explanation(),
                     List.of(),
                     includeAnswers
                             ? pairs
                             : pairs.stream().map(pair -> new MatchPairPayload(pair.id(), pair.left(), null, pair.orderIndex())).toList(),
                     List.of(),
-                    includeAnswers ? List.of() : shuffledRights);
+                    includeAnswers ? List.of() : lessonStepPayloadService.shuffledRights(question));
         } else {
             List<String> acceptedAnswers = includeAnswers
-                    ? lessonService.getClozeAnswers(question.getId()).stream().map(QuestionClozeAnswer::getAnswerText).toList()
+                    ? question.acceptedAnswers()
                     : List.of();
             payload = new QuestionPayload(
-                    question.getId(),
-                    question.getQuestionType(),
-                    question.getPrompt(),
-                    question.getExplanation(),
+                    step.getId(),
+                    question.questionType(),
+                    question.prompt(),
+                    question.explanation(),
                     List.of(),
                     List.of(),
                     acceptedAnswers,
                     List.of());
         }
 
-        return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, payload, null);
+        return new StepResponse(step.getId(), step.getOrderIndex(), step.getStepType(), null, payload, null, responsePayload);
     }
 
     private LessonService.StepWriteInput toStepWriteInput(StepWriteRequest request) {
@@ -283,13 +302,16 @@ public class LessonController {
                 request.correctOptionIndex(),
                 request.acceptedAnswers(),
                 pairs,
-                request.dialogueText());
+                request.dialogueText(),
+                request.payload());
     }
 
     public record CreateLessonRequest(
             @NotNull Long unitId,
             @NotBlank String title,
             @NotBlank String description,
+            String learningObjective,
+            Integer estimatedMinutes,
             @NotNull Integer orderIndex) {
     }
 
@@ -297,6 +319,8 @@ public class LessonController {
             Long unitId,
             String title,
             String description,
+            String learningObjective,
+            Integer estimatedMinutes,
             Integer orderIndex,
             LessonStatus status,
             String reviewComment) {
@@ -314,7 +338,8 @@ public class LessonController {
             Integer correctOptionIndex,
             List<String> acceptedAnswers,
             List<MatchPairRequest> matchPairs,
-            String dialogueText) {
+            String dialogueText,
+            JsonNode payload) {
     }
 
     public record MatchPairRequest(String left, String right) {
@@ -325,6 +350,8 @@ public class LessonController {
             Long unitId,
             String title,
             String description,
+            String learningObjective,
+            Integer estimatedMinutes,
             Integer orderIndex,
             LessonStatus status) {
     }
@@ -334,6 +361,8 @@ public class LessonController {
             Long unitId,
             String title,
             String description,
+            String learningObjective,
+            Integer estimatedMinutes,
             Integer orderIndex,
             LessonStatus status,
             String reviewComment,
@@ -350,7 +379,8 @@ public class LessonController {
             StepType stepType,
             VocabPayload vocab,
             QuestionPayload question,
-            String dialogueText) {
+            String dialogueText,
+            JsonNode payload) {
     }
 
     public record VocabPayload(

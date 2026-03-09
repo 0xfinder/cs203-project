@@ -21,6 +21,12 @@ public class Unit {
     @Column(nullable = false, unique = true, length = 120)
     private String title;
 
+    @Column(nullable = false, unique = true, length = 160)
+    private String slug;
+
+    @Column
+    private String description;
+
     @Column(name = "order_index", nullable = false, unique = true)
     private Integer orderIndex;
 
@@ -33,8 +39,10 @@ public class Unit {
     protected Unit() {
     }
 
-    public Unit(String title, Integer orderIndex) {
+    public Unit(String title, String slug, String description, Integer orderIndex) {
         this.title = title;
+        this.slug = slug;
+        this.description = description;
         this.orderIndex = orderIndex;
     }
 
@@ -48,6 +56,22 @@ public class Unit {
 
     public void setTitle(String title) {
         this.title = title;
+    }
+
+    public String getSlug() {
+        return slug;
+    }
+
+    public void setSlug(String slug) {
+        this.slug = slug;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 
     public Integer getOrderIndex() {

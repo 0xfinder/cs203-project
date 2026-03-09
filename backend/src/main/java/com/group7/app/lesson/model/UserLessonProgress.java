@@ -42,6 +42,9 @@ public class UserLessonProgress {
     @Column(name = "completed_at")
     private Instant completedAt;
 
+    @Column(name = "last_attempt_at")
+    private Instant lastAttemptAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -98,6 +101,14 @@ public class UserLessonProgress {
 
     public void setCompletedAt(Instant completedAt) {
         this.completedAt = completedAt;
+    }
+
+    public Instant getLastAttemptAt() {
+        return lastAttemptAt;
+    }
+
+    public void setLastAttemptAt(Instant lastAttemptAt) {
+        this.lastAttemptAt = lastAttemptAt;
     }
 
     public Instant getCreatedAt() {

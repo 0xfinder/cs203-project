@@ -195,7 +195,7 @@ begin
 end $$;
 
 -- seeds one complete approved lesson flow for local lesson playback testing.
--- safe to re-run: replaces only this seed lesson and its known seed questions.
+-- safe to re-run: replaces only this seed lesson and its known vocab-backed steps.
 
 do $$
 declare
@@ -203,10 +203,6 @@ declare
     has_lessons_table boolean;
     has_steps_table boolean;
     has_vocab_table boolean;
-    has_lesson_questions_table boolean;
-    has_lesson_choices_table boolean;
-    has_lesson_cloze_table boolean;
-    has_lesson_match_table boolean;
     unit_id bigint;
     lesson_id bigint;
     lesson_order integer;
@@ -214,11 +210,6 @@ declare
     vocab_cap_id bigint;
     vocab_no_cap_id bigint;
     vocab_bussin_id bigint;
-    q1_id bigint;
-    q2_id bigint;
-    q3_id bigint;
-    q4_id bigint;
-    q5_id bigint;
 begin
     select exists (
         select 1 from information_schema.tables
@@ -240,34 +231,10 @@ begin
         where table_schema = 'public' and table_name = 'vocab_items'
     ) into has_vocab_table;
 
-    select exists (
-        select 1 from information_schema.tables
-        where table_schema = 'public' and table_name = 'lesson_questions'
-    ) into has_lesson_questions_table;
-
-    select exists (
-        select 1 from information_schema.tables
-        where table_schema = 'public' and table_name = 'lesson_choices'
-    ) into has_lesson_choices_table;
-
-    select exists (
-        select 1 from information_schema.tables
-        where table_schema = 'public' and table_name = 'lesson_question_cloze_answers'
-    ) into has_lesson_cloze_table;
-
-    select exists (
-        select 1 from information_schema.tables
-        where table_schema = 'public' and table_name = 'lesson_question_match_pairs'
-    ) into has_lesson_match_table;
-
     if not has_units_table
        or not has_lessons_table
        or not has_steps_table
-       or not has_vocab_table
-       or not has_lesson_questions_table
-       or not has_lesson_choices_table
-       or not has_lesson_cloze_table
-       or not has_lesson_match_table then
+       or not has_vocab_table then
         raise notice 'lesson seed skipped: required lesson tables not found';
         return;
     end if;
@@ -284,19 +251,12 @@ begin
     where title = 'The Basics'
       and description = 'seed_local_basics';
 
-    delete from public.lesson_questions
-    where prompt in (
-        'What does "rizz" mean?',
-        'Complete the sentence: "No way, that''s ___."',
-        'Which phrase means "for real"?',
-        'Match each term to the correct meaning.',
-        'If a meal is "bussin", it is...'
-    );
-
-    insert into public.units (title, order_index, created_at, updated_at)
-    values ('internet slang', 1, now(), now())
+    insert into public.units (title, slug, description, order_index, created_at, updated_at)
+    values ('internet slang', 'internet-slang', 'seed local lesson unit', 1, now(), now())
     on conflict (order_index) do update
     set title = excluded.title,
+        slug = excluded.slug,
+        description = excluded.description,
         updated_at = now();
 
     select id into unit_id
@@ -310,7 +270,10 @@ begin
     insert into public.lessons (
         unit_id,
         title,
+        slug,
         description,
+        learning_objective,
+        estimated_minutes,
         order_index,
         status,
         published_at,
@@ -319,7 +282,10 @@ begin
     ) values (
         unit_id,
         'The Basics',
+        'the-basics',
         'seed_local_basics',
+        'Understand and apply a few foundational Gen Alpha slang terms.',
+        5,
         lesson_order,
         'APPROVED',
         now(),
@@ -392,105 +358,182 @@ begin
         updated_at = now()
     returning id into vocab_bussin_id;
 
-    insert into public.lesson_questions (question_type, prompt, explanation, created_at, updated_at)
-    values (
-        'MCQ',
-        'What does "rizz" mean?',
-        'Rizz means charisma, especially in social situations.',
-        now(),
-        now()
-    )
-    returning id into q1_id;
-
-    insert into public.lesson_choices (question_id, text, is_correct, order_index)
-    values
-        (q1_id, 'Charisma or flirting ability', true, 1),
-        (q1_id, 'A type of food', false, 2),
-        (q1_id, 'Being sleepy', false, 3),
-        (q1_id, 'Skipping class', false, 4);
-
-    insert into public.lesson_questions (question_type, prompt, explanation, created_at, updated_at)
-    values (
-        'CLOZE',
-        'Complete the sentence: "No way, that''s ___."',
-        'Cap means a lie.',
-        now(),
-        now()
-    )
-    returning id into q2_id;
-
-    insert into public.lesson_question_cloze_answers (question_id, answer_text, order_index)
-    values
-        (q2_id, 'cap', 1);
-
-    insert into public.lesson_questions (question_type, prompt, explanation, created_at, updated_at)
-    values (
-        'MCQ',
-        'Which phrase means "for real"?',
-        'No cap means someone is being honest.',
-        now(),
-        now()
-    )
-    returning id into q3_id;
-
-    insert into public.lesson_choices (question_id, text, is_correct, order_index)
-    values
-        (q3_id, 'no cap', true, 1),
-        (q3_id, 'on read', false, 2),
-        (q3_id, 'ghosting', false, 3),
-        (q3_id, 'mid', false, 4);
-
-    insert into public.lesson_questions (question_type, prompt, explanation, created_at, updated_at)
-    values (
-        'MATCH',
-        'Match each term to the correct meaning.',
-        'Pair slang terms with their definitions.',
-        now(),
-        now()
-    )
-    returning id into q4_id;
-
-    insert into public.lesson_question_match_pairs (question_id, left_text, right_text, order_index)
-    values
-        (q4_id, 'rizz', 'charisma or flirting ability', 1),
-        (q4_id, 'cap', 'a lie', 2),
-        (q4_id, 'no cap', 'for real / no lie', 3);
-
-    insert into public.lesson_questions (question_type, prompt, explanation, created_at, updated_at)
-    values (
-        'MCQ',
-        'If a meal is "bussin", it is...',
-        'Bussin means really good, commonly used for food.',
-        now(),
-        now()
-    )
-    returning id into q5_id;
-
-    insert into public.lesson_choices (question_id, text, is_correct, order_index)
-    values
-        (q5_id, 'Bland', false, 1),
-        (q5_id, 'Really good', true, 2),
-        (q5_id, 'Undercooked', false, 3),
-        (q5_id, 'Expensive', false, 4);
-
     insert into public.lesson_steps (
         lesson_id,
         order_index,
         step_type,
         vocab_item_id,
-        question_id,
-        dialogue_text,
+        payload,
         created_at,
         updated_at
     ) values
-        (lesson_id, 1, 'TEACH', vocab_rizz_id, null, null, now(), now()),
-        (lesson_id, 2, 'QUESTION', null, q1_id, null, now(), now()),
-        (lesson_id, 3, 'TEACH', vocab_cap_id, null, null, now(), now()),
-        (lesson_id, 4, 'QUESTION', null, q2_id, null, now(), now()),
-        (lesson_id, 5, 'DIALOGUE', null, null, 'A: I finished everything in five minutes.\nB: That sounds like cap.', now(), now()),
-        (lesson_id, 6, 'TEACH', vocab_no_cap_id, null, null, now(), now()),
-        (lesson_id, 7, 'QUESTION', null, q3_id, null, now(), now()),
-        (lesson_id, 8, 'QUESTION', null, q4_id, null, now(), now()),
-        (lesson_id, 9, 'TEACH', vocab_bussin_id, null, null, now(), now()),
-        (lesson_id, 10, 'QUESTION', null, q5_id, null, now(), now());
+        (
+            lesson_id,
+            1,
+            'TEACH',
+            vocab_rizz_id,
+            jsonb_build_object(
+                'title', 'rizz',
+                'body', 'charisma or flirting ability',
+                'example', 'He''s got rizz.',
+                'partOfSpeech', 'noun'
+            ),
+            now(),
+            now()
+        ),
+        (
+            lesson_id,
+            2,
+            'QUESTION',
+            null,
+            jsonb_build_object(
+                'questionType', 'MCQ',
+                'prompt', 'What does "rizz" mean?',
+                'explanation', 'Rizz means charisma, especially in social situations.',
+                'choices', jsonb_build_array(
+                    jsonb_build_object('id', 1, 'text', 'Charisma or flirting ability', 'orderIndex', 1),
+                    jsonb_build_object('id', 2, 'text', 'A type of food', 'orderIndex', 2),
+                    jsonb_build_object('id', 3, 'text', 'Being sleepy', 'orderIndex', 3),
+                    jsonb_build_object('id', 4, 'text', 'Skipping class', 'orderIndex', 4)
+                ),
+                'answerKey', jsonb_build_object('choiceId', 1),
+                'acceptedAnswers', '[]'::jsonb,
+                'matchPairs', '[]'::jsonb
+            ),
+            now(),
+            now()
+        ),
+        (
+            lesson_id,
+            3,
+            'TEACH',
+            vocab_cap_id,
+            jsonb_build_object(
+                'title', 'cap',
+                'body', 'a lie',
+                'example', 'That''s cap.',
+                'partOfSpeech', 'noun'
+            ),
+            now(),
+            now()
+        ),
+        (
+            lesson_id,
+            4,
+            'QUESTION',
+            null,
+            jsonb_build_object(
+                'questionType', 'CLOZE',
+                'prompt', 'Complete the sentence: "No way, that''s ___."',
+                'explanation', 'Cap means a lie.',
+                'choices', '[]'::jsonb,
+                'acceptedAnswers', jsonb_build_array('cap'),
+                'matchPairs', '[]'::jsonb
+            ),
+            now(),
+            now()
+        ),
+        (
+            lesson_id,
+            5,
+            'DIALOGUE',
+            null,
+            jsonb_build_object(
+                'text', 'A: I finished everything in five minutes.\nB: That sounds like cap.'
+            ),
+            now(),
+            now()
+        ),
+        (
+            lesson_id,
+            6,
+            'TEACH',
+            vocab_no_cap_id,
+            jsonb_build_object(
+                'title', 'no cap',
+                'body', 'for real / no lie',
+                'example', 'No cap, that was great.',
+                'partOfSpeech', 'phrase'
+            ),
+            now(),
+            now()
+        ),
+        (
+            lesson_id,
+            7,
+            'QUESTION',
+            null,
+            jsonb_build_object(
+                'questionType', 'MCQ',
+                'prompt', 'Which phrase means "for real"?',
+                'explanation', 'No cap means someone is being honest.',
+                'choices', jsonb_build_array(
+                    jsonb_build_object('id', 1, 'text', 'no cap', 'orderIndex', 1),
+                    jsonb_build_object('id', 2, 'text', 'on read', 'orderIndex', 2),
+                    jsonb_build_object('id', 3, 'text', 'ghosting', 'orderIndex', 3),
+                    jsonb_build_object('id', 4, 'text', 'mid', 'orderIndex', 4)
+                ),
+                'answerKey', jsonb_build_object('choiceId', 1),
+                'acceptedAnswers', '[]'::jsonb,
+                'matchPairs', '[]'::jsonb
+            ),
+            now(),
+            now()
+        ),
+        (
+            lesson_id,
+            8,
+            'QUESTION',
+            null,
+            jsonb_build_object(
+                'questionType', 'MATCH',
+                'prompt', 'Match each term to the correct meaning.',
+                'explanation', 'Pair slang terms with their definitions.',
+                'choices', '[]'::jsonb,
+                'acceptedAnswers', '[]'::jsonb,
+                'matchPairs', jsonb_build_array(
+                    jsonb_build_object('id', 1, 'left', 'rizz', 'right', 'charisma or flirting ability', 'orderIndex', 1),
+                    jsonb_build_object('id', 2, 'left', 'cap', 'right', 'a lie', 'orderIndex', 2),
+                    jsonb_build_object('id', 3, 'left', 'no cap', 'right', 'for real / no lie', 'orderIndex', 3)
+                )
+            ),
+            now(),
+            now()
+        ),
+        (
+            lesson_id,
+            9,
+            'TEACH',
+            vocab_bussin_id,
+            jsonb_build_object(
+                'title', 'bussin',
+                'body', 'really good, usually for food',
+                'example', 'This pizza is bussin.',
+                'partOfSpeech', 'adjective'
+            ),
+            now(),
+            now()
+        ),
+        (
+            lesson_id,
+            10,
+            'QUESTION',
+            null,
+            jsonb_build_object(
+                'questionType', 'MCQ',
+                'prompt', 'If a meal is "bussin", it is...',
+                'explanation', 'Bussin means really good, commonly used for food.',
+                'choices', jsonb_build_array(
+                    jsonb_build_object('id', 1, 'text', 'Bland', 'orderIndex', 1),
+                    jsonb_build_object('id', 2, 'text', 'Really good', 'orderIndex', 2),
+                    jsonb_build_object('id', 3, 'text', 'Undercooked', 'orderIndex', 3),
+                    jsonb_build_object('id', 4, 'text', 'Expensive', 'orderIndex', 4)
+                ),
+                'answerKey', jsonb_build_object('choiceId', 2),
+                'acceptedAnswers', '[]'::jsonb,
+                'matchPairs', '[]'::jsonb
+            ),
+            now(),
+            now()
+        );
 end $$;

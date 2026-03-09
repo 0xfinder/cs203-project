@@ -29,6 +29,9 @@ public class LessonAttemptResult {
     @JoinColumn(name = "lesson_step_id", nullable = false)
     private LessonStep lessonStep;
 
+    @Column(name = "lesson_id", nullable = false)
+    private Long lessonId;
+
     @Column(name = "is_correct", nullable = false)
     private boolean isCorrect;
 
@@ -36,11 +39,15 @@ public class LessonAttemptResult {
     @Column(name = "submitted_answer", columnDefinition = "jsonb")
     private JsonNode submittedAnswer;
 
-    @Column(name = "correct_answer")
-    private String correctAnswer;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "evaluated_answer", columnDefinition = "jsonb")
+    private JsonNode evaluatedAnswer;
 
     @Column
     private String explanation;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private java.time.Instant createdAt;
 
     protected LessonAttemptResult() {
     }
@@ -48,15 +55,17 @@ public class LessonAttemptResult {
     public LessonAttemptResult(
             LessonAttempt attempt,
             LessonStep lessonStep,
+            Long lessonId,
             boolean isCorrect,
             JsonNode submittedAnswer,
-            String correctAnswer,
+            JsonNode evaluatedAnswer,
             String explanation) {
         this.attempt = attempt;
         this.lessonStep = lessonStep;
+        this.lessonId = lessonId;
         this.isCorrect = isCorrect;
         this.submittedAnswer = submittedAnswer;
-        this.correctAnswer = correctAnswer;
+        this.evaluatedAnswer = evaluatedAnswer;
         this.explanation = explanation;
     }
 
@@ -72,6 +81,10 @@ public class LessonAttemptResult {
         return lessonStep;
     }
 
+    public Long getLessonId() {
+        return lessonId;
+    }
+
     public boolean isCorrect() {
         return isCorrect;
     }
@@ -80,11 +93,16 @@ public class LessonAttemptResult {
         return submittedAnswer;
     }
 
-    public String getCorrectAnswer() {
-        return correctAnswer;
+    public JsonNode getEvaluatedAnswer() {
+        return evaluatedAnswer;
     }
 
     public String getExplanation() {
         return explanation;
+    }
+
+    @jakarta.persistence.PrePersist
+    protected void onCreate() {
+        createdAt = java.time.Instant.now();
     }
 }
