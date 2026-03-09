@@ -27,7 +27,7 @@ export interface AppNavItem {
 export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   {
     to: "/lessons",
-    label: "Lessons",
+    label: "Learn",
     icon: House,
   },
   {
