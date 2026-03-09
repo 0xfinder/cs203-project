@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { HTTPError } from "ky";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -37,6 +38,7 @@ function LessonPage() {
   const [answersByStep, setAnswersByStep] = useState<Record<number, LessonAnswer>>({});
   const [tempAnswer, setTempAnswer] = useState<LessonAnswer>("");
   const [result, setResult] = useState<AttemptResult | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const progressThrottleMs = 1200;
   const lastProgressSentAtRef = useRef(0);
   const pendingProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -47,6 +49,7 @@ function LessonPage() {
     setAnswersByStep({});
     setTempAnswer("");
     setResult(null);
+    setSubmitError(null);
     lastProgressSentAtRef.current = 0;
     resumeAppliedRef.current = false;
     if (pendingProgressTimerRef.current) {
@@ -174,6 +177,7 @@ function LessonPage() {
           setAnswersByStep({});
           setTempAnswer("");
           setResult(null);
+          setSubmitError(null);
         }}
         onExit={() => navigate({ to: "/lessons" })}
       />
@@ -237,6 +241,7 @@ function LessonPage() {
   const goNext = async () => {
     if (!canContinue) return;
 
+    setSubmitError(null);
     persistCurrentAnswer();
 
     if (!isLast) {
@@ -261,11 +266,15 @@ function LessonPage() {
       })
       .filter((item): item is { stepId: number; answer: LessonAnswer } => item !== null);
 
-    const submission = await submitAttempt.mutateAsync({
-      lessonId: numericLessonId,
-      answers: payloadAnswers,
-    });
-    setResult(submission);
+    try {
+      const submission = await submitAttempt.mutateAsync({
+        lessonId: numericLessonId,
+        answers: payloadAnswers,
+      });
+      setResult(submission);
+    } catch (error) {
+      setSubmitError(await getSubmitErrorMessage(error));
+    }
   };
 
   return (
@@ -301,6 +310,11 @@ function LessonPage() {
         <StepBody step={currentStep} tempAnswer={tempAnswer} setTempAnswer={setTempAnswer} />
 
         <div className="mt-8">
+          {submitError ? (
+            <p className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {submitError}
+            </p>
+          ) : null}
           <Button
             size="lg"
             className="w-full gap-2 text-base"
@@ -316,6 +330,31 @@ function LessonPage() {
       </div>
     </div>
   );
+}
+
+async function getSubmitErrorMessage(error: unknown) {
+  if (error instanceof HTTPError) {
+    const payload = (await error.response
+      .clone()
+      .json()
+      .catch(() => null)) as { message?: string; error?: string } | null;
+
+    if (payload?.message) {
+      return payload.message;
+    }
+
+    if (payload?.error) {
+      return payload.error;
+    }
+
+    return `Couldn't submit your lesson right now (${error.response.status}). Try again.`;
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Couldn't submit your lesson right now. Try again.";
 }
 
 function StepBody({

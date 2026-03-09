@@ -1,5 +1,6 @@
 package com.group7.app.lesson.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,6 +10,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "lesson_attempt_results")
@@ -29,8 +32,9 @@ public class LessonAttemptResult {
     @Column(name = "is_correct", nullable = false)
     private boolean isCorrect;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "submitted_answer", columnDefinition = "jsonb")
-    private String submittedAnswer;
+    private JsonNode submittedAnswer;
 
     @Column(name = "correct_answer")
     private String correctAnswer;
@@ -45,7 +49,7 @@ public class LessonAttemptResult {
             LessonAttempt attempt,
             LessonStep lessonStep,
             boolean isCorrect,
-            String submittedAnswer,
+            JsonNode submittedAnswer,
             String correctAnswer,
             String explanation) {
         this.attempt = attempt;
@@ -72,7 +76,7 @@ public class LessonAttemptResult {
         return isCorrect;
     }
 
-    public String getSubmittedAnswer() {
+    public JsonNode getSubmittedAnswer() {
         return submittedAnswer;
     }
 

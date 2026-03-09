@@ -1,8 +1,6 @@
 package com.group7.app.lesson.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.group7.app.lesson.model.Choice;
 import com.group7.app.lesson.model.Lesson;
 import com.group7.app.lesson.model.LessonAttempt;
@@ -56,8 +54,6 @@ public class LessonAttemptService {
     private final UserLessonProgressRepository userLessonProgressRepository;
     private final UserVocabMemoryRepository userVocabMemoryRepository;
     private final VocabItemRepository vocabItemRepository;
-    private final ObjectMapper objectMapper;
-
     public LessonAttemptService(
             LessonRepository lessonRepository,
             LessonStepRepository lessonStepRepository,
@@ -68,8 +64,7 @@ public class LessonAttemptService {
             LessonAttemptResultRepository lessonAttemptResultRepository,
             UserLessonProgressRepository userLessonProgressRepository,
             UserVocabMemoryRepository userVocabMemoryRepository,
-            VocabItemRepository vocabItemRepository,
-            ObjectMapper objectMapper) {
+            VocabItemRepository vocabItemRepository) {
         this.lessonRepository = lessonRepository;
         this.lessonStepRepository = lessonStepRepository;
         this.choiceRepository = choiceRepository;
@@ -80,7 +75,6 @@ public class LessonAttemptService {
         this.userLessonProgressRepository = userLessonProgressRepository;
         this.userVocabMemoryRepository = userVocabMemoryRepository;
         this.vocabItemRepository = vocabItemRepository;
-        this.objectMapper = objectMapper;
     }
 
     public AttemptSubmissionResult submitAttempt(User actor, Long lessonId, List<AnswerInput> answers) {
@@ -122,7 +116,7 @@ public class LessonAttemptService {
                     .findFirst()
                     .orElseThrow();
 
-            String submittedAnswer = input == null ? null : asResponseJson(input.answer());
+            JsonNode submittedAnswer = input == null ? null : input.answer();
             attemptResults.add(new LessonAttemptResult(
                     attempt,
                     step,
@@ -382,17 +376,6 @@ public class LessonAttemptService {
         }
 
         return answer.toString();
-    }
-
-    private String asResponseJson(JsonNode answer) {
-        if (answer == null || answer.isNull()) {
-            return "{}";
-        }
-        try {
-            return objectMapper.writeValueAsString(answer);
-        } catch (JsonProcessingException e) {
-            return "{}";
-        }
     }
 
     private String normalize(String value) {
