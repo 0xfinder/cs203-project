@@ -49,7 +49,7 @@ function RootComponent() {
 
   if (!showAppShell) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-dvh flex-col">
         <div className="flex flex-1 flex-col">
           <Outlet />
         </div>
@@ -59,16 +59,16 @@ function RootComponent() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-64 shrink-0 border-r bg-card/30 md:flex">
-        <div className="flex h-full w-full flex-col p-4">
+    <div className="flex min-h-dvh bg-background">
+      <aside className="hidden h-dvh w-64 shrink-0 border-r bg-card/30 md:sticky md:top-0 md:flex">
+        <div className="flex h-full min-h-0 w-full flex-col p-4">
           <div className="px-2 py-3">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               AlphaLingo
             </p>
           </div>
 
-          <nav className="mt-4 flex flex-1 flex-col gap-1">
+          <nav className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isNavItemActive(pathname, item.to);
@@ -98,39 +98,44 @@ function RootComponent() {
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-20 md:pb-0">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
         <div className="flex flex-1 flex-col">
           <Outlet />
         </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
-        <div
-          className="grid h-16"
-          style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
-        >
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isNavItemActive(pathname, item.to);
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                aria-label={item.label}
-                className={cn(
-                  "flex items-center justify-center transition-colors",
-                  active ? "text-primary" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Icon className="h-6 w-6" />
-                <span className="sr-only">{item.label}</span>
-              </Link>
-            );
-          })}
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 px-2 md:hidden"
+        style={{ paddingBottom: "max(env(safe-area-inset-bottom), 0.5rem)" }}
+      >
+        <div className="rounded-2xl border bg-background/95 shadow-lg backdrop-blur">
+          <div
+            className="grid h-16"
+            style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
+          >
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = isNavItemActive(pathname, item.to);
+              return (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  aria-label={item.label}
+                  className={cn(
+                    "flex items-center justify-center transition-colors",
+                    active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-6 w-6" />
+                  <span className="sr-only">{item.label}</span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </nav>
 
-      <div className="pointer-events-none fixed inset-x-0 bottom-16 h-px bg-border md:hidden" />
+      <div className="pointer-events-none fixed inset-x-2 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] h-px bg-border md:hidden" />
       {showDevtools && <TanStackRouterDevtools />}
     </div>
   );

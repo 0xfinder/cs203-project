@@ -243,16 +243,14 @@ begin
     where lesson_id in (
         select id
         from public.lessons
-        where title = 'The Basics'
-          and description = 'seed_local_basics'
+        where description = 'seed_local_basics'
     );
 
     delete from public.lessons
-    where title = 'The Basics'
-      and description = 'seed_local_basics';
+    where description = 'seed_local_basics';
 
     insert into public.units (title, slug, description, order_index, created_at, updated_at)
-    values ('internet slang', 'internet-slang', 'seed local lesson unit', 1, now(), now())
+    values ('Slang Foundations', 'slang-foundations', 'seed local lesson unit', 1, now(), now())
     on conflict (order_index) do update
     set title = excluded.title,
         slug = excluded.slug,
@@ -281,10 +279,10 @@ begin
         updated_at
     ) values (
         unit_id,
-        'The Basics',
-        'the-basics',
+        'Slang Foundations Sampler',
+        'slang-foundations-sampler',
         'seed_local_basics',
-        'Understand and apply a few foundational Gen Alpha slang terms.',
+        'Practice a few foundational Gen Alpha slang terms in one sample lesson.',
         5,
         lesson_order,
         'APPROVED',

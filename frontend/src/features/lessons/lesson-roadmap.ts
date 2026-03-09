@@ -1,0 +1,69 @@
+import type { LessonSummary, ProgressItem, UnitData } from "@/features/lessons/useLessonsApi";
+
+export type LessonRoadmapItem = {
+  lesson: LessonSummary;
+  completed: boolean;
+  unlocked: boolean;
+  current: boolean;
+};
+
+export function sortUnits(units: UnitData[]) {
+  return [...units].sort((left, right) => left.orderIndex - right.orderIndex);
+}
+
+export function sortLessons(lessons: LessonSummary[]) {
+  return [...lessons].sort((left, right) => left.orderIndex - right.orderIndex);
+}
+
+export function progressMap(progressItems?: ProgressItem[]) {
+  return new Map(progressItems?.map((item) => [item.lessonId, item]) ?? []);
+}
+
+export function getUnitRoadmap(
+  unit: UnitData,
+  progressByLessonId: Map<number, ProgressItem>,
+  currentLessonId?: number,
+) {
+  const orderedLessons = sortLessons(unit.lessons);
+  let previousCompleted = true;
+
+  const items: LessonRoadmapItem[] = orderedLessons.map((lesson) => {
+    const completed = progressByLessonId.get(lesson.id)?.completedAt != null;
+    const unlocked = previousCompleted;
+    const current = currentLessonId === lesson.id;
+    previousCompleted = previousCompleted && completed;
+    return {
+      lesson,
+      completed,
+      unlocked,
+      current,
+    };
+  });
+
+  const completedCount = items.filter((item) => item.completed).length;
+  const nextLesson =
+    items.find((item) => item.unlocked && !item.completed)?.lesson ??
+    items[items.length - 1]?.lesson ??
+    null;
+
+  return {
+    orderedLessons,
+    items,
+    completedCount,
+    totalLessons: orderedLessons.length,
+    percentComplete:
+      orderedLessons.length === 0 ? 0 : Math.round((completedCount / orderedLessons.length) * 100),
+    nextLesson,
+  };
+}
+
+export function getVisibleUnits(units: UnitData[]) {
+  return sortUnits(units).filter((unit) => unit.lessons.length > 0);
+}
+
+export function findUnitByLessonId(units: UnitData[], lessonId: number) {
+  return (
+    getVisibleUnits(units).find((unit) => unit.lessons.some((lesson) => lesson.id === lessonId)) ??
+    null
+  );
+}

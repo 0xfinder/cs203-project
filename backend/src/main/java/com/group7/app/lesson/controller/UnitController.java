@@ -39,8 +39,15 @@ public class UnitController {
                             .filter(lesson -> lesson.getUnit().getId().equals(unit.getId()))
                             .map(this::toLessonSummary)
                             .toList();
-                    return new UnitResponse(unit.getId(), unit.getTitle(), unit.getOrderIndex(), lessons);
+                    return new UnitResponse(
+                            unit.getId(),
+                            unit.getTitle(),
+                            unit.getSlug(),
+                            unit.getDescription(),
+                            unit.getOrderIndex(),
+                            lessons);
                 })
+                .filter(unit -> !unit.lessons().isEmpty())
                 .toList();
     }
 
@@ -49,19 +56,31 @@ public class UnitController {
                 lesson.getId(),
                 lesson.getUnit().getId(),
                 lesson.getTitle(),
+                lesson.getSlug(),
                 lesson.getDescription(),
+                lesson.getLearningObjective(),
+                lesson.getEstimatedMinutes(),
                 lesson.getOrderIndex(),
                 lesson.getStatus());
     }
 
-    public record UnitResponse(Long id, String title, Integer orderIndex, List<LessonSummaryResponse> lessons) {
+    public record UnitResponse(
+            Long id,
+            String title,
+            String slug,
+            String description,
+            Integer orderIndex,
+            List<LessonSummaryResponse> lessons) {
     }
 
     public record LessonSummaryResponse(
             Long id,
             Long unitId,
             String title,
+            String slug,
             String description,
+            String learningObjective,
+            Integer estimatedMinutes,
             Integer orderIndex,
             com.group7.app.lesson.model.LessonStatus status) {
     }

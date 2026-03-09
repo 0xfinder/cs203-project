@@ -195,6 +195,18 @@ class LessonSchemaV2E2ETest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("APPROVED"));
 
+        mockMvc.perform(get("/api/units")
+                        .with(auth(learner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].title").value("Slang Foundations"))
+                .andExpect(jsonPath("$[0].slug").value("slang-foundations"))
+                .andExpect(jsonPath("$[0].description").value("Core Gen Alpha slang used in everyday chat."))
+                .andExpect(jsonPath("$[0].lessons[0].title").value("Rizz and Cap Basics"))
+                .andExpect(jsonPath("$[0].lessons[0].slug").value("rizz-and-cap-basics"))
+                .andExpect(jsonPath("$[0].lessons[0].learningObjective")
+                        .value("Understand and apply rizz, cap, and no cap in context."))
+                .andExpect(jsonPath("$[0].lessons[0].estimatedMinutes").value(5));
+
         mockMvc.perform(get("/api/lessons/{lessonId}", lessonId)
                         .with(auth(contributor)))
                 .andExpect(status().isOk())

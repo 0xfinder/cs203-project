@@ -1,7 +1,6 @@
 package com.group7.app.lesson.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.group7.app.lesson.model.Choice;
 import com.group7.app.lesson.model.Lesson;
 import com.group7.app.lesson.model.LessonStatus;
 import com.group7.app.lesson.model.LessonStep;
@@ -174,6 +173,7 @@ public class LessonController {
                 lesson.getId(),
                 lesson.getUnit().getId(),
                 lesson.getTitle(),
+                lesson.getSlug(),
                 lesson.getDescription(),
                 lesson.getLearningObjective(),
                 lesson.getEstimatedMinutes(),
@@ -349,6 +349,7 @@ public class LessonController {
             Long id,
             Long unitId,
             String title,
+            String slug,
             String description,
             String learningObjective,
             Integer estimatedMinutes,

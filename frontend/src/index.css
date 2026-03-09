@@ -158,9 +158,11 @@ html,
 body,
 #root {
   height: 100%;
+  min-height: 100dvh;
 }
 body {
   margin: 0;
+  overflow-x: hidden;
 }
 
 @layer components {

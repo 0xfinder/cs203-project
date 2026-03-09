@@ -5,7 +5,10 @@ export interface LessonSummary {
   id: number;
   unitId: number;
   title: string;
+  slug: string;
   description: string;
+  learningObjective: string | null;
+  estimatedMinutes: number | null;
   orderIndex: number;
   status: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
 }
@@ -13,6 +16,8 @@ export interface LessonSummary {
 export interface UnitData {
   id: number;
   title: string;
+  slug: string;
+  description: string | null;
   orderIndex: number;
   lessons: LessonSummary[];
 }
@@ -53,10 +58,11 @@ export interface VocabPayload {
 export interface LessonStepPayload {
   id: number;
   orderIndex: number;
-  stepType: "TEACH" | "QUESTION" | "DIALOGUE";
+  stepType: "TEACH" | "QUESTION" | "DIALOGUE" | "RECAP";
   vocab: VocabPayload | null;
   question: QuestionPayload | null;
   dialogueText: string | null;
+  payload: Record<string, unknown> | null;
 }
 
 export interface LessonPlayResponse {
