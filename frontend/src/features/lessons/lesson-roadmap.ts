@@ -23,13 +23,14 @@ export function getUnitRoadmap(
   unit: UnitData,
   progressByLessonId: Map<number, ProgressItem>,
   currentLessonId?: number,
+  allowAllUnlocked = false,
 ) {
   const orderedLessons = sortLessons(unit.lessons);
   let previousCompleted = true;
 
   const items: LessonRoadmapItem[] = orderedLessons.map((lesson) => {
     const completed = progressByLessonId.get(lesson.id)?.completedAt != null;
-    const unlocked = previousCompleted;
+    const unlocked = previousCompleted || allowAllUnlocked;
     const current = currentLessonId === lesson.id;
     previousCompleted = previousCompleted && completed;
     return {

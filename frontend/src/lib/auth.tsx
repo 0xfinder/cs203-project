@@ -100,3 +100,21 @@ export async function requireOnboardingPending() {
     throw error;
   }
 }
+
+// Allow contributors (and higher roles) to access content even if onboarding
+export async function requireContributorOrOnboarded() {
+  await requireAuth();
+  try {
+    const me = await getMe();
+    const allowedRoles = ["CONTRIBUTOR", "MODERATOR", "ADMIN"];
+    if (!me.onboardingCompleted && !allowedRoles.includes(me.role)) {
+      throw redirect({ to: "/onboarding" });
+    }
+  } catch (error) {
+    if (error instanceof HTTPError && error.response.status === 401) {
+      await supabase.auth.signOut();
+      throw redirect({ to: "/login" });
+    }
+    throw error;
+  }
+}

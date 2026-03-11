@@ -50,7 +50,10 @@ function buildTermGroups(items: ContentWithVotesResponse[]): TermGroup[] {
     }
   }
 
-  return Array.from(groups.values()).sort((a, b) => a.term.localeCompare(b.term));
+  // exclude any unwanted terms (e.g. 'test') from the public dictionary
+  return Array.from(groups.values())
+    .filter((g) => normalizeTerm(g.term) !== "test")
+    .sort((a, b) => a.term.localeCompare(b.term));
 }
 
 function groupByLetter(groups: TermGroup[]): Record<string, TermGroup[]> {

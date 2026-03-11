@@ -13,6 +13,7 @@ type UnitRoadmapProps = {
   title?: string;
   interactive?: boolean;
   compact?: boolean;
+  allowAllUnlocked?: boolean;
 };
 
 export function UnitRoadmap({
@@ -22,9 +23,10 @@ export function UnitRoadmap({
   title = "Unit Roadmap",
   interactive = false,
   compact = false,
+  allowAllUnlocked = false,
 }: UnitRoadmapProps) {
   const progressByLessonId = new Map(progressItems?.map((item) => [item.lessonId, item]) ?? []);
-  const roadmap = getUnitRoadmap(unit, progressByLessonId, currentLessonId);
+  const roadmap = getUnitRoadmap(unit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
 
   return (
     <Card className="overflow-hidden border-border/70 bg-card shadow-sm">

@@ -2,14 +2,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
 import { Trophy, Flame, Star, Lock, ChevronRight, Lightbulb } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireOnboardingCompleted } from "@/lib/auth";
+import { requireOnboardingCompleted, requireContributorOrOnboarded } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { getUnitRoadmap, getVisibleUnits, progressMap } from "@/features/lessons/lesson-roadmap";
+import { useQuery } from "@tanstack/react-query";
+import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import { useLessonProgress, useUnits } from "@/features/lessons/useLessonsApi";
 
 export const Route = createFileRoute("/lessons")({
   beforeLoad: async () => {
-    await requireOnboardingCompleted();
+    await requireContributorOrOnboarded();
   },
   component: LearnPage,
 });
@@ -24,6 +26,10 @@ function LearnPage() {
     isLoading: progressLoading,
     error: progressError,
   } = useLessonProgress();
+
+  // Keep user query hook at the top level so hooks order is stable across renders
+  const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
+  const isContributor = currentUserViewQuery.data?.profile?.role === "CONTRIBUTOR";
 
   if (unitsLoading || progressLoading) {
     return (
@@ -42,7 +48,7 @@ function LearnPage() {
   const visibleUnits = getVisibleUnits(units);
   const progressByLessonId = progressMap(progressItems);
   const completedCount = visibleUnits.filter((unit) => {
-    const roadmap = getUnitRoadmap(unit, progressByLessonId);
+    const roadmap = getUnitRoadmap(unit, progressByLessonId, undefined, isContributor);
     return roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
   }).length;
 
@@ -50,9 +56,10 @@ function LearnPage() {
   const totalXP = (progressItems ?? []).reduce((sum, item) => sum + item.bestScore, 0);
 
   const isUnlocked = (index: number) => {
+    if (isContributor) return true;
     if (index === 0) return true;
     const previousUnit = visibleUnits[index - 1];
-    const previousRoadmap = getUnitRoadmap(previousUnit, progressByLessonId);
+    const previousRoadmap = getUnitRoadmap(previousUnit, progressByLessonId, undefined, false);
     return (
       previousRoadmap.totalLessons > 0 &&
       previousRoadmap.completedCount === previousRoadmap.totalLessons
@@ -61,7 +68,7 @@ function LearnPage() {
 
   const currentUnitId = visibleUnits.find((unit, index) => {
     const unlocked = isUnlocked(index);
-    const roadmap = getUnitRoadmap(unit, progressByLessonId);
+    const roadmap = getUnitRoadmap(unit, progressByLessonId, undefined, isContributor);
     const completed = roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
     return unlocked && !completed;
   })?.id;
@@ -114,7 +121,7 @@ function LearnPage() {
       <div className="relative flex flex-col items-center pb-4">
         {visibleUnits.map((unit, i) => {
           const unlocked = isUnlocked(i);
-          const roadmap = getUnitRoadmap(unit, progressByLessonId);
+          const roadmap = getUnitRoadmap(unit, progressByLessonId, undefined, isContributor);
           const completed =
             roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
           const isCurrent = unit.id === currentUnitId;
