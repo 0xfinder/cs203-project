@@ -108,7 +108,12 @@ function SubmitContentPage() {
         })
         .json();
 
-      setSuccess("Thanks! Your lingo is now pending review.");
+      // If the submitting user is an admin/moderator (or the test user Shu), the backend auto-approves
+      if (me.role === "ADMIN" || me.role === "MODERATOR") {
+        setSuccess("Thanks — your lingo has been added and is live.");
+      } else {
+        setSuccess("Thanks! Your lingo is now pending review.");
+      }
       setTerm("");
       setDefinition("");
       setExample("");

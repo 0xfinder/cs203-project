@@ -29,7 +29,10 @@ function LearnPage() {
 
   // Keep user query hook at the top level so hooks order is stable across renders
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
-  const isContributor = currentUserViewQuery.data?.profile?.role === "CONTRIBUTOR";
+  const profile = currentUserViewQuery.data?.profile ?? null;
+  const role = profile?.role;
+  const isContributor =
+    role === "CONTRIBUTOR" || role === "ADMIN" || role === "MODERATOR";
 
   if (unitsLoading || progressLoading) {
     return (

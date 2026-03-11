@@ -14,6 +14,7 @@ import { requireAuth, useAuth } from "@/lib/auth";
 import { patchMe, type MeResponse, type RoleIntent, type UserRole } from "@/lib/me";
 import { queryClient } from "@/lib/query-client";
 import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/api";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 
 const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
@@ -317,7 +318,7 @@ function ProfilePage() {
         )}
 
         <div className="flex flex-col gap-4 rounded-lg bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-sm font-semibold text-white">
               {avatarPreview ? (
                 <img
@@ -340,7 +341,40 @@ function ProfilePage() {
               <RoleBadge role={userRole} className="mt-1" />
             </div>
           </div>
-
+            {
+              // Dev helper: show a button to set current user to ADMIN when enabled in env
+            }
+            {import.meta.env.VITE_ALLOW_DEV_ROLE_CHANGE === "true" && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground mr-2">Dev role:</span>
+                {(["LEARNER", "CONTRIBUTOR", "ADMIN"] as const).map((r) => (
+                  <Button
+                    key={r}
+                    type="button"
+                    size="sm"
+                    variant={userRole === r ? "secondary" : "outline"}
+                    onClick={async () => {
+                      setSaveError(null);
+                      setSaveSuccess(null);
+                      try {
+                        const updated = await api
+                          .post("users/me/dev-role", { searchParams: { role: r } })
+                          .json<MeResponse>();
+                        setMeProfile(updated);
+                        setUserRole(updated.role);
+                        setCurrentUserViewCache(queryClient, { profile: updated, avatarUrl: meAvatarUrl });
+                        setSaveSuccess(`Role updated to ${updated.role} (dev)`);
+                      } catch (err) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        setSaveError(`Failed to set role: ${msg}`);
+                      }
+                    }}
+                  >
+                    {r[0] + r.slice(1).toLowerCase()}
+                  </Button>
+                ))}
+              </div>
+            )}
           {editing && (
             <div className="flex items-center gap-2">
               <input

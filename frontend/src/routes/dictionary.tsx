@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,7 @@ import {
   useApprovedContentsWithVotes,
   useCastContentVote,
   useClearContentVote,
+  useDeleteContent,
   type ContentVoteType,
   type ContentWithVotesResponse,
 } from "@/features/content/useContentData";
@@ -76,6 +77,25 @@ function DictionaryPage() {
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
   const termGroups = useMemo(() => (contents ? buildTermGroups(contents) : []), [contents]);
+  const deleteMutation = useDeleteContent();
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    import("@/lib/me").then(({ getMe }) => {
+      void getMe()
+        .then((me) => {
+          if (!mounted) return;
+          setIsAdmin(me.role === "ADMIN" || me.role === "MODERATOR");
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -288,6 +308,27 @@ function DictionaryPage() {
                                   <ThumbsDown className="size-3" />
                                   <span>{entry.thumbsDown}</span>
                                 </Button>
+                                {isAdmin && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="xs"
+                                    onClick={async () => {
+                                      if (!confirm(`Delete "${entry.content.term}" definition by ${entry.submittedByDisplayName}?`)) return;
+                                      try {
+                                        await deleteMutation.mutateAsync({ id: entry.content.id });
+                                      } catch (err) {
+                                        const msg = err instanceof Error ? err.message : String(err);
+                                        alert(`Failed to delete: ${msg}`);
+                                      }
+                                    }}
+                                    className="ml-2"
+                                    aria-label={`Delete ${entry.content.term}`}
+                                    title="Delete"
+                                  >
+                                    <Trash className="size-3" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
 

@@ -216,3 +216,34 @@ export function useSubmitVocabMemoryAttempt() {
     },
   });
 }
+
+export function useDeleteStep() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ lessonId, stepId }: { lessonId: number; stepId: number }) =>
+      api.delete(`lessons/${lessonId}/steps/${stepId}`).then(() => null),
+    onSuccess: (_data, vars) => {
+      // invalidate the lesson play and lesson list so UI refreshes
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "play", vars.lessonId] });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY] });
+    },
+  });
+}
+
+export function usePatchStep() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ lessonId, stepId, body }: { lessonId: number; stepId: number; body: any }) =>
+      api
+        .patch(`lessons/${lessonId}/steps/${stepId}`, {
+          json: body,
+        })
+        .json(),
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "play", vars.lessonId] });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY] });
+    },
+  });
+}

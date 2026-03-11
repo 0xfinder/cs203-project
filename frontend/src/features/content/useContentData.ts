@@ -190,3 +190,15 @@ export function useSearchExistingTerm(term: string) {
     enabled: term.trim().length > 0,
   });
 }
+
+export function useDeleteContent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) => api.delete(`contents/${id}`).json<void>(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+      void queryClient.invalidateQueries({ queryKey: CONTENTS_KEY });
+    },
+  });
+}

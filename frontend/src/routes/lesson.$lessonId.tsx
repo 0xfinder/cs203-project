@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { HTTPError } from "ky";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { UnitRoadmap } from "@/features/lessons/components/unit-roadmap";
@@ -20,6 +20,8 @@ import {
   useUpdateLessonProgress,
   useSubmitLessonAttempt,
   useUnits,
+  useDeleteStep,
+  usePatchStep,
 } from "@/features/lessons/useLessonsApi";
 import { QuestionStep } from "@/features/lessons/components/question-step";
 
@@ -109,7 +111,10 @@ function LessonPage() {
   // current user view (to check role for appeal permissions)
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
   const currentProfile = currentUserViewQuery.data?.profile ?? null;
-  const isContributor = currentProfile?.role === "CONTRIBUTOR";
+  const isContributor =
+    currentProfile?.role === "CONTRIBUTOR";
+  const isAdmin =
+    currentProfile?.role === "ADMIN" || currentProfile?.role === "MODERATOR";
 
   const [appealOpen, setAppealOpen] = useState(false);
   const [appealText, setAppealText] = useState("");
@@ -248,7 +253,7 @@ function LessonPage() {
         }}
         onExit={() => navigate({ to: "/lessons" })}
         onContinue={
-          result.passed && nextLesson
+          result.passed && nextLesson && !isAdmin && !isContributor
             ? () =>
                 navigate({ to: "/lesson/$lessonId", params: { lessonId: String(nextLesson.id) } })
             : undefined
@@ -353,27 +358,30 @@ function LessonPage() {
   return (
     <div className="flex flex-1 flex-col bg-background">
       <div className="border-b bg-card/60 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate({ to: "/lessons" })}
-            className="gap-1.5"
-          >
-            <ArrowLeft className="size-4" />
-            Exit
-          </Button>
-          <div className="text-right">
-            {currentUnit ? (
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                {currentUnit.title}
-              </p>
-            ) : null}
-            <span className="text-sm font-semibold text-muted-foreground">
-              {currentIndex + 1} / {steps.length}
-            </span>
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate({ to: "/lessons" })}
+                className="gap-1.5"
+              >
+                <ArrowLeft className="size-4" />
+                Exit
+              </Button>
+              {/* admin edit/delete controls moved to bottom area for per-page editing */}
+            </div>
+            <div className="text-right">
+              {currentUnit ? (
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                  {currentUnit.title}
+                </p>
+              ) : null}
+              <span className="text-sm font-semibold text-muted-foreground">
+                {currentIndex + 1} / {steps.length}
+              </span>
+            </div>
           </div>
-        </div>
         {/* header CTA removed — appeal button moved next to Continue below */}
 
         <div className="mx-auto max-w-6xl px-4 pb-3">
@@ -397,7 +405,7 @@ function LessonPage() {
                   currentLessonId={numericLessonId}
                   title="Unit Lessons"
                   interactive
-                  allowAllUnlocked={isContributor}
+                  allowAllUnlocked={isContributor || isAdmin}
                 />
               </div>
             </aside>
@@ -408,7 +416,30 @@ function LessonPage() {
               <h1 className="mb-2 text-lg font-semibold text-muted-foreground">
                 {data.lesson.title}
               </h1>
-              <StepBody step={currentStep} tempAnswer={tempAnswer} setTempAnswer={setTempAnswer} />
+
+              <div className="relative">
+                <StepBody step={currentStep} tempAnswer={tempAnswer} setTempAnswer={setTempAnswer} />
+
+                {(isContributor || isAdmin) && (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                      className="absolute left-0 top-1/2 z-20 -translate-y-1/2 -translate-x-full"
+                    >
+                      <ChevronLeft className="size-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setCurrentIndex((i) => Math.min(steps.length - 1, i + 1))}
+                      className="absolute right-0 top-1/2 z-20 -translate-y-1/2 translate-x-full"
+                    >
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </>
+                )}
 
                 {appealOpen && (
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
@@ -430,6 +461,7 @@ function LessonPage() {
                     </div>
                   </div>
                 )}
+              </div>
 
               <div className="mt-8">
                 {submitError ? (
@@ -437,22 +469,45 @@ function LessonPage() {
                     {submitError}
                   </p>
                 ) : null}
-                <Button
-                  size="lg"
-                  className="w-full gap-2 text-base"
-                  onClick={() => {
-                    void goNext();
-                  }}
-                  disabled={submitAttempt.isPending || !canContinue}
-                >
-                  {isLast
-                    ? submitAttempt.isPending
-                      ? "Submitting..."
-                      : "See Results"
-                    : "Continue"}
-                  <ArrowRight className="size-4" />
-                </Button>
-                {isContributor && (
+                {!isAdmin && !isContributor && (
+                  <Button
+                    size="lg"
+                    className="w-full gap-2 text-base"
+                    onClick={() => {
+                      void goNext();
+                    }}
+                    disabled={submitAttempt.isPending || !canContinue}
+                  >
+                    {isLast
+                      ? submitAttempt.isPending
+                        ? "Submitting..."
+                        : "See Results"
+                      : "Continue"}
+                    <ArrowRight className="size-4" />
+                  </Button>
+                )}
+                {/* Arrows moved adjacent to the step card above (to the sides) */}
+
+                {/* For admins, show edit/delete for the current page instead of appeal */}
+                {isAdmin && currentStep ? (
+                  <div className="mt-4 flex gap-2">
+                    <AdminEditStepButton
+                      lessonId={numericLessonId}
+                      step={currentStep}
+                      onSaved={() => void null}
+                    />
+                    <AdminDeleteStepButton
+                      lessonId={numericLessonId}
+                      stepId={currentStep.id}
+                      onDeleted={() => {
+                        setCurrentIndex((idx) => Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))));
+                      }}
+                    />
+                  </div>
+                ) : null}
+
+                {/* Contributors still get the appeal button */}
+                {!isAdmin && isContributor && (
                   <div className="mt-4">
                     <Button
                       size="md"
@@ -639,4 +694,121 @@ function readStringArrayField(payload: LessonStepPayload["payload"], key: string
   }
 
   return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function AdminDeleteStepButton({
+  lessonId,
+  stepId,
+  onDeleted,
+}: {
+  lessonId: number;
+  stepId: number;
+  onDeleted?: () => void;
+}) {
+  const deleteStep = useDeleteStep();
+  const [busy, setBusy] = useState(false);
+
+  const handle = async () => {
+    if (!confirm("Delete this step? This cannot be undone.")) return;
+    setBusy(true);
+    try {
+      await deleteStep.mutateAsync({ lessonId, stepId });
+      onDeleted?.();
+    } catch (err) {
+      // no-op: errors surface via network layer
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Button size="sm" variant="destructive" disabled={busy} onClick={handle}>
+      Delete step
+    </Button>
+  );
+}
+
+function AdminEditStepButton({
+  lessonId,
+  step,
+  onSaved,
+}: {
+  lessonId: number;
+  step: LessonStepPayload;
+  onSaved?: () => void;
+}) {
+  const patchStep = usePatchStep();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [text, setText] = useState<string>(() => JSON.stringify(step.payload ?? {}, null, 2));
+
+  useEffect(() => {
+    setText(JSON.stringify(step.payload ?? {}, null, 2));
+  }, [step]);
+
+  const handleSave = async () => {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      alert("Invalid JSON payload");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const body = {
+        orderIndex: step.orderIndex,
+        stepType: step.stepType,
+        vocabItemId: step.vocab?.id ?? null,
+        questionId: step.question?.id ?? null,
+        questionType: step.question ? (step.question.questionType as any) : null,
+        prompt: step.question?.prompt ?? null,
+        explanation: step.question?.explanation ?? null,
+        options: step.question?.choices?.map((c) => c.text) ?? null,
+        correctOptionIndex: null,
+        acceptedAnswers: step.question?.acceptedAnswers ?? null,
+        matchPairs: null,
+        dialogueText: step.dialogueText ?? null,
+        payload: parsed,
+      };
+
+      await patchStep.mutateAsync({ lessonId, stepId: step.id, body });
+      setOpen(false);
+      onSaved?.();
+    } catch (err) {
+      // no-op
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+        Edit
+      </Button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-2xl rounded-lg bg-card p-6">
+            <h3 className="mb-2 text-lg font-semibold">Edit step payload</h3>
+            <p className="mb-3 text-sm text-muted-foreground">Edit the JSON payload for this step.</p>
+            <textarea
+              className="w-full min-h-[240px] rounded-md border px-3 py-2 text-sm font-mono"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={busy}>
+                {busy ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
