@@ -6,9 +6,17 @@ import {
   SquarePlus,
   UserRound,
   MessageCircleMore,
+  RotateCcw,
 } from "lucide-react";
 
-export type AppNavPath = "/lessons" | "/add" | "/dictionary" | "/review" | "/profile" | "/forum";
+export type AppNavPath =
+  | "/lessons"
+  | "/revise"
+  | "/add"
+  | "/dictionary"
+  | "/review"
+  | "/profile"
+  | "/forum";
 
 export interface AppNavItem {
   to: AppNavPath;
@@ -19,8 +27,13 @@ export interface AppNavItem {
 export const APP_NAV_ITEMS: readonly AppNavItem[] = [
   {
     to: "/lessons",
-    label: "Lessons",
+    label: "Learn",
     icon: House,
+  },
+  {
+    to: "/revise",
+    label: "Revise",
+    icon: RotateCcw,
   },
   {
     to: "/add",

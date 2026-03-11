@@ -235,7 +235,8 @@ function DictionaryPage() {
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="text-lg font-bold leading-tight">{group.term}</h3>
                       <Badge variant="secondary" className="shrink-0">
-                        {group.entries.length} {group.entries.length === 1 ? "definition" : "definitions"}
+                        {group.entries.length}{" "}
+                        {group.entries.length === 1 ? "definition" : "definitions"}
                       </Badge>
                     </div>
 

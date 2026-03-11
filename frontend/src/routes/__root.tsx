@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
 const navPriority: Partial<Record<AppNavPath, number>> = {
   "/lessons": 0,
-  "/dictionary": 1,
-  "/add": 2,
-  "/review": 3,
+  "/revise": 1,
+  "/dictionary": 2,
+  "/add": 3,
+  "/review": 4,
 };
 
 export const Route = createRootRoute({
@@ -48,7 +49,7 @@ function RootComponent() {
 
   if (!showAppShell) {
     return (
-      <div className="flex min-h-screen flex-col">
+      <div className="flex min-h-dvh flex-col">
         <div className="flex flex-1 flex-col">
           <Outlet />
         </div>
@@ -58,16 +59,16 @@ function RootComponent() {
   }
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="hidden w-64 shrink-0 border-r bg-card/30 md:flex">
-        <div className="flex h-full w-full flex-col p-4">
+    <div className="flex min-h-dvh bg-background">
+      <aside className="hidden h-dvh w-64 shrink-0 border-r bg-card/30 md:sticky md:top-0 md:flex">
+        <div className="flex h-full min-h-0 w-full flex-col p-4">
           <div className="px-2 py-3">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
               AlphaLingo
             </p>
           </div>
 
-          <nav className="mt-4 flex flex-1 flex-col gap-1">
+          <nav className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto">
             {navItems.map((item) => {
               const Icon = item.icon;
               const active = isNavItemActive(pathname, item.to);
@@ -97,7 +98,7 @@ function RootComponent() {
         </div>
       </aside>
 
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col pb-20 md:pb-0">
+      <div className="flex min-h-dvh min-w-0 flex-1 flex-col pb-20 md:pb-0">
         <div className="flex flex-1 flex-col">
           <Outlet />
         </div>

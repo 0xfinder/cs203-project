@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   MessageCircle,
   Plus,
@@ -14,13 +15,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RoleBadge } from "@/components/role-badge";
-import { getMe, type MeResponse } from "@/lib/me";
-import { supabase } from "@/lib/supabase";
+import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
+import { type MeResponse } from "@/lib/me";
+import { queryClient } from "@/lib/query-client";
 import { api } from "@/lib/api";
-import { getValidAccessToken } from "@/lib/session";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/forum")({
+  loader: () => queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
   component: ForumPage,
 });
 
@@ -218,13 +221,16 @@ function AnswerBadge({ count }: { count: number }) {
 
 /* ── Main Component ───────────────────────────────────────────────────────── */
 function ForumPage() {
+  const loaderData = Route.useLoaderData();
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(true);
-  const [currentUserAvatarUrl, setCurrentUserAvatarUrl] = useState<string | null>(null);
+  // subscribe to the shared current-user-view so this page updates when
+  // the user signs in/out or edits their profile (cache updated elsewhere)
+  const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
+  const profile = (currentUserViewQuery.data && currentUserViewQuery.data.profile) || null;
+  const currentUserAvatarUrl = (currentUserViewQuery.data && currentUserViewQuery.data.avatarUrl) || null;
   const [currentUserAvatarColor, setCurrentUserAvatarColor] = useState<string | null>(null);
 
   const [showAskForm, setShowAskForm] = useState(false);
@@ -256,50 +262,10 @@ function ForumPage() {
     };
   }, []);
 
-  /* ── load current user's spring profile ── */
+  // keep avatar color in sync with profile when available
   useEffect(() => {
-    const loadProfile = async () => {
-      setProfileLoading(true);
-
-      try {
-        const { data } = await supabase.auth.getSession();
-        const session = data.session;
-
-        if (!session) {
-          setProfile(null);
-          setCurrentUserAvatarUrl(null);
-          return;
-        }
-
-        const userProfile = await getMe();
-        setProfile(userProfile);
-
-        if (userProfile.avatarPath) {
-          const { data: signedData, error: signedError } = await supabase.storage
-            .from(AVATAR_BUCKET)
-            .createSignedUrl(userProfile.avatarPath, 60 * 60);
-          if (!signedError && signedData?.signedUrl) {
-            setCurrentUserAvatarUrl(signedData.signedUrl);
-          } else {
-            setCurrentUserAvatarUrl(null);
-          }
-        } else {
-          setCurrentUserAvatarUrl(null);
-        }
-
-        // capture user-selected avatar color from the API response if present
-        setCurrentUserAvatarColor(userProfile.avatarColor ?? null);
-      } catch (err) {
-        setProfile(null);
-        setCurrentUserAvatarUrl(null);
-        console.error("Failed to load profile:", err);
-      } finally {
-        setProfileLoading(false);
-      }
-    };
-
-    void loadProfile();
-  }, []);
+    setCurrentUserAvatarColor(profile?.avatarColor ?? null);
+  }, [profile?.avatarColor]);
 
   /* ── fetch questions (answers are embedded — no N+1) ── */
   const fetchQuestions = async () => {
@@ -357,9 +323,7 @@ function ForumPage() {
         }
       }
 
-      // use explicit fetch with a valid bearer token to ensure the server
-      // receives a plain JSON object (avoids any double-encoding issues)
-      const token = await getValidAccessToken();
+      // use shared `api` ky instance so prefixUrl and auth hooks are applied
       // ensure DB varchar(255) limits are respected (title/author)
       const safeTitle = newTitle.trim().slice(0, 255);
       const safeAuthor = authorName.slice(0, 255);
@@ -379,20 +343,8 @@ function ForumPage() {
       // debug: log payload (will not include file binary)
       console.debug("Posting question payload:", payload);
 
-      const res = await fetch("http://localhost:8080/api/forum/questions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const text = await res.text().catch(() => "<no body>");
-        console.error("POST /api/forum/questions failed:", res.status, text);
-        throw new Error(`Failed to post question: ${res.status} ${text}`);
-      }
+      // Use shared `api` ky instance so prefixUrl and auth hooks are applied.
+      await api.post(`${API}/questions`, { json: payload }).json();
       setNewTitle("");
       setNewContent("");
       setSelectedMediaFile(null);
@@ -453,9 +405,7 @@ function ForumPage() {
         </div>
 
         <div className="flex items-center gap-3">
-          {profileLoading ? (
-            <div className="h-8 w-20 animate-pulse rounded-md bg-muted" />
-          ) : profile ? (
+          {profile ? (
             <span className="hidden items-center gap-2 text-sm sm:flex">
               <Avatar name={authorName} imageUrl={currentUserAvatarUrl} color={currentUserAvatarColor} />
               <span className="max-w-[140px] truncate font-medium">{authorName}</span>
