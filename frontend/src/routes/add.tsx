@@ -140,13 +140,12 @@ function SubmitContentPage() {
       <Card className="w-full max-w-lg">
         <CardHeader>
           <CardTitle className="text-2xl">Add New Item</CardTitle>
-          <CardDescription>Share a word, phrase, quiz, or lesson for review.</CardDescription>
+          <CardDescription>Share a word, phrase, or lesson for review.</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6 grid w-full grid-cols-3">
-              <TabsTrigger value="term">Add Term</TabsTrigger>
-              <TabsTrigger value="quiz">Add Quiz</TabsTrigger>
+            <TabsList className="mb-6 grid w-full grid-cols-2">
+              <TabsTrigger value="term">Add Lingo</TabsTrigger>
               <TabsTrigger value="lesson">Add Lesson</TabsTrigger>
             </TabsList>
 
@@ -256,12 +255,6 @@ function SubmitContentPage() {
               </form>
             </TabsContent>
 
-            <TabsContent value="quiz" className="space-y-4">
-              <div className="p-8 text-center text-muted-foreground">
-                <h2 className="text-xl font-semibold mb-2">Add Quiz</h2>
-                <p>The quiz submission feature is coming soon.</p>
-              </div>
-            </TabsContent>
 
             <TabsContent value="lesson" className="space-y-4">
               <div className="p-8 text-center text-muted-foreground">

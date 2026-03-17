@@ -100,9 +100,6 @@ function ReviewPage() {
             <TabsTrigger value="term" className="px-8 py-2">
               Term
             </TabsTrigger>
-            <TabsTrigger value="quiz" className="px-8 py-2">
-              Quiz
-            </TabsTrigger>
             <TabsTrigger value="lesson" className="px-8 py-2">
               Lesson
             </TabsTrigger>
@@ -275,13 +272,6 @@ function ReviewPage() {
                 </div>
               </>
             )}
-          </TabsContent>
-
-          <TabsContent value="quiz" className="space-y-4">
-            <div className="p-8 text-center text-muted-foreground">
-              <h2 className="text-xl font-semibold mb-2">Quiz Review</h2>
-              <p>The quiz review feature is coming soon.</p>
-            </div>
           </TabsContent>
 
           <TabsContent value="lesson" className="space-y-4">
