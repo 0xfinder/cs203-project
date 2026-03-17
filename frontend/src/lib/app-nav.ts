@@ -7,6 +7,7 @@ import {
   UserRound,
   MessageCircleMore,
   RotateCcw,
+  BarChart3,
 } from "lucide-react";
 
 export type AppNavPath =
@@ -16,7 +17,8 @@ export type AppNavPath =
   | "/dictionary"
   | "/review"
   | "/profile"
-  | "/forum";
+  | "/forum"
+  | "/dashboard";
 
 export interface AppNavItem {
   to: AppNavPath;
@@ -39,6 +41,11 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     to: "/add",
     label: "Add",
     icon: SquarePlus,
+  },
+  {
+    to: "/dashboard",
+    label: "Dashboard",
+    icon: BarChart3,
   },
   {
     to: "/dictionary",

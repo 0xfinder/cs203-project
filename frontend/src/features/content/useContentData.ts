@@ -56,6 +56,17 @@ export function useApprovedContentsWithVotes() {
   });
 }
 
+export function useMyApprovedContentsWithVotes(userEmail: string | null) {
+  return useQuery({
+    queryKey: [...CONTENTS_WITH_VOTES_KEY, "my", userEmail],
+    queryFn: async () => {
+      const allContents = await api.get("contents/approved-with-votes").json<ContentWithVotesResponse[]>();
+      return allContents.filter((item) => item.content.submittedBy === userEmail);
+    },
+    enabled: !!userEmail,
+  });
+}
+
 export function usePendingContents() {
   return useQuery({
     queryKey: [...CONTENTS_KEY, "pending"],
