@@ -2,12 +2,13 @@ package com.group7.app.content.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import com.group7.app.content.model.Content;
 import com.group7.app.content.service.ContentService;
 
-import jakarta.validation.Valid; // 
+import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
@@ -23,14 +24,15 @@ public class ContentController {
 
     // Contributor submits a new term
     @PostMapping
+    @PreAuthorize("hasAnyRole('CONTRIBUTOR', 'MODERATOR', 'ADMIN')")
     @Operation(summary = "Create new content")
-    // Added @Valid so Spring actually checks your @NotBlank and @Size constraints
     public Content submitContent(@Valid @RequestBody Content content) {
         return contentService.submitContent(content);
     }
 
     // Admin reviews a term with reviewer username and optional comment
     @PutMapping("/{id}/review")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Review pending content")
     public Content reviewContent(@PathVariable Long id,
             @RequestParam String reviewer,
@@ -70,6 +72,7 @@ public class ContentController {
 
     // Get all pending terms (for admin review)
     @GetMapping("/pending")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Get pending content")
     public List<Content> getPendingContents() {
         return contentService.getPendingContents();
@@ -77,6 +80,7 @@ public class ContentController {
 
     // Get pending terms with pagination
     @GetMapping("/pending/paginated")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Get pending content (paginated)")
     public org.springframework.data.domain.Page<Content> getPendingContentsPaginated(
             @RequestParam(defaultValue = "0") int page,
