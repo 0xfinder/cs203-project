@@ -102,17 +102,14 @@ export function useApproveContent() {
   return useMutation({
     mutationFn: ({
       id,
-      reviewer,
       reviewComment,
     }: {
       id: number;
-      reviewer: string;
       reviewComment?: string;
     }) =>
       api
         .put(`contents/${id}/review`, {
           searchParams: {
-            reviewer,
             decision: "APPROVE",
             ...(reviewComment ? { reviewComment } : {}),
           },
@@ -133,16 +130,14 @@ export function useRejectContent() {
   return useMutation({
     mutationFn: ({
       id,
-      reviewer,
       reviewComment,
     }: {
       id: number;
-      reviewer: string;
       reviewComment: string;
     }) =>
       api
         .put(`contents/${id}/review`, {
-          searchParams: { reviewer, decision: "REJECT", reviewComment },
+          searchParams: { decision: "REJECT", reviewComment },
         })
         .json<ContentItem>(),
     onSuccess: () => {

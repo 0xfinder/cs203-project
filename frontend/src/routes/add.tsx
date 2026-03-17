@@ -91,20 +91,9 @@ function SubmitContentPage() {
         submittedBy,
       };
 
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
-
-      if (!token) {
-        setError("You must be logged in.");
-        return;
-      }
-
       await api
         .post("contents", {
           json: payload,
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
         })
         .json();
 

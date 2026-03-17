@@ -39,11 +39,8 @@ function ReviewPage() {
   }, []);
 
   const handleApprove = async (id: number) => {
-    const me = await getMe();
-    const reviewer = me.email ?? "Unknown";
     const comment = reviewData[id]?.comment;
-
-    approveMutation.mutate({ id, reviewer, reviewComment: comment });
+    approveMutation.mutate({ id, reviewComment: comment });
     setReviewData((prev) => {
       const newData = { ...prev };
       delete newData[id];
@@ -53,11 +50,8 @@ function ReviewPage() {
   };
 
   const handleReject = async (id: number) => {
-    const me = await getMe();
-    const reviewer = me.email ?? "Unknown";
     const comment = reviewData[id]?.comment || "No reason provided";
-
-    rejectMutation.mutate({ id, reviewer, reviewComment: comment });
+    rejectMutation.mutate({ id, reviewComment: comment });
     setReviewData((prev) => {
       const newData = { ...prev };
       delete newData[id];
