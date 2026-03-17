@@ -1,5 +1,11 @@
-package com.group7.app.content;
+package com.group7.app.content.service;
 
+import com.group7.app.content.model.Content;
+import com.group7.app.content.model.ContentVote;
+import com.group7.app.content.model.ContentVoteSummaryResponse;
+import com.group7.app.content.model.ContentWithVotesResponse;
+import com.group7.app.content.repository.ContentRepository;
+import com.group7.app.content.repository.ContentVoteRepository;
 import com.group7.app.user.User;
 import com.group7.app.user.UserRepository;
 import java.util.List;

@@ -1,8 +1,12 @@
-package com.group7.app.content;
+package com.group7.app.content.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
+
+import com.group7.app.content.model.Content;
+import com.group7.app.content.service.ContentService;
+
 import jakarta.validation.Valid; // 
 import java.util.List;
 

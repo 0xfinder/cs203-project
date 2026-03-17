@@ -1,4 +1,4 @@
-package com.group7.app.content;
+package com.group7.app.content.model;
 
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;

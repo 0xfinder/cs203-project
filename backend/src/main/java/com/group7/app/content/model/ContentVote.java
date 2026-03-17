@@ -1,4 +1,4 @@
-package com.group7.app.content;
+package com.group7.app.content.model;
 
 import com.group7.app.user.User;
 import jakarta.persistence.Column;
