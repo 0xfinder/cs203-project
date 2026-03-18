@@ -42,6 +42,18 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/forum/**").authenticated()
                 .requestMatchers(HttpMethod.DELETE, "/api/forum/**").authenticated()                
 
+                // Allow anyone to view approved content
+                .requestMatchers(HttpMethod.GET, "/api/contents/approved/**").permitAll()
+
+                // Only Contributors and Admins can submit new content
+                .requestMatchers(HttpMethod.POST, "/api/contents").hasAnyRole("CONTRIBUTOR", "ADMIN")
+
+                // Only Moderators and Admins can review pending content
+                .requestMatchers("/api/contents/*/review").hasAnyRole("MODERATOR", "ADMIN")
+                .requestMatchers("/api/contents/pending/**").hasAnyRole("MODERATOR", "ADMIN")
+
+                // Restrict Admin-only endpoints
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 // Everything else requires authentication
                 .anyRequest().authenticated()
             )
