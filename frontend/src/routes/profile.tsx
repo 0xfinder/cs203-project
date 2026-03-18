@@ -1,56 +1,47 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Moon, Sun, Upload } from "lucide-react";
-import type { User } from "@supabase/supabase-js";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RoleBadge } from "@/components/role-badge";
+import {
+  requiredCurrentUserViewQueryOptions,
+  resolveAvatarSignedUrl,
+  setCurrentUserViewCache,
+} from "@/lib/current-user-view";
 import { requireAuth, useAuth } from "@/lib/auth";
-import { getMe, type UserRole } from "@/lib/me";
+import { patchMe, type MeResponse, type RoleIntent, type UserRole } from "@/lib/me";
+import { queryClient } from "@/lib/query-client";
 import { supabase } from "@/lib/supabase";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 
 const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 const MAX_AVATAR_MB = 5;
 
-interface UserMetadata {
-  full_name?: string;
-  name?: string;
-  bio?: string;
-  age?: string | number;
-  gender?: string;
-  avatar_color?: string;
-  avatar_url?: string;
-  avatar_path?: string;
-}
-
 interface ProfileState {
   name: string;
   bio: string;
   age: string;
   gender: string;
-  avatar_color: string;
+  avatarColor: string;
 }
 
-const EMPTY_PROFILE: ProfileState = {
-  name: "",
-  bio: "",
-  age: "",
-  gender: "",
-  avatar_color: "",
-};
+function toProfileState(me: MeResponse): ProfileState {
+  return {
+    name: me.displayName ?? "",
+    bio: me.bio ?? "",
+    age: me.age === null ? "" : String(me.age),
+    gender: me.gender ?? "",
+    avatarColor: me.avatarColor ?? "",
+  };
+}
 
-export const Route = createFileRoute("/profile")({
-  beforeLoad: requireAuth,
-  component: ProfilePage,
-});
-
-function readMetadata(user: User | null): UserMetadata {
-  if (!user || typeof user.user_metadata !== "object" || user.user_metadata === null) {
-    return {};
+function toRoleIntent(role: UserRole): RoleIntent | undefined {
+  if (role === "LEARNER" || role === "CONTRIBUTOR") {
+    return role;
   }
-  return user.user_metadata as UserMetadata;
+  return undefined;
 }
 
 function getInitials(value: string): string {
@@ -66,82 +57,46 @@ function getInitials(value: string): string {
   );
 }
 
-function toProfileState(metadata: UserMetadata): ProfileState {
-  return {
-    name: metadata.full_name ?? metadata.name ?? "",
-    bio: metadata.bio ?? "",
-    age: metadata.age ? String(metadata.age) : "",
-    gender: metadata.gender ?? "",
-    avatar_color: metadata.avatar_color ?? "",
-  };
+async function loadProfilePageData() {
+  const data = await queryClient.ensureQueryData(requiredCurrentUserViewQueryOptions());
+  if (!data.profile) {
+    throw new Error("Could not load current user profile");
+  }
+  return data;
 }
+
+export const Route = createFileRoute("/profile")({
+  beforeLoad: requireAuth,
+  loader: loadProfilePageData,
+  component: ProfilePage,
+});
 
 function ProfilePage() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
-  const metadata = useMemo(() => readMetadata(user), [user]);
-  const [profile, setProfile] = useState<ProfileState>(EMPTY_PROFILE);
+  const loaderData = Route.useLoaderData();
+  const initialProfile = loaderData.profile;
+
+  if (!initialProfile) {
+    throw new Error("Could not load current user profile");
+  }
+
+  const [meProfile, setMeProfile] = useState<MeResponse>(initialProfile);
+  const [profile, setProfile] = useState<ProfileState>(() => toProfileState(initialProfile));
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<UserRole | null>(null);
-  const [apiDisplayName, setApiDisplayName] = useState<string | null>(null);
+  const [meAvatarUrl, setMeAvatarUrl] = useState<string | null>(loaderData.avatarUrl);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(loaderData.avatarUrl);
+  const [userRole, setUserRole] = useState<UserRole | null>(initialProfile.role);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dark, setDark] = useState<boolean>(() => getStoredTheme() === "dark");
 
   useEffect(() => {
     applyTheme(dark ? "dark" : "light");
   }, [dark]);
-
-  useEffect(() => {
-    setProfile(toProfileState(metadata));
-  }, [metadata]);
-
-  useEffect(() => {
-    let active = true;
-    void getMe()
-      .then((me) => {
-        if (active) {
-          setUserRole(me.role);
-          setApiDisplayName(me.displayName?.trim() || null);
-        }
-      })
-      .catch(() => {
-        if (active) {
-          setUserRole(null);
-          setApiDisplayName(null);
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    let mounted = true;
-    void (async () => {
-      if (!mounted) return;
-      if (metadata.avatar_path) {
-        const { data, error } = await supabase.storage
-          .from(AVATAR_BUCKET)
-          .createSignedUrl(metadata.avatar_path, 60 * 60);
-        if (!error && mounted) {
-          setAvatarPreview(data.signedUrl ?? null);
-          return;
-        }
-      }
-      if (mounted) {
-        setAvatarPreview(metadata.avatar_url ?? null);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, [metadata.avatar_path, metadata.avatar_url]);
 
   const resetAvatarInput = () => {
     setAvatarFile(null);
@@ -155,21 +110,65 @@ function ProfilePage() {
     void navigate({ to: "/login" });
   };
 
+  const parseAge = (): number | null => {
+    const trimmedAge = profile.age.trim();
+    if (!trimmedAge) {
+      return null;
+    }
+
+    const parsedAge = Number.parseInt(trimmedAge, 10);
+    if (!Number.isInteger(parsedAge) || parsedAge < 0 || parsedAge > 130) {
+      return Number.NaN;
+    }
+
+    return parsedAge;
+  };
+
+  const buildPatchPayload = (avatarPath: string | null) => {
+    const displayName = profile.name.trim();
+    if (displayName.length < 2 || displayName.length > 32) {
+      throw new Error("Display name must be 2 to 32 characters");
+    }
+
+    const age = parseAge();
+    if (Number.isNaN(age)) {
+      throw new Error("Age must be a number between 0 and 130");
+    }
+
+    return {
+      displayName,
+      roleIntent: toRoleIntent(meProfile.role),
+      bio: profile.bio.trim() || null,
+      age,
+      gender: profile.gender.trim() || null,
+      avatarColor: profile.avatarColor || null,
+      avatarPath,
+    };
+  };
+
   const handleRemoveAvatar = async () => {
     setSaveError(null);
     setSaveSuccess(null);
     setSaving(true);
+
     try {
-      const { error } = await supabase.auth.updateUser({
-        data: { avatar_url: null, avatar_path: null },
-      });
-      if (error) {
-        setSaveError(error.message || "Failed to remove avatar");
-        return;
-      }
+      const payload = buildPatchPayload(null);
+      const updated = await patchMe(payload);
+
+      setMeProfile(updated);
+      setUserRole(updated.role);
+      setProfile(toProfileState(updated));
+      setMeAvatarUrl(null);
       setAvatarPreview(null);
+      setCurrentUserViewCache(queryClient, {
+        profile: updated,
+        avatarUrl: null,
+      });
       resetAvatarInput();
       setSaveSuccess("Avatar removed");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to remove avatar";
+      setSaveError(message);
     } finally {
       setSaving(false);
     }
@@ -186,8 +185,8 @@ function ProfilePage() {
     setSaving(true);
 
     try {
-      let avatarPath: string | undefined;
-      let avatarSignedUrl: string | undefined;
+      let avatarPath = meProfile.avatarPath ?? null;
+      let nextAvatarUrl = meAvatarUrl;
 
       if (avatarFile) {
         if (!avatarFile.type.startsWith("image/")) {
@@ -221,68 +220,40 @@ function ProfilePage() {
           return;
         }
 
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from(AVATAR_BUCKET)
-          .createSignedUrl(avatarPath, 60 * 60);
-
-        if (signedError) {
-          setSaveError(signedError.message || "Failed to preview uploaded avatar");
-          return;
-        }
-
-        avatarSignedUrl = signedData.signedUrl ?? undefined;
+        nextAvatarUrl = await resolveAvatarSignedUrl(avatarPath);
       }
 
-      const updateData: Record<string, string | null> = {
-        full_name: profile.name,
-        bio: profile.bio,
-        age: profile.age,
-        gender: profile.gender,
-        avatar_color: profile.avatar_color,
-      };
+      const payload = buildPatchPayload(avatarPath);
+      const updated = await patchMe(payload);
 
-      if (avatarPath) {
-        updateData.avatar_path = avatarPath;
+      if (!updated.avatarPath) {
+        nextAvatarUrl = null;
       }
 
-      if (avatarSignedUrl) {
-        updateData.avatar_url = avatarSignedUrl;
-      }
-
-      const { data, error } = await supabase.auth.updateUser({ data: updateData });
-
-      if (error) {
-        setSaveError(error.message || "Failed to save profile");
-        return;
-      }
-
-      const updatedMetadata = readMetadata(data.user);
-      setProfile(toProfileState(updatedMetadata));
-
-      if (avatarSignedUrl) {
-        setAvatarPreview(avatarSignedUrl);
-      } else if (updatedMetadata.avatar_path) {
-        const { data: previewData, error: previewError } = await supabase.storage
-          .from(AVATAR_BUCKET)
-          .createSignedUrl(updatedMetadata.avatar_path, 60 * 60);
-        if (!previewError) {
-          setAvatarPreview(previewData.signedUrl ?? null);
-        }
-      } else {
-        setAvatarPreview(updatedMetadata.avatar_url ?? null);
-      }
+      setMeProfile(updated);
+      setUserRole(updated.role);
+      setProfile(toProfileState(updated));
+      setMeAvatarUrl(nextAvatarUrl);
+      setAvatarPreview(nextAvatarUrl);
+      setCurrentUserViewCache(queryClient, {
+        profile: updated,
+        avatarUrl: nextAvatarUrl,
+      });
 
       resetAvatarInput();
       setEditing(false);
       setSaveSuccess("Profile saved");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Failed to save profile";
+      setSaveError(message);
     } finally {
       setSaving(false);
     }
   };
 
-  const displayName = apiDisplayName || profile.name.trim() || "unknown user";
+  const displayName = profile.name.trim() || user?.email?.split("@")[0] || "unknown user";
   const initials = getInitials(displayName);
-  const avatarColor = profile.avatar_color || metadata.avatar_color || "#475569";
+  const avatarColor = profile.avatarColor || "#475569";
 
   return (
     <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
@@ -365,7 +336,7 @@ function ProfilePage() {
                 <Upload className="h-4 w-4" />
                 <span>Choose avatar</span>
               </Button>
-              {(avatarPreview || metadata.avatar_path || metadata.avatar_url) && (
+              {(avatarPreview || meProfile.avatarPath) && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -444,10 +415,10 @@ function ProfilePage() {
                 <Input
                   id="profile-avatar-color"
                   type="color"
-                  value={profile.avatar_color || "#475569"}
+                  value={profile.avatarColor || "#475569"}
                   className="h-10 w-16 p-1"
                   onChange={(event) =>
-                    setProfile((current) => ({ ...current, avatar_color: event.target.value }))
+                    setProfile((current) => ({ ...current, avatarColor: event.target.value }))
                   }
                 />
               </div>
@@ -459,7 +430,9 @@ function ProfilePage() {
                 variant="outline"
                 onClick={() => {
                   setEditing(false);
-                  setProfile(toProfileState(metadata));
+                  setProfile(toProfileState(meProfile));
+                  setAvatarPreview(meAvatarUrl);
+                  resetAvatarInput();
                 }}
               >
                 Cancel

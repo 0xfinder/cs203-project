@@ -38,7 +38,9 @@ public class SecurityConfig {
                         "/v3/api-docs/**"
                 ).permitAll()
 
-                .requestMatchers("/api/forum/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/forum/**").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/forum/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/forum/**").authenticated()
 
                 // Everything else requires authentication
                 .anyRequest().authenticated()

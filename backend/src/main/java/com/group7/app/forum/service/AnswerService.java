@@ -25,6 +25,12 @@ public class AnswerService {
         return answerRepository.findByQuestionIdOrderByCreatedAtAsc(questionId);
     }
 
+    public Answer getAnswer(Long answerId) {
+        return answerRepository.findById(answerId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND,
+                        "Answer not found with id: " + answerId));
+    }
+
     public Answer postAnswer(Long questionId, Answer answer) {
         if (answer.getContent() == null || answer.getContent().isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Answer content is required");
