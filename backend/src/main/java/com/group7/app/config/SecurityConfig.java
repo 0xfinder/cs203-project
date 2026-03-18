@@ -40,7 +40,7 @@ public class SecurityConfig {
 
                 .requestMatchers(HttpMethod.GET, "/api/forum/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/forum/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/api/forum/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/forum/**").authenticated()                
 
                 // Everything else requires authentication
                 .anyRequest().authenticated()
