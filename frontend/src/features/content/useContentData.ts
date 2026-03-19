@@ -56,6 +56,17 @@ export function useApprovedContentsWithVotes() {
   });
 }
 
+export function useMyApprovedContentsWithVotes(userEmail: string | null) {
+  return useQuery({
+    queryKey: [...CONTENTS_WITH_VOTES_KEY, "my", userEmail],
+    queryFn: async () => {
+      const allContents = await api.get("contents/approved-with-votes").json<ContentWithVotesResponse[]>();
+      return allContents.filter((item) => item.content.submittedBy === userEmail);
+    },
+    enabled: !!userEmail,
+  });
+}
+
 export function usePendingContents() {
   return useQuery({
     queryKey: [...CONTENTS_KEY, "pending"],
@@ -102,17 +113,14 @@ export function useApproveContent() {
   return useMutation({
     mutationFn: ({
       id,
-      reviewer,
       reviewComment,
     }: {
       id: number;
-      reviewer: string;
       reviewComment?: string;
     }) =>
       api
         .put(`contents/${id}/review`, {
           searchParams: {
-            reviewer,
             decision: "APPROVE",
             ...(reviewComment ? { reviewComment } : {}),
           },
@@ -133,16 +141,14 @@ export function useRejectContent() {
   return useMutation({
     mutationFn: ({
       id,
-      reviewer,
       reviewComment,
     }: {
       id: number;
-      reviewer: string;
       reviewComment: string;
     }) =>
       api
         .put(`contents/${id}/review`, {
-          searchParams: { reviewer, decision: "REJECT", reviewComment },
+          searchParams: { decision: "REJECT", reviewComment },
         })
         .json<ContentItem>(),
     onSuccess: () => {

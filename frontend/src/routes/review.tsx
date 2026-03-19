@@ -39,11 +39,8 @@ function ReviewPage() {
   }, []);
 
   const handleApprove = async (id: number) => {
-    const me = await getMe();
-    const reviewer = me.email ?? "Unknown";
     const comment = reviewData[id]?.comment;
-
-    approveMutation.mutate({ id, reviewer, reviewComment: comment });
+    approveMutation.mutate({ id, reviewComment: comment });
     setReviewData((prev) => {
       const newData = { ...prev };
       delete newData[id];
@@ -53,11 +50,8 @@ function ReviewPage() {
   };
 
   const handleReject = async (id: number) => {
-    const me = await getMe();
-    const reviewer = me.email ?? "Unknown";
     const comment = reviewData[id]?.comment || "No reason provided";
-
-    rejectMutation.mutate({ id, reviewer, reviewComment: comment });
+    rejectMutation.mutate({ id, reviewComment: comment });
     setReviewData((prev) => {
       const newData = { ...prev };
       delete newData[id];
@@ -99,9 +93,6 @@ function ReviewPage() {
           <TabsList className="mb-6 gap-4">
             <TabsTrigger value="term" className="px-8 py-2">
               Term
-            </TabsTrigger>
-            <TabsTrigger value="quiz" className="px-8 py-2">
-              Quiz
             </TabsTrigger>
             <TabsTrigger value="lesson" className="px-8 py-2">
               Lesson
@@ -275,13 +266,6 @@ function ReviewPage() {
                 </div>
               </>
             )}
-          </TabsContent>
-
-          <TabsContent value="quiz" className="space-y-4">
-            <div className="p-8 text-center text-muted-foreground">
-              <h2 className="text-xl font-semibold mb-2">Quiz Review</h2>
-              <p>The quiz review feature is coming soon.</p>
-            </div>
           </TabsContent>
 
           <TabsContent value="lesson" className="space-y-4">

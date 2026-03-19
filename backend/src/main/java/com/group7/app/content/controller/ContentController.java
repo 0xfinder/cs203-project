@@ -1,9 +1,18 @@
-package com.group7.app.content;
+package com.group7.app.content.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-import jakarta.validation.Valid; // 
+import org.springframework.web.server.ResponseStatusException;
+
+import com.group7.app.content.model.Content;
+import com.group7.app.content.service.ContentService;
+
+import jakarta.validation.Valid;
 import java.util.List;
 
 @RestController
@@ -19,22 +28,29 @@ public class ContentController {
 
     // Contributor submits a new term
     @PostMapping
+    @PreAuthorize("hasAnyRole('CONTRIBUTOR', 'MODERATOR', 'ADMIN')")
     @Operation(summary = "Create new content")
-    // Added @Valid so Spring actually checks your @NotBlank and @Size constraints
-    public Content submitContent(@Valid @RequestBody Content content) {
+    public Content submitContent(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody Content content) {
+        String email = getEmail(jwt);
+        content.setSubmittedBy(email);
         return contentService.submitContent(content);
     }
 
     // Admin reviews a term with reviewer username and optional comment
     @PutMapping("/{id}/review")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Review pending content")
-    public Content reviewContent(@PathVariable Long id,
-            @RequestParam String reviewer,
+    public Content reviewContent(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long id,
             @RequestParam String decision,
             @RequestParam(required = false) String reviewComment) {
+        String reviewer = getEmail(jwt);
         if (decision == null || decision.isBlank()) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.BAD_REQUEST,
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
                     "decision is required");
         }
 
@@ -45,16 +61,24 @@ public class ContentController {
 
         if ("REJECT".equals(normalizedDecision) || "REJECTED".equals(normalizedDecision)) {
             if (reviewComment == null || reviewComment.isBlank()) {
-                throw new org.springframework.web.server.ResponseStatusException(
-                        org.springframework.http.HttpStatus.BAD_REQUEST,
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
                         "reviewComment is required when rejecting content");
             }
             return contentService.rejectContent(id, reviewer, reviewComment);
         }
 
-        throw new org.springframework.web.server.ResponseStatusException(
-                org.springframework.http.HttpStatus.BAD_REQUEST,
+        throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
                 "decision must be APPROVE/APPROVED or REJECT/REJECTED");
+    }
+
+    private static String getEmail(Jwt jwt) {
+        String email = jwt.getClaimAsString("email");
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "missing email claim");
+        }
+        return email;
     }
 
     // Get all approved terms (for normal users)
@@ -66,6 +90,7 @@ public class ContentController {
 
     // Get all pending terms (for admin review)
     @GetMapping("/pending")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Get pending content")
     public List<Content> getPendingContents() {
         return contentService.getPendingContents();
@@ -73,6 +98,7 @@ public class ContentController {
 
     // Get pending terms with pagination
     @GetMapping("/pending/paginated")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Get pending content (paginated)")
     public org.springframework.data.domain.Page<Content> getPendingContentsPaginated(
             @RequestParam(defaultValue = "0") int page,

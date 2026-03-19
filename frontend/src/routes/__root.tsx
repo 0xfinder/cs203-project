@@ -12,6 +12,7 @@ const navPriority: Partial<Record<AppNavPath, number>> = {
   "/revise": 1,
   "/dictionary": 2,
   "/add": 3,
+  "/dashboard": 3.5,
   "/review": 4,
 };
 

@@ -17,6 +17,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as LessonsRouteImport } from './routes/lessons'
 import { Route as ForumRouteImport } from './routes/forum'
 import { Route as DictionaryRouteImport } from './routes/dictionary'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LessonLessonIdRouteImport } from './routes/lesson.$lessonId'
@@ -61,6 +62,11 @@ const DictionaryRoute = DictionaryRouteImport.update({
   path: '/dictionary',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AddRoute = AddRouteImport.update({
   id: '/add',
   path: '/add',
@@ -80,6 +86,7 @@ const LessonLessonIdRoute = LessonLessonIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
+  '/dashboard': typeof DashboardRoute
   '/dictionary': typeof DictionaryRoute
   '/forum': typeof ForumRoute
   '/lessons': typeof LessonsRoute
@@ -93,6 +100,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
+  '/dashboard': typeof DashboardRoute
   '/dictionary': typeof DictionaryRoute
   '/forum': typeof ForumRoute
   '/lessons': typeof LessonsRoute
@@ -107,6 +115,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/add': typeof AddRoute
+  '/dashboard': typeof DashboardRoute
   '/dictionary': typeof DictionaryRoute
   '/forum': typeof ForumRoute
   '/lessons': typeof LessonsRoute
@@ -122,6 +131,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/add'
+    | '/dashboard'
     | '/dictionary'
     | '/forum'
     | '/lessons'
@@ -135,6 +145,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/add'
+    | '/dashboard'
     | '/dictionary'
     | '/forum'
     | '/lessons'
@@ -148,6 +159,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/add'
+    | '/dashboard'
     | '/dictionary'
     | '/forum'
     | '/lessons'
@@ -162,6 +174,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddRoute: typeof AddRoute
+  DashboardRoute: typeof DashboardRoute
   DictionaryRoute: typeof DictionaryRoute
   ForumRoute: typeof ForumRoute
   LessonsRoute: typeof LessonsRoute
@@ -231,6 +244,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DictionaryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/add': {
       id: '/add'
       path: '/add'
@@ -258,6 +278,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddRoute: AddRoute,
+  DashboardRoute: DashboardRoute,
   DictionaryRoute: DictionaryRoute,
   ForumRoute: ForumRoute,
   LessonsRoute: LessonsRoute,

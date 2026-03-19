@@ -1,7 +1,8 @@
-package com.group7.app.content;
+package com.group7.app.content.repository;
 
 import java.util.Optional;
 import java.util.UUID;
+import com.group7.app.content.model.ContentVote;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ContentVoteRepository extends JpaRepository<ContentVote, Long> {
