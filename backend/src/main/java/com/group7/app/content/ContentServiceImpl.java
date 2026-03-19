@@ -17,7 +17,10 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     public Content submitContent(Content content) {
-        content.setStatus(Content.Status.PENDING);
+        // Respect any status already set (e.g. controller auto-approves for admins).
+        if (content.getStatus() != Content.Status.APPROVED) {
+            content.setStatus(Content.Status.PENDING);
+        }
         return contentRepository.save(content);
     }
 

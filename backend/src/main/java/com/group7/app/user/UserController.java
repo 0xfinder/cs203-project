@@ -9,7 +9,11 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class UserController {
 
     private final UserService userService;
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     public UserController(UserService userService) {
         this.userService = userService;
@@ -79,7 +84,40 @@ public class UserController {
         return UserMeResponse.fromUser(updated, userService.isOnboardingCompleted(updated));
     }
 
+    @PostMapping("/me/dev-role")
+    @Operation(summary = "Dev: set current user's role (dev only)")
+    public UserMeResponse setMyRoleDev(@AuthenticationPrincipal Jwt jwt, @RequestParam String role) {
+        // Only allow when explicitly enabled via environment variable for safety
+        String allow = System.getenv("ALLOW_DEV_ROLE_CHANGE");
+        if (!"true".equalsIgnoreCase(allow)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Dev role changes are disabled");
+        }
+
+        UUID userId = parseUserId(jwt);
+        User user = userService.findById(userId).orElseGet(() -> userService.createFromAuth(userId, getEmail(jwt)));
+
+        Role newRole;
+        try {
+            newRole = Role.valueOf(role.trim().toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role");
+        }
+
+        user.setRole(newRole);
+        User updated;
+        try {
+            updated = userService.save(user);
+        } catch (Exception ex) {
+            log.error("Failed to save user while setting dev role", ex);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to set role: " + ex.getMessage());
+        }
+        return UserMeResponse.fromUser(updated, userService.isOnboardingCompleted(updated));
+    }
+
     private static UUID parseUserId(Jwt jwt) {
+        if (jwt == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "missing authentication");
+        }
         String subject = jwt.getSubject();
         if (subject == null || subject.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "missing token subject");

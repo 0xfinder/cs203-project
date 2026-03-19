@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useQuery } from "@tanstack/react-query";
 import {
   MessageCircle,
@@ -9,7 +11,15 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
-  Paperclip,
+  ThumbsUp,
+  ThumbsDown,
+  Bold,
+  Italic,
+  Strikethrough,
+  Link as LinkIcon,
+  List,
+  ListOrdered,
+  ImagePlus,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,27 +31,47 @@ import { queryClient } from "@/lib/query-client";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+// duplicate imports removed
 
 export const Route = createFileRoute("/forum")({
-  loader: () => queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
+  loader: () =>
+    queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
   component: ForumPage,
 });
 
-/* ── Types ────────────────────────────────────────────────────────────────── */
-type Answer = {
+/* -- Types ----------------------------------------------------------------- */
+type AuthorInfo = {
+  id: string | null;
+  displayName: string | null;
+  avatarPath: string | null;
+  avatarColor: string | null;
+  role: string | null;
+};
+
+type VoteSummary = {
+  thumbsUp: number;
+  thumbsDown: number;
+  userVote: "THUMBS_UP" | "THUMBS_DOWN" | null;
+};
+
+type AnswerResp = {
   id: number;
   content: string;
   author: string;
+  authorInfo: AuthorInfo;
   createdAt: string;
+  votes: VoteSummary;
 };
 
-type Question = {
+type QuestionResp = {
   id: number;
   title: string;
   content: string;
   author: string;
+  authorInfo: AuthorInfo;
   createdAt: string;
-  answers: Answer[];
+  answers: AnswerResp[];
+  votes: VoteSummary;
 };
 
 type UserProfile = MeResponse;
@@ -49,8 +79,9 @@ type UserProfile = MeResponse;
 const API = "forum";
 const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 const FORUM_MEDIA_BUCKET = import.meta.env.VITE_SUPABASE_FORUM_BUCKET?.trim() || "forum-media";
+const MAX_IMAGE_MB = 5;
 
-/* ── Helpers ──────────────────────────────────────────────────────────────── */
+/* -- Helpers ---------------------------------------------------------------- */
 function timeAgo(iso: string) {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (diff < 60) return `${diff}s ago`;
@@ -172,40 +203,59 @@ function avatarHex(name: string) {
   return AVATAR_HEX[code % AVATAR_HEX.length];
 }
 
-/**
- * returns the best label to display and store as author.
- * prefers displayName; falls back to the email prefix if onboarding isn't done.
- */
+function avatarColorClass(name: string) {
+  const color = avatarHex(name);
+  return `bg-[${color}]`;
+}
+
 function displayLabel(profile: UserProfile | null): string {
   if (!profile) return "Guest";
   return profile.displayName?.trim() || profile.email.split("@")[0];
 }
 
-/* ── Sub-components ───────────────────────────────────────────────────────── */
+/* -- Avatar public URL helper ---------------------------------------------- */
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+
+function getPublicAvatarUrl(avatarPath: string | null | undefined): string | null {
+  if (!avatarPath) return null;
+  return `${SUPABASE_URL}/storage/v1/object/public/${AVATAR_BUCKET}/${avatarPath}`;
+}
+
+/* -- Sub-components -------------------------------------------------------- */
 function Avatar({
   name,
-  imageUrl,
-  color,
+  avatarPath,
+  avatarColor,
 }: {
   name: string;
-  imageUrl?: string | null;
-  color?: string | null;
+  avatarPath?: string | null;
+  avatarColor?: string | null;
 }) {
-  const initials = getInitials(name);
-  const bg = color ?? avatarHex(name);
-  const wrapperStyle = imageUrl ? undefined : { backgroundColor: bg };
+  const url = getPublicAvatarUrl(avatarPath);
+
   return (
-    <span
-      className="inline-flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full"
-      style={wrapperStyle}
-    >
-      {imageUrl ? (
-        <img src={imageUrl} alt={`${name} avatar`} className="h-full w-full object-cover" />
-      ) : (
-        <span className="inline-flex h-full w-full items-center justify-center text-xs font-bold text-white">
-          {initials}
-        </span>
-      )}
+    <span className="inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
+      {url ? (
+        <img
+          src={url}
+          alt={`${name} avatar`}
+          className="h-full w-full object-cover"
+          onError={(e) => {
+            (e.target as HTMLImageElement).style.display = "none";
+            (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
+          }}
+        />
+      ) : null}
+      <span
+        className={cn(
+          "items-center justify-center text-xs font-bold text-white",
+          url ? "hidden h-full w-full" : "inline-flex h-full w-full",
+          avatarColor ? undefined : avatarColorClass(name),
+        )}
+        style={avatarColor ? { backgroundColor: avatarColor } : undefined}
+      >
+        {getInitials(name)}
+      </span>
     </span>
   );
 }
@@ -219,10 +269,342 @@ function AnswerBadge({ count }: { count: number }) {
   );
 }
 
-/* ── Main Component ───────────────────────────────────────────────────────── */
+/* -- Vote buttons ---------------------------------------------------------- */
+function VoteButtons({
+  votes,
+  onVote,
+  onClear,
+  disabled,
+}: {
+  votes: VoteSummary;
+  onVote: (type: "THUMBS_UP" | "THUMBS_DOWN") => void;
+  onClear: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <button
+        disabled={disabled}
+        onClick={() =>
+          votes.userVote === "THUMBS_UP" ? onClear() : onVote("THUMBS_UP")
+        }
+        className={cn(
+          "flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors",
+          votes.userVote === "THUMBS_UP"
+            ? "bg-green-500/15 text-green-600 dark:text-green-400 font-semibold"
+            : "text-muted-foreground hover:text-green-600 hover:bg-green-500/10",
+          disabled && "opacity-50 cursor-not-allowed",
+        )}
+        title="Upvote"
+      >
+        <ThumbsUp className="size-3.5" />
+        {votes.thumbsUp > 0 && <span>{votes.thumbsUp}</span>}
+      </button>
+      <button
+        disabled={disabled}
+        onClick={() =>
+          votes.userVote === "THUMBS_DOWN" ? onClear() : onVote("THUMBS_DOWN")
+        }
+        className={cn(
+          "flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors",
+          votes.userVote === "THUMBS_DOWN"
+            ? "bg-destructive/15 text-destructive font-semibold"
+            : "text-muted-foreground hover:text-destructive hover:bg-destructive/10",
+          disabled && "opacity-50 cursor-not-allowed",
+        )}
+        title="Downvote"
+      >
+        <ThumbsDown className="size-3.5" />
+        {votes.thumbsDown > 0 && <span>{votes.thumbsDown}</span>}
+      </button>
+    </div>
+  );
+}
+
+/* -- Markdown renderer ----------------------------------------------------- */
+const MarkdownContent = memo(function MarkdownContent({ content }: { content: string }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        img: ({ node, ...props }) => (
+          <img
+            {...props}
+            className="my-2 max-h-96 max-w-full rounded-lg border object-contain"
+            loading="lazy"
+          />
+        ),
+        p: ({ node, ...props }) => (
+          <p className="mt-0.5 text-sm leading-relaxed" {...props} />
+        ),
+        strong: ({ node, ...props }) => (
+          <strong className="font-bold" {...props} />
+        ),
+        em: ({ node, ...props }) => <em className="italic" {...props} />,
+        a: ({ node, ...props }) => (
+          <a
+            className="text-primary underline hover:opacity-80"
+            target="_blank"
+            rel="noopener noreferrer"
+            {...props}
+          />
+        ),
+        ul: ({ node, ...props }) => (
+          <ul className="ml-4 list-disc text-sm" {...props} />
+        ),
+        ol: ({ node, ...props }) => (
+          <ol className="ml-4 list-decimal text-sm" {...props} />
+        ),
+        code: ({ node, ...props }) => (
+          <code
+            className="rounded bg-muted px-1 py-0.5 text-xs font-mono"
+            {...props}
+          />
+        ),
+      }}
+    >
+      {content}
+    </ReactMarkdown>
+  );
+});
+
+/* -- Markdown toolbar ------------------------------------------------------ */
+type MdAction = {
+  icon: React.ElementType;
+  label: string;
+  wrap: [string, string];
+};
+
+const MD_ACTIONS: MdAction[] = [
+  { icon: Bold, label: "Bold", wrap: ["**", "**"] },
+  { icon: Italic, label: "Italic", wrap: ["*", "*"] },
+  { icon: Strikethrough, label: "Strikethrough", wrap: ["~~", "~~"] },
+  { icon: LinkIcon, label: "Link", wrap: ["[", "](url)"] },
+  { icon: List, label: "Bullet list", wrap: ["- ", ""] },
+  { icon: ListOrdered, label: "Numbered list", wrap: ["1. ", ""] },
+];
+
+function applyMarkdown(
+  textarea: HTMLTextAreaElement,
+  wrap: [string, string],
+  setValue: (v: string) => void,
+) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const text = textarea.value;
+  const selected = text.slice(start, end);
+  const replacement = `${wrap[0]}${selected || "text"}${wrap[1]}`;
+  const newText = text.slice(0, start) + replacement + text.slice(end);
+  setValue(newText);
+  requestAnimationFrame(() => {
+    textarea.focus();
+    const cursorPos = start + wrap[0].length;
+    const cursorEnd = cursorPos + (selected || "text").length;
+    textarea.setSelectionRange(cursorPos, cursorEnd);
+  });
+}
+
+function MarkdownToolbar({
+  textareaRef,
+  onImageUpload,
+  setValue,
+  uploading,
+}: {
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  onImageUpload: () => void;
+  setValue: (v: string) => void;
+  uploading: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-0.5 rounded-t-md border border-b-0 bg-muted/40 px-1.5 py-1">
+      {MD_ACTIONS.map((action) => (
+        <button
+          key={action.label}
+          type="button"
+          title={action.label}
+          className="rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            if (textareaRef.current) {
+              applyMarkdown(textareaRef.current, action.wrap, setValue);
+            }
+          }}
+        >
+          <action.icon className="size-3.5" />
+        </button>
+      ))}
+      <div className="mx-1 h-4 w-px bg-border" />
+      <button
+        type="button"
+        title="Upload image"
+        disabled={uploading}
+        className={cn(
+          "rounded p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+          uploading && "opacity-50 cursor-not-allowed",
+        )}
+        onClick={onImageUpload}
+      >
+        <ImagePlus className="size-3.5" />
+      </button>
+      {uploading && (
+        <span className="ml-1 text-xs text-muted-foreground">uploading...</span>
+      )}
+    </div>
+  );
+}
+
+/* -- Image upload helper --------------------------------------------------- */
+async function uploadForumImage(
+  file: File,
+  userId: string,
+): Promise<string | null> {
+  if (!file.type.startsWith("image/")) return null;
+  if (file.size > MAX_IMAGE_MB * 1024 * 1024) return null;
+
+  const ext = file.name.split(".").pop() || "png";
+  const path = `forum/${userId}/${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(FORUM_MEDIA_BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type });
+
+  if (error) {
+    console.error("Upload failed:", error);
+    return null;
+  }
+
+  // Try to get the public URL first
+    try {
+    const pubResp = await supabase.storage.from(FORUM_MEDIA_BUCKET).getPublicUrl(path as string);
+    console.log("forum upload: getPublicUrl response:", pubResp);
+    const publicUrl = (pubResp as any)?.data?.publicUrl ?? (pubResp as any)?.publicUrl ?? null;
+    if (publicUrl) {
+      // Check if the URL is actually accessible (bucket might be private)
+      try {
+        const head = await fetch(publicUrl, { method: "HEAD" });
+        console.log("forum upload: publicUrl HEAD status", head.status);
+        if (head.ok) return publicUrl;
+      } catch (e) {
+        // network/fetch errors fallthrough to signed-url fallback
+      }
+    }
+
+    // Fallback: ask backend to sign the object using the service role (more reliable)
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/forum/media/signed-url`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bucket: FORUM_MEDIA_BUCKET, path, expires: 60 * 60 * 24 }),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const signedUrl = (json as any)?.signedUrl ?? (json as any)?.signedURL ?? (json as any)?.signed_url ?? null;
+        if (signedUrl) return signedUrl;
+      } else {
+        console.warn("forum upload: backend signed-url failed", res.status);
+      }
+    } catch (e) {
+      console.error("forum upload: backend signed-url error", e);
+    }
+
+    // Last resort: return whatever publicUrl we received (may 403)
+    return publicUrl || null;
+  } catch (e) {
+    console.error("Error getting public/signed URL:", e);
+    return null;
+  }
+}
+
+/* -- Markdown textarea component ------------------------------------------- */
+function MarkdownTextarea({
+  value,
+  onChange,
+  placeholder,
+  rows,
+  disabled,
+  userId,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  rows?: number;
+  disabled?: boolean;
+  userId?: string;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const handleImageUpload = useCallback(async () => {
+    if (!userId) return;
+    fileInputRef.current?.click();
+  }, [userId]);
+
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file || !userId) return;
+      if (file.size > MAX_IMAGE_MB * 1024 * 1024) {
+        alert(`Image must be under ${MAX_IMAGE_MB}MB`);
+        return;
+      }
+      setUploading(true);
+      try {
+        const url = await uploadForumImage(file, userId);
+        if (url && textareaRef.current) {
+          const ta = textareaRef.current;
+          const pos = ta.selectionStart;
+          const text = ta.value;
+          const insertion = `![image](${url})`;
+          const newText =
+            text.slice(0, pos) + insertion + text.slice(ta.selectionEnd);
+          onChange(newText);
+          requestAnimationFrame(() => {
+            ta.focus();
+            const newPos = pos + insertion.length;
+            ta.setSelectionRange(newPos, newPos);
+          });
+        }
+      } finally {
+        setUploading(false);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+      }
+    },
+    [userId, onChange],
+  );
+
+  return (
+    <div>
+      <MarkdownToolbar
+        textareaRef={textareaRef}
+        onImageUpload={handleImageUpload}
+        setValue={onChange}
+        uploading={uploading}
+      />
+      <textarea
+        ref={textareaRef}
+        className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full min-w-0 resize-none rounded-b-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 dark:bg-input/30"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows ?? 3}
+        disabled={disabled || uploading}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+    </div>
+  );
+}
+
+/* -- Main component -------------------------------------------------------- */
 function ForumPage() {
   const loaderData = Route.useLoaderData();
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<QuestionResp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -232,45 +614,32 @@ function ForumPage() {
   const profile = (currentUserViewQuery.data && currentUserViewQuery.data.profile) || null;
   const currentUserAvatarUrl = (currentUserViewQuery.data && currentUserViewQuery.data.avatarUrl) || null;
   const [currentUserAvatarColor, setCurrentUserAvatarColor] = useState<string | null>(null);
+  // loaderData.profile is available via loader, but we rely on the shared
+  // `currentUserViewQuery` for the up-to-date `profile` value.
 
   const [showAskForm, setShowAskForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [posting, setPosting] = useState(false);
-  const [selectedMediaFile, setSelectedMediaFile] = useState<File | null>(null);
-  const [mediaPreviewUrl, setMediaPreviewUrl] = useState<string | null>(null);
-
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   
 
   const [answerDraft, setAnswerDraft] = useState<Record<number, string>>({});
   const [postingAnswer, setPostingAnswer] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [debugMessage, setDebugMessage] = useState<string | null>(null);
-  const debugTimeoutRef = useRef<number | null>(null);
 
-  function showDebug(msg: string) {
-    console.log(msg);
-    setDebugMessage(msg);
-    if (debugTimeoutRef.current) window.clearTimeout(debugTimeoutRef.current);
-    debugTimeoutRef.current = window.setTimeout(() => setDebugMessage(null), 3500);
-  }
-
-  useEffect(() => {
-    return () => {
-      if (debugTimeoutRef.current) window.clearTimeout(debugTimeoutRef.current);
-    };
-  }, []);
-
-  // keep avatar color in sync with profile when available
-  useEffect(() => {
-    setCurrentUserAvatarColor(profile?.avatarColor ?? null);
-  }, [profile?.avatarColor]);
-
-  /* ── fetch questions (answers are embedded — no N+1) ── */
+  /* -- fetch questions ---------------------------------------------------- */
   const fetchQuestions = async () => {
     try {
-      const data: Question[] = await api.get(`${API}/questions`).json();
+      let data: QuestionResp[];
+      if (profile) {
+        data = await api.get("forum/questions").json<QuestionResp[]>();
+      } else {
+        const res = await fetch(
+          `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api"}/forum/questions`,
+        );
+        if (!res.ok) throw new Error(`Server error: ${res.status}`);
+        data = await res.json();
+      }
       setQuestions(data);
       setError(null);
     } catch (e) {
@@ -284,71 +653,26 @@ function ForumPage() {
     void fetchQuestions();
   }, []);
 
-  /* ── derived state ── */
+  /* -- derived state ------------------------------------------------------ */
   const authorName = displayLabel(profile);
   const onboardingDone = Boolean(profile?.displayName?.trim());
   const canPost = Boolean(profile) && onboardingDone;
 
-  /* ── post question ── */
+  /* -- post question ------------------------------------------------------ */
   const handlePostQuestion = async () => {
     if (!newTitle.trim() || !newContent.trim() || !canPost) return;
     setPosting(true);
     try {
-      let contentToSend = newContent.trim();
-
-      // if a media file is selected, upload it to Supabase Storage and append
-      // a markdown link to the content so backend can store it as part of the question
-      if (selectedMediaFile) {
-        // sanitize filename to avoid characters that can cause storage 400 errors
-        const safeName = (selectedMediaFile.name || "file").replace(/\s+/g, "_").replace(/[^A-Za-z0-9._-]/g, "");
-        const mediaPath = `uploads/forum/${Date.now()}_${safeName}`;
-
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from(FORUM_MEDIA_BUCKET)
-          .upload(mediaPath, selectedMediaFile, { upsert: true });
-
-        if (uploadError) {
-          console.error("Supabase upload error:", uploadError, uploadData);
-          throw new Error(uploadError.message || "Failed to upload media");
-        }
-
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from(FORUM_MEDIA_BUCKET)
-          .createSignedUrl(mediaPath, 60 * 60);
-
-        const mediaUrl = !signedError && signedData?.signedUrl ? signedData.signedUrl : null;
-        if (mediaUrl) {
-          // append as markdown image by default; users can paste other content too
-          contentToSend += `\n\n![](${mediaUrl})`;
-        }
-      }
-
-      // use shared `api` ky instance so prefixUrl and auth hooks are applied
-      // ensure DB varchar(255) limits are respected (title/author)
-      const safeTitle = newTitle.trim().slice(0, 255);
-      const safeAuthor = authorName.slice(0, 255);
-      if (safeTitle.length < newTitle.trim().length) {
-        console.warn("Title truncated to 255 chars to fit DB column");
-      }
-      if (safeAuthor.length < authorName.length) {
-        console.warn("Author truncated to 255 chars to fit DB column");
-      }
-
-      const payload = {
-        title: safeTitle,
-        content: contentToSend,
-        author: safeAuthor,
-      };
-
-      // debug: log payload (will not include file binary)
-      console.debug("Posting question payload:", payload);
-
-      // Use shared `api` ky instance so prefixUrl and auth hooks are applied.
-      await api.post(`${API}/questions`, { json: payload }).json();
+      await api
+        .post("forum/questions", {
+          json: {
+            title: newTitle.trim(),
+            content: newContent.trim(),
+          },
+        })
+        .json();
       setNewTitle("");
       setNewContent("");
-      setSelectedMediaFile(null);
-      setMediaPreviewUrl(null);
       setShowAskForm(false);
       await fetchQuestions();
     } catch (e) {
@@ -358,18 +682,17 @@ function ForumPage() {
     }
   };
 
-  /* ── post answer ── */
+  /* -- post answer -------------------------------------------------------- */
   const handlePostAnswer = async (qId: number) => {
     let content = answerDraft[qId]?.trim();
     if (!content || !canPost) return;
     setPostingAnswer(qId);
     try {
-      await api.post(`${API}/questions/${qId}/answers`, {
-        json: {
-          content,
-          author: authorName,
-        },
-      }).json();
+      await api
+        .post(`forum/questions/${qId}/answers`, {
+          json: { content },
+        })
+        .json();
       setAnswerDraft((prev) => ({ ...prev, [qId]: "" }));
       await fetchQuestions();
     } catch (e) {
@@ -379,37 +702,144 @@ function ForumPage() {
     }
   };
 
-  /* ── deletes ── */
+  /* -- deletes ------------------------------------------------------------ */
   const handleDeleteQuestion = async (qId: number) => {
     if (!confirm("Delete this question and all its answers?")) return;
-    await api.delete(`${API}/questions/${qId}`);
-    await fetchQuestions();
+    try {
+      await api.delete(`forum/questions/${qId}`);
+      await fetchQuestions();
+    } catch {
+      setError("Failed to delete question");
+    }
   };
 
   const handleDeleteAnswer = async (aId: number) => {
-    await api.delete(`${API}/answers/${aId}`);
-    await fetchQuestions();
+    try {
+      await api.delete(`forum/answers/${aId}`);
+      await fetchQuestions();
+    } catch {
+      setError("Failed to delete answer");
+    }
   };
 
-  /* ── render ── */
+  /* -- voting ------------------------------------------------------------- */
+  const handleQuestionVote = async (
+    qId: number,
+    type: "THUMBS_UP" | "THUMBS_DOWN",
+  ) => {
+    if (!canPost) return;
+    try {
+      const updated = await api
+        .post(`forum/questions/${qId}/votes`, {
+          json: { voteType: type },
+        })
+        .json<VoteSummary>();
+      setQuestions((prev) =>
+        prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)),
+      );
+    } catch {
+      setError("Failed to vote");
+    }
+  };
+
+  const handleClearQuestionVote = async (qId: number) => {
+    if (!canPost) return;
+    try {
+      const updated = await api
+        .delete(`forum/questions/${qId}/votes`)
+        .json<VoteSummary>();
+      setQuestions((prev) =>
+        prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)),
+      );
+    } catch {
+      setError("Failed to clear vote");
+    }
+  };
+
+  const handleAnswerVote = async (
+    qId: number,
+    aId: number,
+    type: "THUMBS_UP" | "THUMBS_DOWN",
+  ) => {
+    if (!canPost) return;
+    try {
+      const updated = await api
+        .post(`forum/answers/${aId}/votes`, {
+          json: { voteType: type },
+        })
+        .json<VoteSummary>();
+      setQuestions((prev) =>
+        prev.map((q) =>
+          q.id === qId
+            ? {
+                ...q,
+                answers: q.answers.map((a) =>
+                  a.id === aId ? { ...a, votes: updated } : a,
+                ),
+              }
+            : q,
+        ),
+      );
+    } catch {
+      setError("Failed to vote");
+    }
+  };
+
+  const handleClearAnswerVote = async (qId: number, aId: number) => {
+    if (!canPost) return;
+    try {
+      const updated = await api
+        .delete(`forum/answers/${aId}/votes`)
+        .json<VoteSummary>();
+      setQuestions((prev) =>
+        prev.map((q) =>
+          q.id === qId
+            ? {
+                ...q,
+                answers: q.answers.map((a) =>
+                  a.id === aId ? { ...a, votes: updated } : a,
+                ),
+              }
+            : q,
+        ),
+      );
+    } catch {
+      setError("Failed to clear vote");
+    }
+  };
+
+  /* -- ownership check ---------------------------------------------------- */
+  const isOwner = (authorInfo: AuthorInfo) =>
+    canPost && profile && authorInfo.id === profile.id;
+
+  /* -- render ------------------------------------------------------------- */
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
-      {debugMessage && (
-        <div className="mb-4 rounded-md border bg-yellow-50 px-3 py-2 text-sm text-yellow-900">Debug: {debugMessage}</div>
-      )}
+      {/* debug banner removed (undefined `debugMessage` caused runtime error) */}
       {/* page header */}
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Forum</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Beat the Unc Allegations 💀</p>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Beat the Unc Allegations 💀
+          </p>
         </div>
 
         <div className="flex items-center gap-3">
           {profile ? (
             <span className="hidden items-center gap-2 text-sm sm:flex">
-              <Avatar name={authorName} imageUrl={currentUserAvatarUrl} color={currentUserAvatarColor} />
-              <span className="max-w-[140px] truncate font-medium">{authorName}</span>
-              <RoleBadge role={profile.role} className="text-muted-foreground" />
+              <Avatar
+                name={authorName}
+                avatarPath={profile.avatarPath}
+                avatarColor={profile.avatarColor}
+              />
+              <span className="max-w-[140px] truncate font-medium">
+                {authorName}
+              </span>
+              <RoleBadge
+                role={profile.role}
+                className="text-muted-foreground"
+              />
             </span>
           ) : null}
 
@@ -425,10 +855,10 @@ function ForumPage() {
         <Card className="mb-5 border-chart-4/40 bg-chart-4/5">
           <CardContent className="flex items-center justify-between gap-3 text-sm">
             <span>
-              👋 You need a <strong>display name</strong> before you can post.
+              You need a <strong>display name</strong> before you can post.
             </span>
             <Button variant="outline" size="sm" asChild>
-              <Link to="/profile">Complete profile →</Link>
+              <Link to="/profile">Complete profile</Link>
             </Button>
           </CardContent>
         </Card>
@@ -442,7 +872,11 @@ function ForumPage() {
               <AlertTriangle className="size-4 shrink-0" />
               {error}
             </span>
-            <Button variant="ghost" size="icon-xs" onClick={() => setError(null)}>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setError(null)}
+            >
               <X className="size-3.5" />
             </Button>
           </CardContent>
@@ -458,7 +892,10 @@ function ForumPage() {
             {!profile && (
               <p className="rounded-lg border border-chart-4/30 bg-chart-4/10 px-3 py-2 text-sm text-chart-4">
                 You must be{" "}
-                <Link to="/login" className="font-medium underline hover:opacity-80">
+                <Link
+                  to="/login"
+                  className="font-medium underline hover:opacity-80"
+                >
                   logged in
                 </Link>{" "}
                 to post.
@@ -482,74 +919,24 @@ function ForumPage() {
               maxLength={160}
               disabled={!canPost}
             />
-            <textarea
-              className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full min-w-0 resize-none rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 dark:bg-input/30"
-              placeholder="Provide details or context about your question"
+
+            <MarkdownTextarea
               value={newContent}
-              onChange={(e) => setNewContent(e.target.value)}
-              rows={3}
+              onChange={setNewContent}
+              placeholder="Provide details or context about your question"
+              rows={4}
               disabled={!canPost}
+              userId={profile?.id}
             />
 
-            {/* media input + preview */}
-            <div className="flex items-center gap-3">
-              <input
-                id="forum-file-input"
-                ref={(el) => (fileInputRef.current = el)}
-                type="file"
-                accept="image/*,video/*"
-                className="sr-only"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  const url = f ? URL.createObjectURL(f) : null;
-                  setSelectedMediaFile(f);
-                  setMediaPreviewUrl(url);
-                }}
-                disabled={!canPost}
-              />
-
-              <Button size="sm" variant="outline" asChild disabled={!canPost}>
-                <label htmlFor="forum-file-input" className="inline-flex items-center gap-2 cursor-pointer">
-                  Attach file
-                </label>
-              </Button>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="truncate text-sm text-muted-foreground">
-                    {selectedMediaFile ? selectedMediaFile.name : "No file chosen"}
-                  </span>
-                  {selectedMediaFile && (
-                    <Button
-                      size="icon-xs"
-                      variant="ghost"
-                      onClick={() => {
-                        setSelectedMediaFile(null);
-                        setMediaPreviewUrl(null);
-                        if (fileInputRef.current) fileInputRef.current.value = "";
-                      }}
-                      title="Remove attachment"
-                    >
-                      <X className="size-3.5" />
-                    </Button>
-                  )}
-                </div>
-
-                {mediaPreviewUrl && (
-                  <div className="mt-2 rounded-md overflow-hidden">
-                    {selectedMediaFile?.type.startsWith("video/") ? (
-                      <video src={mediaPreviewUrl} controls className="h-24 w-auto rounded-md" />
-                    ) : (
-                      <img src={mediaPreviewUrl} alt="preview" className="h-16 w-auto object-cover rounded-md" />
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* file attachments removed from the post form; use inline image upload in the editor */}
 
             {canPost && (
               <p className="text-xs text-muted-foreground">
-                Posting as <span className="font-semibold text-foreground">{authorName}</span>
+                Posting as{" "}
+                <span className="font-semibold text-foreground">
+                  {authorName}
+                </span>
               </p>
             )}
 
@@ -568,9 +955,14 @@ function ForumPage() {
               <Button
                 size="sm"
                 onClick={handlePostQuestion}
-                disabled={posting || !newTitle.trim() || !newContent.trim() || !canPost}
+                disabled={
+                  posting ||
+                  !newTitle.trim() ||
+                  !newContent.trim() ||
+                  !canPost
+                }
               >
-                {posting ? "Posting…" : "Post Question"}
+                {posting ? "Posting..." : "Post Question"}
               </Button>
             </div>
           </CardContent>
@@ -595,7 +987,7 @@ function ForumPage() {
       {/* empty state */}
       {!loading && questions.length === 0 && (
         <div className="py-20 text-center">
-          <p className="mb-4 text-5xl">🤔</p>
+          <p className="mb-4 text-5xl">?</p>
           <p className="text-lg font-semibold">No questions yet</p>
           <p className="mt-1 text-sm text-muted-foreground">
             Be the first to ask something bussin!
@@ -608,7 +1000,7 @@ function ForumPage() {
         <div className="space-y-4">
           {questions.map((q) => {
             const isExpanded = expandedId === q.id;
-            const isOwner = canPost && q.author === authorName;
+            const qIsOwner = isOwner(q.authorInfo);
 
             return (
               <Card
@@ -616,39 +1008,63 @@ function ForumPage() {
                 className="overflow-hidden transition-colors hover:border-primary/30"
               >
                 <CardContent className="pb-0">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-base font-bold leading-snug">{q.title}</h3>
-                      <div className="mt-1.5">
-                        {renderContent(q.content)}
-                      </div>
-                    </div>
-                    {isOwner && (
+                  {/* author row */}
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Avatar
+                      name={q.authorInfo.displayName ?? q.author}
+                      avatarPath={q.authorInfo.avatarPath}
+                      avatarColor={q.authorInfo.avatarColor}
+                    />
+                    <span className="font-medium text-foreground">
+                      {q.authorInfo.displayName ?? q.author}
+                    </span>
+                    {q.authorInfo.role && (
+                      <RoleBadge
+                        role={q.authorInfo.role as any}
+                        className="text-muted-foreground"
+                      />
+                    )}
+                    <span className="text-muted-foreground/60">
+                      {timeAgo(q.createdAt)}
+                    </span>
+                    {qIsOwner && (
                       <Button
                         variant="ghost"
                         size="icon-xs"
                         onClick={() => handleDeleteQuestion(q.id)}
                         title="Delete question"
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
+                        className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
                       >
                         <Trash2 className="size-3.5" />
                       </Button>
                     )}
                   </div>
 
-                  <div className="mt-3 flex flex-wrap items-center gap-3 pb-4">
-                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <Avatar
-                        name={q.author}
-                        imageUrl={q.author === authorName ? currentUserAvatarUrl : null}
-                        color={q.author === authorName ? currentUserAvatarColor : undefined}
-                      />
-                      <span className="font-medium">{q.author}</span>
+                  {/* title + content with votes on the right */}
+                  <div className="mt-2 flex gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-base font-bold leading-snug">
+                        {q.title}
+                      </h3>
+                      <div className="mt-1.5 text-muted-foreground">
+                        <MarkdownContent content={q.content} />
+                      </div>
                     </div>
-                    <span className="text-xs text-muted-foreground/60">{timeAgo(q.createdAt)}</span>
+                    <VoteButtons
+                      votes={q.votes}
+                      onVote={(type) => handleQuestionVote(q.id, type)}
+                      onClear={() => handleClearQuestionVote(q.id)}
+                      disabled={!canPost}
+                    />
+                  </div>
+
+                  {/* footer: answer count + expand */}
+                  <div className="mt-3 flex items-center gap-3 pb-4">
                     <AnswerBadge count={q.answers?.length ?? 0} />
                     <button
-                      onClick={() => setExpandedId(isExpanded ? null : q.id)}
+                      onClick={() =>
+                        setExpandedId(isExpanded ? null : q.id)
+                      }
                       className="ml-auto flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80"
                     >
                       {isExpanded ? (
@@ -665,26 +1081,35 @@ function ForumPage() {
                 </CardContent>
 
                 {isExpanded && (
-                  <div className="border-t bg-muted/30 px-6 py-4 space-y-4">
+                  <div className="space-y-4 border-t bg-muted/30 px-6 py-4">
                     {(q.answers?.length ?? 0) === 0 ? (
                       <p className="text-sm italic text-muted-foreground">
-                        This thread needs a lore drop immediately
+                        his thread needs a lore drop immediately
                       </p>
                     ) : (
                       <ul className="space-y-3">
                         {q.answers.map((a) => (
                           <li key={a.id} className="group flex gap-3">
                             <Avatar
-                              name={a.author}
-                              imageUrl={a.author === authorName ? currentUserAvatarUrl : null}
+                              name={a.authorInfo.displayName ?? a.author}
+                              avatarPath={a.authorInfo.avatarPath}
+                              avatarColor={a.authorInfo.avatarColor}
                             />
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold">{a.author}</span>
+                                <span className="text-xs font-semibold">
+                                  {a.authorInfo.displayName ?? a.author}
+                                </span>
+                                {a.authorInfo.role && (
+                                  <RoleBadge
+                                    role={a.authorInfo.role as any}
+                                    className="text-muted-foreground"
+                                  />
+                                )}
                                 <span className="text-xs text-muted-foreground/60">
                                   {timeAgo(a.createdAt)}
                                 </span>
-                                {canPost && a.author === authorName && (
+                                {isOwner(a.authorInfo) && (
                                   <button
                                     onClick={() => handleDeleteAnswer(a.id)}
                                     className="ml-auto hidden text-muted-foreground transition-colors hover:text-destructive group-hover:block"
@@ -694,10 +1119,20 @@ function ForumPage() {
                                   </button>
                                 )}
                               </div>
-                              <div className="mt-0.5">
-                                {renderContent(a.content)}
+                              <div className="mt-0.5 text-muted-foreground">
+                                <MarkdownContent content={a.content} />
                               </div>
                             </div>
+                            <VoteButtons
+                              votes={a.votes}
+                              onVote={(type) =>
+                                handleAnswerVote(q.id, a.id, type)
+                              }
+                              onClear={() =>
+                                handleClearAnswerVote(q.id, a.id)
+                              }
+                              disabled={!canPost}
+                            />
                           </li>
                         ))}
                       </ul>
@@ -705,34 +1140,30 @@ function ForumPage() {
 
                     {canPost ? (
                       <div className="space-y-2 pt-1">
-                        <div className="flex gap-2">
-                          <Input
-                            placeholder="Go ahead and cook…"
-                            value={answerDraft[q.id] ?? ""}
-                            onChange={(e) =>
-                              setAnswerDraft((prev) => ({ ...prev, [q.id]: e.target.value }))
-                            }
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" && !e.shiftKey) {
-                                e.preventDefault();
-                                void handlePostAnswer(q.id);
-                              }
-                            }}
-                            className="flex-1"
-                          />
-
-                          {/* reply attachments removed by request */}
-
+                        <MarkdownTextarea
+                          value={answerDraft[q.id] ?? ""}
+                          onChange={(v) =>
+                            setAnswerDraft((prev) => ({
+                              ...prev,
+                              [q.id]: v,
+                            }))
+                          }
+                          placeholder="Go ahead and cook..."
+                          rows={2}
+                          userId={profile?.id}
+                        />
+                        <div className="flex justify-end">
                           <Button
                             size="sm"
                             onClick={() => handlePostAnswer(q.id)}
-                            disabled={postingAnswer === q.id || !answerDraft[q.id]?.trim()}
+                            disabled={
+                              postingAnswer === q.id ||
+                              !answerDraft[q.id]?.trim()
+                            }
                           >
-                            {postingAnswer === q.id ? "…" : "Post"}
+                            {postingAnswer === q.id ? "..." : "Post Reply"}
                           </Button>
                         </div>
-
-                        {/* reply attachment preview removed */}
                       </div>
                     ) : profile && !onboardingDone ? (
                       <p className="text-xs italic text-chart-4">
@@ -743,7 +1174,10 @@ function ForumPage() {
                       </p>
                     ) : (
                       <p className="text-xs italic text-muted-foreground">
-                        Log in to post an answer.
+                        <Link to="/login" className="font-medium underline hover:opacity-80">
+                          Log in
+                        </Link>{" "}
+                        to post an answer.
                       </p>
                     )}
                   </div>
