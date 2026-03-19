@@ -1,5 +1,9 @@
-package com.group7.app.content;
+package com.group7.app.content.controller;
 
+import com.group7.app.content.model.ContentVoteRequest;
+import com.group7.app.content.model.ContentVoteSummaryResponse;
+import com.group7.app.content.model.ContentWithVotesResponse;
+import com.group7.app.content.service.ContentVoteService;
 import com.group7.app.user.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

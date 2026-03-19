@@ -7,7 +7,9 @@ import {
   UserRound,
   MessageCircleMore,
   RotateCcw,
+  BarChart3,
 } from "lucide-react";
+import type { UserRole } from "./me";
 
 export type AppNavPath =
   | "/lessons"
@@ -16,12 +18,14 @@ export type AppNavPath =
   | "/dictionary"
   | "/review"
   | "/profile"
-  | "/forum";
+  | "/forum"
+  | "/dashboard";
 
 export interface AppNavItem {
   to: AppNavPath;
   label: string;
   icon: LucideIcon;
+  roles?: UserRole[];
 }
 
 export const APP_NAV_ITEMS: readonly AppNavItem[] = [
@@ -39,6 +43,12 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     to: "/add",
     label: "Add",
     icon: SquarePlus,
+    roles: ["CONTRIBUTOR", "ADMIN"],
+  },
+  {
+    to: "/dashboard",
+    label: "Dashboard",
+    icon: BarChart3,
   },
   {
     to: "/dictionary",
@@ -49,6 +59,7 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     to: "/review",
     label: "Review",
     icon: ClipboardCheck,
+    roles: ["MODERATOR", "ADMIN"],
   },
   {
     to: "/forum",

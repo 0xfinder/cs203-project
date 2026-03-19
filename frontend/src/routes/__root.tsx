@@ -3,6 +3,8 @@ import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
 import { useAuth } from "@/lib/auth";
 import { type AppNavPath, APP_NAV_ITEMS, isAppShellPath, isNavItemActive } from "@/lib/app-nav";
 import { cn } from "@/lib/utils";
+import { queryClient } from "@/lib/query-client";
+import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 
 const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
 const navPriority: Partial<Record<AppNavPath, number>> = {
@@ -10,10 +12,12 @@ const navPriority: Partial<Record<AppNavPath, number>> = {
   "/revise": 1,
   "/dictionary": 2,
   "/add": 3,
+  "/dashboard": 3.5,
   "/review": 4,
 };
 
 export const Route = createRootRoute({
+  loader: () => queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
   errorComponent: ({ error }) => (
     <div className="m-8 rounded border border-red-300 bg-red-50 p-6 text-sm">
       <h1 className="text-lg font-bold text-red-700">Something went wrong</h1>
@@ -25,27 +29,35 @@ export const Route = createRootRoute({
 });
 
 function RootComponent() {
+  const { profile } = Route.useLoaderData();
   const { user } = useAuth();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
   const showAppShell = isAppShellPath(pathname);
-  const navItems = [...APP_NAV_ITEMS].sort((a, b) => {
-    const aOrder = navPriority[a.to];
-    const bOrder = navPriority[b.to];
 
-    if (aOrder === undefined && bOrder === undefined) {
-      return 0;
-    }
-    if (aOrder === undefined) {
-      return 1;
-    }
-    if (bOrder === undefined) {
-      return -1;
-    }
+  const navItems = [...APP_NAV_ITEMS]
+    .filter((item) => {
+      if (!item.roles) return true;
+      if (!profile) return false;
+      return item.roles.includes(profile.role);
+    })
+    .sort((a, b) => {
+      const aOrder = navPriority[a.to];
+      const bOrder = navPriority[b.to];
 
-    return aOrder - bOrder;
-  });
+      if (aOrder === undefined && bOrder === undefined) {
+        return 0;
+      }
+      if (aOrder === undefined) {
+        return 1;
+      }
+      if (bOrder === undefined) {
+        return -1;
+      }
+
+      return aOrder - bOrder;
+    });
 
   if (!showAppShell) {
     return (
@@ -94,6 +106,9 @@ function RootComponent() {
             <p className="truncate text-xs text-muted-foreground" title={user?.email ?? undefined}>
               {user?.email ?? "signed in"}
             </p>
+            {profile?.role && profile.role !== "LEARNER" && (
+              <p className="text-[10px] font-bold uppercase text-primary">{profile.role}</p>
+            )}
           </div>
         </div>
       </aside>

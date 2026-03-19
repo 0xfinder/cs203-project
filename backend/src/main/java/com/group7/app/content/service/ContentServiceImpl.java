@@ -1,7 +1,11 @@
-package com.group7.app.content;
+package com.group7.app.content.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.group7.app.content.model.Content;
+import com.group7.app.content.repository.ContentRepository;
+
 import org.springframework.http.HttpStatus;
 
 import java.util.List;

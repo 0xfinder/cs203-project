@@ -47,52 +47,26 @@ function ReviewPage() {
   }, []);
 
   const handleApprove = async (id: number) => {
-    try {
-      await approveMutation.mutateAsync({ id, reviewComment: reviewData[id]?.comment, reviewer: undefined as any });
-      setExpandedId(null);
-      setReviewData((prev) => {
-        const copy = { ...prev };
-        delete copy[id];
-        return copy;
-      });
-    } catch (err) {
-      console.error(err);
-      alert((err as any)?.message || "Failed to approve item");
-    }
+    const comment = reviewData[id]?.comment;
+    approveMutation.mutate({ id, reviewComment: comment });
+    setReviewData((prev) => {
+      const newData = { ...prev };
+      delete newData[id];
+      return newData;
+    });
+    setExpandedId(null);
   };
 
   const handleReject = async (id: number) => {
-    try {
-      const comment = reviewData[id]?.comment || "";
-      if (!comment || comment.trim().length === 0) {
-        alert("Please provide a reason for rejection.");
-        return;
-      }
-      await rejectMutation.mutateAsync({ id, reviewComment: comment, reviewer: undefined as any });
-      setExpandedId(null);
-      setReviewData((prev) => {
-        const copy = { ...prev };
-        delete copy[id];
-        return copy;
-      });
-    } catch (err) {
-      console.error(err);
-      alert((err as any)?.message || "Failed to reject item");
-    }
+    const comment = reviewData[id]?.comment || "No reason provided";
+    rejectMutation.mutate({ id, reviewComment: comment });
+    setReviewData((prev) => {
+      const newData = { ...prev };
+      delete newData[id];
+      return newData;
+    });
+    setExpandedId(null);
   };
-
-  const termItems = newContents.filter((c: any) => {
-    const t = (c.term || "").toLowerCase();
-    return !t.startsWith("quiz:") && !t.startsWith("lesson:") && !t.includes("quiz") && !t.includes("lesson");
-  });
-  const quizItems = newContents.filter((c: any) => {
-    const t = (c.term || "").toLowerCase();
-    return t.startsWith("quiz:") || t.includes("quiz");
-  });
-  const lessonItems = newContents.filter((c: any) => {
-    const t = (c.term || "").toLowerCase();
-    return t.startsWith("lesson:") || t.includes("lesson");
-  });
 
   if (isLoading || hasAccess === null) {
     return <div className="p-8 text-center">Loading pending items...</div>;
@@ -459,6 +433,13 @@ function ReviewPage() {
                 </div>
               </>
             )}
+          </TabsContent>
+
+          <TabsContent value="lesson" className="space-y-4">
+            <div className="p-8 text-center text-muted-foreground">
+              <h2 className="text-xl font-semibold mb-2">Lesson Review</h2>
+              <p>The lesson review feature is coming soon.</p>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

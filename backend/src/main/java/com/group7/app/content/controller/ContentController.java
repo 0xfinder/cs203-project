@@ -1,11 +1,20 @@
-package com.group7.app.content;
+package com.group7.app.content.controller;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import jakarta.validation.Valid; // 
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import com.group7.app.content.model.Content;
+import com.group7.app.content.service.ContentService;
+
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import jakarta.validation.Valid;
 import java.util.List;
 import com.group7.app.user.UserService;
 import com.group7.app.user.User;
@@ -26,9 +35,13 @@ public class ContentController {
 
     // Contributor submits a new term (also used as an appeal submission)
     @PostMapping
+    @PreAuthorize("hasAnyRole('CONTRIBUTOR', 'MODERATOR', 'ADMIN')")
     @Operation(summary = "Create new content", description = "Submit a new content item. Contributors can use this endpoint to submit new terms or to appeal existing content; submitted items are created with status=PENDING for moderator review.")
-    // Added @Valid so Spring actually checks your @NotBlank and @Size constraints
-    public Content submitContent(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody Content content) {
+    public Content submitContent(
+            @AuthenticationPrincipal Jwt jwt,
+            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody Content content) {
+        String email = getEmail(jwt);
+        content.setSubmittedBy(email);
         // If the authenticated user is an admin/moderator, auto-approve the submission
         try {
             String email = jwt.getClaimAsString("email");
@@ -59,18 +72,19 @@ public class ContentController {
         return contentService.submitContent(content);
     }
 
-        // Moderator/admin reviews a pending content item (approve or reject an appeal)
-        @PutMapping("/{id}/review")
-        @Operation(summary = "Review pending content", description = "Approve or reject a pending content item (used by moderators to resolve appeals). 'decision' must be APPROVE or REJECT. When rejecting, a reviewComment is required.")
-        public Content reviewContent(
+    // Admin reviews a term with reviewer username and optional comment
+    @PutMapping("/{id}/review")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
+    @Operation(summary = "Review pending content")
+    public Content reviewContent(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable Long id,
-            @AuthenticationPrincipal org.springframework.security.oauth2.jwt.Jwt jwt,
-            @RequestParam(required = false) String reviewer,
             @RequestParam String decision,
             @RequestParam(required = false) String reviewComment) {
+        String reviewer = getEmail(jwt);
         if (decision == null || decision.isBlank()) {
-            throw new org.springframework.web.server.ResponseStatusException(
-                    org.springframework.http.HttpStatus.BAD_REQUEST,
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
                     "decision is required");
         }
 
@@ -103,17 +117,20 @@ public class ContentController {
                         org.springframework.http.HttpStatus.BAD_REQUEST,
                         "reviewComment is required when rejecting content");
             }
-            if (resolvedReviewer == null || resolvedReviewer.isBlank()) {
-                throw new org.springframework.web.server.ResponseStatusException(
-                        org.springframework.http.HttpStatus.BAD_REQUEST,
-                        "reviewer is required");
-            }
-            return contentService.rejectContent(id, resolvedReviewer, reviewComment);
+            return contentService.rejectContent(id, reviewer, reviewComment);
         }
 
-        throw new org.springframework.web.server.ResponseStatusException(
-                org.springframework.http.HttpStatus.BAD_REQUEST,
+        throw new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
                 "decision must be APPROVE/APPROVED or REJECT/REJECTED");
+    }
+
+    private static String getEmail(Jwt jwt) {
+        String email = jwt.getClaimAsString("email");
+        if (email == null || email.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "missing email claim");
+        }
+        return email;
     }
 
     // Get all approved terms (for normal users)
@@ -125,6 +142,7 @@ public class ContentController {
 
     // Get all pending terms (for admin review)
     @GetMapping("/pending")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Get pending content")
     public List<Content> getPendingContents() {
         return contentService.getPendingContents();
@@ -132,6 +150,7 @@ public class ContentController {
 
     // Get pending terms with pagination
     @GetMapping("/pending/paginated")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Get pending content (paginated)")
     public org.springframework.data.domain.Page<Content> getPendingContentsPaginated(
             @RequestParam(defaultValue = "0") int page,

@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -324,24 +324,24 @@ function VoteButtons({
 /* -- Markdown renderer ----------------------------------------------------- */
 const MarkdownContent = memo(function MarkdownContent({ content }: { content: string }) {
   return (
-    <ReactMarkdown
+    <Markdown
       remarkPlugins={[remarkGfm]}
       components={{
-        img: ({ node, ...props }) => (
+        img: ({ node: _node, ...props }: any) => (
           <img
             {...props}
             className="my-2 max-h-96 max-w-full rounded-lg border object-contain"
             loading="lazy"
           />
         ),
-        p: ({ node, ...props }) => (
+        p: ({ node: _node, ...props }: any) => (
           <p className="mt-0.5 text-sm leading-relaxed" {...props} />
         ),
-        strong: ({ node, ...props }) => (
+        strong: ({ node: _node, ...props }: any) => (
           <strong className="font-bold" {...props} />
         ),
-        em: ({ node, ...props }) => <em className="italic" {...props} />,
-        a: ({ node, ...props }) => (
+        em: ({ node: _node, ...props }: any) => <em className="italic" {...props} />,
+        a: ({ node: _node, ...props }: any) => (
           <a
             className="text-primary underline hover:opacity-80"
             target="_blank"
@@ -349,13 +349,13 @@ const MarkdownContent = memo(function MarkdownContent({ content }: { content: st
             {...props}
           />
         ),
-        ul: ({ node, ...props }) => (
+        ul: ({ node: _node, ...props }: any) => (
           <ul className="ml-4 list-disc text-sm" {...props} />
         ),
-        ol: ({ node, ...props }) => (
+        ol: ({ node: _node, ...props }: any) => (
           <ol className="ml-4 list-decimal text-sm" {...props} />
         ),
-        code: ({ node, ...props }) => (
+        code: ({ node: _node, ...props }: any) => (
           <code
             className="rounded bg-muted px-1 py-0.5 text-xs font-mono"
             {...props}
@@ -364,7 +364,7 @@ const MarkdownContent = memo(function MarkdownContent({ content }: { content: st
       }}
     >
       {content}
-    </ReactMarkdown>
+    </Markdown>
   );
 });
 

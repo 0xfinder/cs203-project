@@ -1,8 +1,11 @@
-package com.group7.app.content;
+package com.group7.app.content.repository;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.group7.app.content.model.Content;
+
 import java.util.List;
 import java.util.Optional;
 
