@@ -3,7 +3,6 @@ package com.group7.app.content.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
@@ -28,7 +27,6 @@ public class ContentController {
 
     // Contributor submits a new term
     @PostMapping
-    @PreAuthorize("hasAnyRole('CONTRIBUTOR', 'MODERATOR', 'ADMIN')")
     @Operation(summary = "Create new content")
     public Content submitContent(
             @AuthenticationPrincipal Jwt jwt,
@@ -40,7 +38,6 @@ public class ContentController {
 
     // Admin reviews a term with reviewer username and optional comment
     @PutMapping("/{id}/review")
-    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Review pending content")
     public Content reviewContent(
             @AuthenticationPrincipal Jwt jwt,
@@ -90,7 +87,6 @@ public class ContentController {
 
     // Get all pending terms (for admin review)
     @GetMapping("/pending")
-    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Get pending content")
     public List<Content> getPendingContents() {
         return contentService.getPendingContents();
@@ -98,7 +94,6 @@ public class ContentController {
 
     // Get pending terms with pagination
     @GetMapping("/pending/paginated")
-    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
     @Operation(summary = "Get pending content (paginated)")
     public org.springframework.data.domain.Page<Content> getPendingContentsPaginated(
             @RequestParam(defaultValue = "0") int page,
