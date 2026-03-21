@@ -9,10 +9,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserVocabMemoryRepository extends JpaRepository<UserVocabMemory, Long> {
-    List<UserVocabMemory> findByUserIdAndNextDueAtLessThanEqualOrderByNextDueAtAsc(
-            UUID userId,
-            Instant now,
-            Pageable pageable);
+  List<UserVocabMemory> findByUserIdAndNextDueAtLessThanEqualOrderByNextDueAtAsc(
+      UUID userId, Instant now, Pageable pageable);
 
-    Optional<UserVocabMemory> findByUserIdAndVocabItemId(UUID userId, Long vocabItemId);
+  Optional<UserVocabMemory> findByUserIdAndVocabItemId(UUID userId, Long vocabItemId);
 }

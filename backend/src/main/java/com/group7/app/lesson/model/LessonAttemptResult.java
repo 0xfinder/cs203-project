@@ -17,92 +17,90 @@ import org.hibernate.type.SqlTypes;
 @Table(name = "lesson_attempt_results")
 public class LessonAttemptResult {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "attempt_id", nullable = false)
-    private LessonAttempt attempt;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "attempt_id", nullable = false)
+  private LessonAttempt attempt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lesson_step_id", nullable = false)
-    private LessonStep lessonStep;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "lesson_step_id", nullable = false)
+  private LessonStep lessonStep;
 
-    @Column(name = "lesson_id", nullable = false)
-    private Long lessonId;
+  @Column(name = "lesson_id", nullable = false)
+  private Long lessonId;
 
-    @Column(name = "is_correct", nullable = false)
-    private boolean isCorrect;
+  @Column(name = "is_correct", nullable = false)
+  private boolean isCorrect;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "submitted_answer", columnDefinition = "jsonb")
-    private JsonNode submittedAnswer;
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "submitted_answer", columnDefinition = "jsonb")
+  private JsonNode submittedAnswer;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "evaluated_answer", columnDefinition = "jsonb")
-    private JsonNode evaluatedAnswer;
+  @JdbcTypeCode(SqlTypes.JSON)
+  @Column(name = "evaluated_answer", columnDefinition = "jsonb")
+  private JsonNode evaluatedAnswer;
 
-    @Column
-    private String explanation;
+  @Column private String explanation;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private java.time.Instant createdAt;
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private java.time.Instant createdAt;
 
-    protected LessonAttemptResult() {
-    }
+  protected LessonAttemptResult() {}
 
-    public LessonAttemptResult(
-            LessonAttempt attempt,
-            LessonStep lessonStep,
-            Long lessonId,
-            boolean isCorrect,
-            JsonNode submittedAnswer,
-            JsonNode evaluatedAnswer,
-            String explanation) {
-        this.attempt = attempt;
-        this.lessonStep = lessonStep;
-        this.lessonId = lessonId;
-        this.isCorrect = isCorrect;
-        this.submittedAnswer = submittedAnswer;
-        this.evaluatedAnswer = evaluatedAnswer;
-        this.explanation = explanation;
-    }
+  public LessonAttemptResult(
+      LessonAttempt attempt,
+      LessonStep lessonStep,
+      Long lessonId,
+      boolean isCorrect,
+      JsonNode submittedAnswer,
+      JsonNode evaluatedAnswer,
+      String explanation) {
+    this.attempt = attempt;
+    this.lessonStep = lessonStep;
+    this.lessonId = lessonId;
+    this.isCorrect = isCorrect;
+    this.submittedAnswer = submittedAnswer;
+    this.evaluatedAnswer = evaluatedAnswer;
+    this.explanation = explanation;
+  }
 
-    public Long getId() {
-        return id;
-    }
+  public Long getId() {
+    return id;
+  }
 
-    public LessonAttempt getAttempt() {
-        return attempt;
-    }
+  public LessonAttempt getAttempt() {
+    return attempt;
+  }
 
-    public LessonStep getLessonStep() {
-        return lessonStep;
-    }
+  public LessonStep getLessonStep() {
+    return lessonStep;
+  }
 
-    public Long getLessonId() {
-        return lessonId;
-    }
+  public Long getLessonId() {
+    return lessonId;
+  }
 
-    public boolean isCorrect() {
-        return isCorrect;
-    }
+  public boolean isCorrect() {
+    return isCorrect;
+  }
 
-    public JsonNode getSubmittedAnswer() {
-        return submittedAnswer;
-    }
+  public JsonNode getSubmittedAnswer() {
+    return submittedAnswer;
+  }
 
-    public JsonNode getEvaluatedAnswer() {
-        return evaluatedAnswer;
-    }
+  public JsonNode getEvaluatedAnswer() {
+    return evaluatedAnswer;
+  }
 
-    public String getExplanation() {
-        return explanation;
-    }
+  public String getExplanation() {
+    return explanation;
+  }
 
-    @jakarta.persistence.PrePersist
-    protected void onCreate() {
-        createdAt = java.time.Instant.now();
-    }
+  @jakarta.persistence.PrePersist
+  protected void onCreate() {
+    createdAt = java.time.Instant.now();
+  }
 }

@@ -32,8 +32,7 @@ import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
 export const Route = createFileRoute("/forum")({
-  loader: () =>
-    queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
+  loader: () => queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
   component: ForumPage,
 });
 
@@ -88,8 +87,7 @@ function timeAgo(iso: string) {
 
 function getInitials(name: string) {
   const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2)
-    return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
 }
 
@@ -184,9 +182,7 @@ function VoteButtons({
     <div className="flex flex-col items-center gap-0.5">
       <button
         disabled={disabled}
-        onClick={() =>
-          votes.userVote === "THUMBS_UP" ? onClear() : onVote("THUMBS_UP")
-        }
+        onClick={() => (votes.userVote === "THUMBS_UP" ? onClear() : onVote("THUMBS_UP"))}
         className={cn(
           "flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors",
           votes.userVote === "THUMBS_UP"
@@ -201,9 +197,7 @@ function VoteButtons({
       </button>
       <button
         disabled={disabled}
-        onClick={() =>
-          votes.userVote === "THUMBS_DOWN" ? onClear() : onVote("THUMBS_DOWN")
-        }
+        onClick={() => (votes.userVote === "THUMBS_DOWN" ? onClear() : onVote("THUMBS_DOWN"))}
         className={cn(
           "flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors",
           votes.userVote === "THUMBS_DOWN"
@@ -236,9 +230,7 @@ const MarkdownContent = memo(function MarkdownContent({ content }: { content: st
         p: ({ node: _node, ...props }: any) => (
           <p className="mt-0.5 text-sm leading-relaxed" {...props} />
         ),
-        strong: ({ node: _node, ...props }: any) => (
-          <strong className="font-bold" {...props} />
-        ),
+        strong: ({ node: _node, ...props }: any) => <strong className="font-bold" {...props} />,
         em: ({ node: _node, ...props }: any) => <em className="italic" {...props} />,
         a: ({ node: _node, ...props }: any) => (
           <a
@@ -255,10 +247,7 @@ const MarkdownContent = memo(function MarkdownContent({ content }: { content: st
           <ol className="ml-4 list-decimal text-sm" {...props} />
         ),
         code: ({ node: _node, ...props }: any) => (
-          <code
-            className="rounded bg-muted px-1 py-0.5 text-xs font-mono"
-            {...props}
-          />
+          <code className="rounded bg-muted px-1 py-0.5 text-xs font-mono" {...props} />
         ),
       }}
     >
@@ -345,18 +334,13 @@ function MarkdownToolbar({
       >
         <ImagePlus className="size-3.5" />
       </button>
-      {uploading && (
-        <span className="ml-1 text-xs text-muted-foreground">uploading...</span>
-      )}
+      {uploading && <span className="ml-1 text-xs text-muted-foreground">uploading...</span>}
     </div>
   );
 }
 
 /* -- Image upload helper --------------------------------------------------- */
-async function uploadForumImage(
-  file: File,
-  userId: string,
-): Promise<string | null> {
+async function uploadForumImage(file: File, userId: string): Promise<string | null> {
   if (!file.type.startsWith("image/")) return null;
   if (file.size > MAX_IMAGE_MB * 1024 * 1024) return null;
 
@@ -420,8 +404,7 @@ function MarkdownTextarea({
           const pos = ta.selectionStart;
           const text = ta.value;
           const insertion = `![image](${url})`;
-          const newText =
-            text.slice(0, pos) + insertion + text.slice(ta.selectionEnd);
+          const newText = text.slice(0, pos) + insertion + text.slice(ta.selectionEnd);
           onChange(newText);
           requestAnimationFrame(() => {
             ta.focus();
@@ -579,10 +562,7 @@ function ForumPage() {
   };
 
   /* -- voting ------------------------------------------------------------- */
-  const handleQuestionVote = async (
-    qId: number,
-    type: "THUMBS_UP" | "THUMBS_DOWN",
-  ) => {
+  const handleQuestionVote = async (qId: number, type: "THUMBS_UP" | "THUMBS_DOWN") => {
     if (!canPost) return;
     try {
       const updated = await api
@@ -590,9 +570,7 @@ function ForumPage() {
           json: { voteType: type },
         })
         .json<VoteSummary>();
-      setQuestions((prev) =>
-        prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)),
-      );
+      setQuestions((prev) => prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)));
     } catch {
       setError("Failed to vote");
     }
@@ -601,22 +579,14 @@ function ForumPage() {
   const handleClearQuestionVote = async (qId: number) => {
     if (!canPost) return;
     try {
-      const updated = await api
-        .delete(`forum/questions/${qId}/votes`)
-        .json<VoteSummary>();
-      setQuestions((prev) =>
-        prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)),
-      );
+      const updated = await api.delete(`forum/questions/${qId}/votes`).json<VoteSummary>();
+      setQuestions((prev) => prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)));
     } catch {
       setError("Failed to clear vote");
     }
   };
 
-  const handleAnswerVote = async (
-    qId: number,
-    aId: number,
-    type: "THUMBS_UP" | "THUMBS_DOWN",
-  ) => {
+  const handleAnswerVote = async (qId: number, aId: number, type: "THUMBS_UP" | "THUMBS_DOWN") => {
     if (!canPost) return;
     try {
       const updated = await api
@@ -629,9 +599,7 @@ function ForumPage() {
           q.id === qId
             ? {
                 ...q,
-                answers: q.answers.map((a) =>
-                  a.id === aId ? { ...a, votes: updated } : a,
-                ),
+                answers: q.answers.map((a) => (a.id === aId ? { ...a, votes: updated } : a)),
               }
             : q,
         ),
@@ -644,17 +612,13 @@ function ForumPage() {
   const handleClearAnswerVote = async (qId: number, aId: number) => {
     if (!canPost) return;
     try {
-      const updated = await api
-        .delete(`forum/answers/${aId}/votes`)
-        .json<VoteSummary>();
+      const updated = await api.delete(`forum/answers/${aId}/votes`).json<VoteSummary>();
       setQuestions((prev) =>
         prev.map((q) =>
           q.id === qId
             ? {
                 ...q,
-                answers: q.answers.map((a) =>
-                  a.id === aId ? { ...a, votes: updated } : a,
-                ),
+                answers: q.answers.map((a) => (a.id === aId ? { ...a, votes: updated } : a)),
               }
             : q,
         ),
@@ -665,8 +629,7 @@ function ForumPage() {
   };
 
   /* -- ownership check ---------------------------------------------------- */
-  const isOwner = (authorInfo: AuthorInfo) =>
-    canPost && profile && authorInfo.id === profile.id;
+  const isOwner = (authorInfo: AuthorInfo) => canPost && profile && authorInfo.id === profile.id;
 
   /* -- render ------------------------------------------------------------- */
   return (
@@ -675,9 +638,7 @@ function ForumPage() {
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Forum</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Beat the Unc Allegations 💀
-          </p>
+          <p className="mt-0.5 text-sm text-muted-foreground">Beat the Unc Allegations 💀</p>
         </div>
 
         <div className="flex items-center gap-3">
@@ -688,13 +649,8 @@ function ForumPage() {
                 avatarPath={profile.avatarPath}
                 avatarColor={profile.avatarColor}
               />
-              <span className="max-w-[140px] truncate font-medium">
-                {authorName}
-              </span>
-              <RoleBadge
-                role={profile.role}
-                className="text-muted-foreground"
-              />
+              <span className="max-w-[140px] truncate font-medium">{authorName}</span>
+              <RoleBadge role={profile.role} className="text-muted-foreground" />
             </span>
           ) : null}
 
@@ -727,11 +683,7 @@ function ForumPage() {
               <AlertTriangle className="size-4 shrink-0" />
               {error}
             </span>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setError(null)}
-            >
+            <Button variant="ghost" size="icon-xs" onClick={() => setError(null)}>
               <X className="size-3.5" />
             </Button>
           </CardContent>
@@ -747,10 +699,7 @@ function ForumPage() {
             {!profile && (
               <p className="rounded-lg border border-chart-4/30 bg-chart-4/10 px-3 py-2 text-sm text-chart-4">
                 You must be{" "}
-                <Link
-                  to="/login"
-                  className="font-medium underline hover:opacity-80"
-                >
+                <Link to="/login" className="font-medium underline hover:opacity-80">
                   logged in
                 </Link>{" "}
                 to post.
@@ -786,10 +735,7 @@ function ForumPage() {
 
             {canPost && (
               <p className="text-xs text-muted-foreground">
-                Posting as{" "}
-                <span className="font-semibold text-foreground">
-                  {authorName}
-                </span>
+                Posting as <span className="font-semibold text-foreground">{authorName}</span>
               </p>
             )}
 
@@ -808,12 +754,7 @@ function ForumPage() {
               <Button
                 size="sm"
                 onClick={handlePostQuestion}
-                disabled={
-                  posting ||
-                  !newTitle.trim() ||
-                  !newContent.trim() ||
-                  !canPost
-                }
+                disabled={posting || !newTitle.trim() || !newContent.trim() || !canPost}
               >
                 {posting ? "Posting..." : "Post Question"}
               </Button>
@@ -877,9 +818,7 @@ function ForumPage() {
                         className="text-muted-foreground"
                       />
                     )}
-                    <span className="text-muted-foreground/60">
-                      {timeAgo(q.createdAt)}
-                    </span>
+                    <span className="text-muted-foreground/60">{timeAgo(q.createdAt)}</span>
                     {qIsOwner && (
                       <Button
                         variant="ghost"
@@ -896,9 +835,7 @@ function ForumPage() {
                   {/* title + content with votes on the right */}
                   <div className="mt-2 flex gap-3">
                     <div className="min-w-0 flex-1">
-                      <h3 className="text-base font-bold leading-snug">
-                        {q.title}
-                      </h3>
+                      <h3 className="text-base font-bold leading-snug">{q.title}</h3>
                       <div className="mt-1.5 text-muted-foreground">
                         <MarkdownContent content={q.content} />
                       </div>
@@ -915,9 +852,7 @@ function ForumPage() {
                   <div className="mt-3 flex items-center gap-3 pb-4">
                     <AnswerBadge count={q.answers?.length ?? 0} />
                     <button
-                      onClick={() =>
-                        setExpandedId(isExpanded ? null : q.id)
-                      }
+                      onClick={() => setExpandedId(isExpanded ? null : q.id)}
                       className="ml-auto flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80"
                     >
                       {isExpanded ? (
@@ -978,12 +913,8 @@ function ForumPage() {
                             </div>
                             <VoteButtons
                               votes={a.votes}
-                              onVote={(type) =>
-                                handleAnswerVote(q.id, a.id, type)
-                              }
-                              onClear={() =>
-                                handleClearAnswerVote(q.id, a.id)
-                              }
+                              onVote={(type) => handleAnswerVote(q.id, a.id, type)}
+                              onClear={() => handleClearAnswerVote(q.id, a.id)}
                               disabled={!canPost}
                             />
                           </li>
@@ -1009,10 +940,7 @@ function ForumPage() {
                           <Button
                             size="sm"
                             onClick={() => handlePostAnswer(q.id)}
-                            disabled={
-                              postingAnswer === q.id ||
-                              !answerDraft[q.id]?.trim()
-                            }
+                            disabled={postingAnswer === q.id || !answerDraft[q.id]?.trim()}
                           >
                             {postingAnswer === q.id ? "..." : "Post Reply"}
                           </Button>

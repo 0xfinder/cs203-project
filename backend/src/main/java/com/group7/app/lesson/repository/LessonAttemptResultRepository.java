@@ -5,5 +5,5 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface LessonAttemptResultRepository extends JpaRepository<LessonAttemptResult, Long> {
-    List<LessonAttemptResult> findByAttemptIdOrderByIdAsc(Long attemptId);
+  List<LessonAttemptResult> findByAttemptIdOrderByIdAsc(Long attemptId);
 }

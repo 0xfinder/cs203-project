@@ -20,19 +20,18 @@ import org.springframework.test.web.servlet.MockMvc;
 @ActiveProfiles("test")
 class RootControllerWebMvcTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
 
-    @MockitoBean
-    private JwtDecoder jwtDecoder;
+  @MockitoBean private JwtDecoder jwtDecoder;
 
-    @MockitoBean
-    private DatabaseRoleJwtAuthenticationConverter databaseRoleJwtAuthenticationConverter;
+  @MockitoBean
+  private DatabaseRoleJwtAuthenticationConverter databaseRoleJwtAuthenticationConverter;
 
-    @Test
-    void rootIsPublic() throws Exception {
-        mockMvc.perform(get("/"))
-                .andExpect(status().isOk())
-                .andExpect(content().string("API is running. Visit /swagger-ui.html for API docs."));
-    }
+  @Test
+  void rootIsPublic() throws Exception {
+    mockMvc
+        .perform(get("/"))
+        .andExpect(status().isOk())
+        .andExpect(content().string("API is running. Visit /swagger-ui.html for API docs."));
+  }
 }

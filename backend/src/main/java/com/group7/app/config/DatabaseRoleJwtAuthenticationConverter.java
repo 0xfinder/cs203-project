@@ -14,23 +14,25 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtGra
 import org.springframework.stereotype.Component;
 
 @Component
-public class DatabaseRoleJwtAuthenticationConverter implements Converter<Jwt, AbstractAuthenticationToken> {
+public class DatabaseRoleJwtAuthenticationConverter
+    implements Converter<Jwt, AbstractAuthenticationToken> {
 
-    private final AuthContextService authContextService;
-    private final JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter =
-            new JwtGrantedAuthoritiesConverter();
+  private final AuthContextService authContextService;
+  private final JwtGrantedAuthoritiesConverter jwtGrantedAuthoritiesConverter =
+      new JwtGrantedAuthoritiesConverter();
 
-    public DatabaseRoleJwtAuthenticationConverter(AuthContextService authContextService) {
-        this.authContextService = authContextService;
-    }
+  public DatabaseRoleJwtAuthenticationConverter(AuthContextService authContextService) {
+    this.authContextService = authContextService;
+  }
 
-    @Override
-    public AbstractAuthenticationToken convert(Jwt jwt) {
-        User user = authContextService.resolveUser(jwt);
+  @Override
+  public AbstractAuthenticationToken convert(Jwt jwt) {
+    User user = authContextService.resolveUser(jwt);
 
-        Set<GrantedAuthority> authorities = new LinkedHashSet<>(jwtGrantedAuthoritiesConverter.convert(jwt));
-        authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+    Set<GrantedAuthority> authorities =
+        new LinkedHashSet<>(jwtGrantedAuthoritiesConverter.convert(jwt));
+    authorities.add(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
 
-        return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
-    }
+    return new JwtAuthenticationToken(jwt, authorities, jwt.getSubject());
+  }
 }

@@ -30,69 +30,83 @@ import org.springframework.test.web.servlet.MockMvc;
 @ActiveProfiles("test")
 class UserControllerWebMvcTest {
 
-    @Autowired
-    private MockMvc mockMvc;
+  @Autowired private MockMvc mockMvc;
 
-    @MockitoBean
-    private UserService userService;
+  @MockitoBean private UserService userService;
 
-    @MockitoBean
-    private JwtDecoder jwtDecoder;
+  @MockitoBean private JwtDecoder jwtDecoder;
 
-    @MockitoBean
-    private DatabaseRoleJwtAuthenticationConverter databaseRoleJwtAuthenticationConverter;
+  @MockitoBean
+  private DatabaseRoleJwtAuthenticationConverter databaseRoleJwtAuthenticationConverter;
 
-    @Test
-    void getMeBootstrapsUserFromJwtWhenMissing() throws Exception {
-        UUID userId = UUID.randomUUID();
-        User created = new User(userId, "new@example.com");
-        created.setDisplayName("Kai");
-        created.setRole(Role.LEARNER);
+  @Test
+  void getMeBootstrapsUserFromJwtWhenMissing() throws Exception {
+    UUID userId = UUID.randomUUID();
+    User created = new User(userId, "new@example.com");
+    created.setDisplayName("Kai");
+    created.setRole(Role.LEARNER);
 
-        when(userService.findById(userId)).thenReturn(Optional.empty());
-        when(userService.createFromAuth(userId, "new@example.com")).thenReturn(created);
-        when(userService.isOnboardingCompleted(created)).thenReturn(true);
+    when(userService.findById(userId)).thenReturn(Optional.empty());
+    when(userService.createFromAuth(userId, "new@example.com")).thenReturn(created);
+    when(userService.isOnboardingCompleted(created)).thenReturn(true);
 
-        mockMvc.perform(get("/api/users/me")
-                        .with(jwt().jwt(token -> token.subject(userId.toString()).claim("email", "new@example.com"))))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(userId.toString()))
-                .andExpect(jsonPath("$.email").value("new@example.com"))
-                .andExpect(jsonPath("$.onboardingCompleted").value(true));
-    }
+    mockMvc
+        .perform(
+            get("/api/users/me")
+                .with(
+                    jwt()
+                        .jwt(
+                            token ->
+                                token
+                                    .subject(userId.toString())
+                                    .claim("email", "new@example.com"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(userId.toString()))
+        .andExpect(jsonPath("$.email").value("new@example.com"))
+        .andExpect(jsonPath("$.onboardingCompleted").value(true));
+  }
 
-    @Test
-    void patchMeUpdatesProfileAndMapsContributorIntent() throws Exception {
-        UUID userId = UUID.randomUUID();
-        User existing = new User(userId, "user@example.com");
-        existing.setRole(Role.LEARNER);
+  @Test
+  void patchMeUpdatesProfileAndMapsContributorIntent() throws Exception {
+    UUID userId = UUID.randomUUID();
+    User existing = new User(userId, "user@example.com");
+    existing.setRole(Role.LEARNER);
 
-        User updated = new User(userId, "user@example.com");
-        updated.setDisplayName("AlphaKid");
-        updated.setRole(Role.CONTRIBUTOR);
-        updated.setBio("bio");
-        updated.setAge(15);
-        updated.setGender("non-binary");
-        updated.setAvatarColor("#112233");
-        updated.setAvatarPath("uploads/" + userId + "/avatar.png");
+    User updated = new User(userId, "user@example.com");
+    updated.setDisplayName("AlphaKid");
+    updated.setRole(Role.CONTRIBUTOR);
+    updated.setBio("bio");
+    updated.setAge(15);
+    updated.setGender("non-binary");
+    updated.setAvatarColor("#112233");
+    updated.setAvatarPath("uploads/" + userId + "/avatar.png");
 
-        when(userService.findById(userId)).thenReturn(Optional.of(existing));
-        when(userService.updateProfile(
-                eq(userId),
-                eq("AlphaKid"),
-                eq(Role.CONTRIBUTOR),
-                eq("bio"),
-                eq(15),
-                eq("non-binary"),
-                eq("#112233"),
-                eq("uploads/" + userId + "/avatar.png")))
-                .thenReturn(updated);
-        when(userService.isOnboardingCompleted(updated)).thenReturn(true);
+    when(userService.findById(userId)).thenReturn(Optional.of(existing));
+    when(userService.updateProfile(
+            eq(userId),
+            eq("AlphaKid"),
+            eq(Role.CONTRIBUTOR),
+            eq("bio"),
+            eq(15),
+            eq("non-binary"),
+            eq("#112233"),
+            eq("uploads/" + userId + "/avatar.png")))
+        .thenReturn(updated);
+    when(userService.isOnboardingCompleted(updated)).thenReturn(true);
 
-        mockMvc.perform(patch("/api/users/me")
-                        .with(jwt().jwt(token -> token.subject(userId.toString()).claim("email", "user@example.com")))
-                        .contentType("application/json")
-                        .content("""
+    mockMvc
+        .perform(
+            patch("/api/users/me")
+                .with(
+                    jwt()
+                        .jwt(
+                            token ->
+                                token
+                                    .subject(userId.toString())
+                                    .claim("email", "user@example.com")))
+                .contentType("application/json")
+                .content(
+                    """
                                 {
                                   "displayName": " AlphaKid ",
                                   "roleIntent": "CONTRIBUTOR",
@@ -102,48 +116,58 @@ class UserControllerWebMvcTest {
                                   "avatarColor": "#112233",
                                   "avatarPath": "uploads/%s/avatar.png"
                                 }
-                                """.formatted(userId)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.displayName").value("AlphaKid"))
-                .andExpect(jsonPath("$.role").value("CONTRIBUTOR"))
-                .andExpect(jsonPath("$.avatarPath").value("uploads/" + userId + "/avatar.png"));
-    }
+                                """
+                        .formatted(userId)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.displayName").value("AlphaKid"))
+        .andExpect(jsonPath("$.role").value("CONTRIBUTOR"))
+        .andExpect(jsonPath("$.avatarPath").value("uploads/" + userId + "/avatar.png"));
+  }
 
-    @Test
-    void patchMeRejectsAvatarPathOutsideAuthenticatedUsersFolder() throws Exception {
-        UUID userId = UUID.randomUUID();
-        User existing = new User(userId, "user@example.com");
-        existing.setRole(Role.LEARNER);
-        when(userService.findById(userId)).thenReturn(Optional.of(existing));
+  @Test
+  void patchMeRejectsAvatarPathOutsideAuthenticatedUsersFolder() throws Exception {
+    UUID userId = UUID.randomUUID();
+    User existing = new User(userId, "user@example.com");
+    existing.setRole(Role.LEARNER);
+    when(userService.findById(userId)).thenReturn(Optional.of(existing));
 
-        mockMvc.perform(patch("/api/users/me")
-                        .with(jwt().jwt(token -> token.subject(userId.toString()).claim("email", "user@example.com")))
-                        .contentType("application/json")
-                        .content("""
+    mockMvc
+        .perform(
+            patch("/api/users/me")
+                .with(
+                    jwt()
+                        .jwt(
+                            token ->
+                                token
+                                    .subject(userId.toString())
+                                    .claim("email", "user@example.com")))
+                .contentType("application/json")
+                .content(
+                    """
                                 {
                                   "displayName": "AlphaKid",
                                   "avatarPath": "uploads/another-user/avatar.png"
                                 }
                                 """))
-                .andExpect(status().isBadRequest());
+        .andExpect(status().isBadRequest());
 
-        verify(userService).findById(userId);
-        verify(userService, never()).updateProfile(
-                any(UUID.class),
-                any(String.class),
-                any(Role.class),
-                any(String.class),
-                any(Integer.class),
-                any(String.class),
-                any(String.class),
-                any(String.class));
-    }
+    verify(userService).findById(userId);
+    verify(userService, never())
+        .updateProfile(
+            any(UUID.class),
+            any(String.class),
+            any(Role.class),
+            any(String.class),
+            any(Integer.class),
+            any(String.class),
+            any(String.class),
+            any(String.class));
+  }
 
-    @Test
-    void getMeRequiresAuthentication() throws Exception {
-        mockMvc.perform(get("/api/users/me"))
-                .andExpect(status().isUnauthorized());
+  @Test
+  void getMeRequiresAuthentication() throws Exception {
+    mockMvc.perform(get("/api/users/me")).andExpect(status().isUnauthorized());
 
-        verifyNoInteractions(userService);
-    }
+    verifyNoInteractions(userService);
+  }
 }

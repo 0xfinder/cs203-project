@@ -18,116 +18,115 @@ import java.util.UUID;
 @Table(name = "user_lesson_progress")
 public class UserLessonProgress {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
+  @Column(name = "user_id", nullable = false)
+  private UUID userId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lesson_id", nullable = false)
-    private Lesson lesson;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "lesson_id", nullable = false)
+  private Lesson lesson;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "last_step_id")
-    private LessonStep lastStep;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "last_step_id")
+  private LessonStep lastStep;
 
-    @Column(name = "best_score", nullable = false)
-    private Integer bestScore = 0;
+  @Column(name = "best_score", nullable = false)
+  private Integer bestScore = 0;
 
-    @Column(name = "attempt_count", nullable = false)
-    private Integer attemptCount = 0;
+  @Column(name = "attempt_count", nullable = false)
+  private Integer attemptCount = 0;
 
-    @Column(name = "completed_at")
-    private Instant completedAt;
+  @Column(name = "completed_at")
+  private Instant completedAt;
 
-    @Column(name = "last_attempt_at")
-    private Instant lastAttemptAt;
+  @Column(name = "last_attempt_at")
+  private Instant lastAttemptAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt;
 
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+  @Column(name = "updated_at", nullable = false)
+  private Instant updatedAt;
 
-    protected UserLessonProgress() {
-    }
+  protected UserLessonProgress() {}
 
-    public UserLessonProgress(UUID userId, Lesson lesson) {
-        this.userId = userId;
-        this.lesson = lesson;
-    }
+  public UserLessonProgress(UUID userId, Lesson lesson) {
+    this.userId = userId;
+    this.lesson = lesson;
+  }
 
-    public Long getId() {
-        return id;
-    }
+  public Long getId() {
+    return id;
+  }
 
-    public UUID getUserId() {
-        return userId;
-    }
+  public UUID getUserId() {
+    return userId;
+  }
 
-    public Lesson getLesson() {
-        return lesson;
-    }
+  public Lesson getLesson() {
+    return lesson;
+  }
 
-    public LessonStep getLastStep() {
-        return lastStep;
-    }
+  public LessonStep getLastStep() {
+    return lastStep;
+  }
 
-    public void setLastStep(LessonStep lastStep) {
-        this.lastStep = lastStep;
-    }
+  public void setLastStep(LessonStep lastStep) {
+    this.lastStep = lastStep;
+  }
 
-    public Integer getBestScore() {
-        return bestScore;
-    }
+  public Integer getBestScore() {
+    return bestScore;
+  }
 
-    public void setBestScore(Integer bestScore) {
-        this.bestScore = bestScore;
-    }
+  public void setBestScore(Integer bestScore) {
+    this.bestScore = bestScore;
+  }
 
-    public Integer getAttemptCount() {
-        return attemptCount;
-    }
+  public Integer getAttemptCount() {
+    return attemptCount;
+  }
 
-    public void setAttemptCount(Integer attemptCount) {
-        this.attemptCount = attemptCount;
-    }
+  public void setAttemptCount(Integer attemptCount) {
+    this.attemptCount = attemptCount;
+  }
 
-    public Instant getCompletedAt() {
-        return completedAt;
-    }
+  public Instant getCompletedAt() {
+    return completedAt;
+  }
 
-    public void setCompletedAt(Instant completedAt) {
-        this.completedAt = completedAt;
-    }
+  public void setCompletedAt(Instant completedAt) {
+    this.completedAt = completedAt;
+  }
 
-    public Instant getLastAttemptAt() {
-        return lastAttemptAt;
-    }
+  public Instant getLastAttemptAt() {
+    return lastAttemptAt;
+  }
 
-    public void setLastAttemptAt(Instant lastAttemptAt) {
-        this.lastAttemptAt = lastAttemptAt;
-    }
+  public void setLastAttemptAt(Instant lastAttemptAt) {
+    this.lastAttemptAt = lastAttemptAt;
+  }
 
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
 
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
+  public Instant getUpdatedAt() {
+    return updatedAt;
+  }
 
-    @PrePersist
-    protected void onCreate() {
-        Instant now = Instant.now();
-        createdAt = now;
-        updatedAt = now;
-    }
+  @PrePersist
+  protected void onCreate() {
+    Instant now = Instant.now();
+    createdAt = now;
+    updatedAt = now;
+  }
 
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = Instant.now();
-    }
+  @PreUpdate
+  protected void onUpdate() {
+    updatedAt = Instant.now();
+  }
 }

@@ -244,7 +244,6 @@ function SubmitContentPage() {
               </form>
             </TabsContent>
 
-
             <TabsContent value="lesson" className="space-y-4">
               <div className="p-8 text-center text-muted-foreground">
                 <h2 className="text-xl font-semibold mb-2">Add Lesson</h2>

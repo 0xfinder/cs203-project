@@ -20,193 +20,192 @@ import java.util.UUID;
 @Table(name = "lessons")
 public class Lesson {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "unit_id", nullable = false)
-    private Unit unit;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "unit_id", nullable = false)
+  private Unit unit;
 
-    @Column(nullable = false)
-    private String title;
+  @Column(nullable = false)
+  private String title;
 
-    @Column(nullable = false, unique = true)
-    private String slug;
+  @Column(nullable = false, unique = true)
+  private String slug;
 
-    @Column(nullable = false)
-    private String description;
+  @Column(nullable = false)
+  private String description;
 
-    @Column(name = "learning_objective")
-    private String learningObjective;
+  @Column(name = "learning_objective")
+  private String learningObjective;
 
-    @Column(name = "estimated_minutes")
-    private Integer estimatedMinutes;
+  @Column(name = "estimated_minutes")
+  private Integer estimatedMinutes;
 
-    @Column(name = "order_index", nullable = false)
-    private Integer orderIndex;
+  @Column(name = "order_index", nullable = false)
+  private Integer orderIndex;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private LessonStatus status = LessonStatus.DRAFT;
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false)
+  private LessonStatus status = LessonStatus.DRAFT;
 
-    @Column(name = "created_by")
-    private UUID createdBy;
+  @Column(name = "created_by")
+  private UUID createdBy;
 
-    @Column(name = "reviewed_by")
-    private UUID reviewedBy;
+  @Column(name = "reviewed_by")
+  private UUID reviewedBy;
 
-    @Column(name = "review_comment")
-    private String reviewComment;
+  @Column(name = "review_comment")
+  private String reviewComment;
 
-    @Column(name = "published_at")
-    private Instant publishedAt;
+  @Column(name = "published_at")
+  private Instant publishedAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt;
 
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt;
+  @Column(name = "updated_at", nullable = false)
+  private Instant updatedAt;
 
-    protected Lesson() {
-    }
+  protected Lesson() {}
 
-    public Lesson(
-            Unit unit,
-            String title,
-            String slug,
-            String description,
-            String learningObjective,
-            Integer estimatedMinutes,
-            Integer orderIndex,
-            UUID createdBy) {
-        this.unit = unit;
-        this.title = title;
-        this.slug = slug;
-        this.description = description;
-        this.learningObjective = learningObjective;
-        this.estimatedMinutes = estimatedMinutes;
-        this.orderIndex = orderIndex;
-        this.createdBy = createdBy;
-    }
+  public Lesson(
+      Unit unit,
+      String title,
+      String slug,
+      String description,
+      String learningObjective,
+      Integer estimatedMinutes,
+      Integer orderIndex,
+      UUID createdBy) {
+    this.unit = unit;
+    this.title = title;
+    this.slug = slug;
+    this.description = description;
+    this.learningObjective = learningObjective;
+    this.estimatedMinutes = estimatedMinutes;
+    this.orderIndex = orderIndex;
+    this.createdBy = createdBy;
+  }
 
-    public Long getId() {
-        return id;
-    }
+  public Long getId() {
+    return id;
+  }
 
-    public Unit getUnit() {
-        return unit;
-    }
+  public Unit getUnit() {
+    return unit;
+  }
 
-    public void setUnit(Unit unit) {
-        this.unit = unit;
-    }
+  public void setUnit(Unit unit) {
+    this.unit = unit;
+  }
 
-    public String getTitle() {
-        return title;
-    }
+  public String getTitle() {
+    return title;
+  }
 
-    public void setTitle(String title) {
-        this.title = title;
-    }
+  public void setTitle(String title) {
+    this.title = title;
+  }
 
-    public String getSlug() {
-        return slug;
-    }
+  public String getSlug() {
+    return slug;
+  }
 
-    public void setSlug(String slug) {
-        this.slug = slug;
-    }
+  public void setSlug(String slug) {
+    this.slug = slug;
+  }
 
-    public String getDescription() {
-        return description;
-    }
+  public String getDescription() {
+    return description;
+  }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
+  public void setDescription(String description) {
+    this.description = description;
+  }
 
-    public String getLearningObjective() {
-        return learningObjective;
-    }
+  public String getLearningObjective() {
+    return learningObjective;
+  }
 
-    public void setLearningObjective(String learningObjective) {
-        this.learningObjective = learningObjective;
-    }
+  public void setLearningObjective(String learningObjective) {
+    this.learningObjective = learningObjective;
+  }
 
-    public Integer getEstimatedMinutes() {
-        return estimatedMinutes;
-    }
+  public Integer getEstimatedMinutes() {
+    return estimatedMinutes;
+  }
 
-    public void setEstimatedMinutes(Integer estimatedMinutes) {
-        this.estimatedMinutes = estimatedMinutes;
-    }
+  public void setEstimatedMinutes(Integer estimatedMinutes) {
+    this.estimatedMinutes = estimatedMinutes;
+  }
 
-    public Integer getOrderIndex() {
-        return orderIndex;
-    }
+  public Integer getOrderIndex() {
+    return orderIndex;
+  }
 
-    public void setOrderIndex(Integer orderIndex) {
-        this.orderIndex = orderIndex;
-    }
+  public void setOrderIndex(Integer orderIndex) {
+    this.orderIndex = orderIndex;
+  }
 
-    public LessonStatus getStatus() {
-        return status;
-    }
+  public LessonStatus getStatus() {
+    return status;
+  }
 
-    public void setStatus(LessonStatus status) {
-        this.status = status;
-    }
+  public void setStatus(LessonStatus status) {
+    this.status = status;
+  }
 
-    public UUID getCreatedBy() {
-        return createdBy;
-    }
+  public UUID getCreatedBy() {
+    return createdBy;
+  }
 
-    public void setCreatedBy(UUID createdBy) {
-        this.createdBy = createdBy;
-    }
+  public void setCreatedBy(UUID createdBy) {
+    this.createdBy = createdBy;
+  }
 
-    public UUID getReviewedBy() {
-        return reviewedBy;
-    }
+  public UUID getReviewedBy() {
+    return reviewedBy;
+  }
 
-    public void setReviewedBy(UUID reviewedBy) {
-        this.reviewedBy = reviewedBy;
-    }
+  public void setReviewedBy(UUID reviewedBy) {
+    this.reviewedBy = reviewedBy;
+  }
 
-    public String getReviewComment() {
-        return reviewComment;
-    }
+  public String getReviewComment() {
+    return reviewComment;
+  }
 
-    public void setReviewComment(String reviewComment) {
-        this.reviewComment = reviewComment;
-    }
+  public void setReviewComment(String reviewComment) {
+    this.reviewComment = reviewComment;
+  }
 
-    public Instant getPublishedAt() {
-        return publishedAt;
-    }
+  public Instant getPublishedAt() {
+    return publishedAt;
+  }
 
-    public void setPublishedAt(Instant publishedAt) {
-        this.publishedAt = publishedAt;
-    }
+  public void setPublishedAt(Instant publishedAt) {
+    this.publishedAt = publishedAt;
+  }
 
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
 
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
+  public Instant getUpdatedAt() {
+    return updatedAt;
+  }
 
-    @PrePersist
-    protected void onCreate() {
-        Instant now = Instant.now();
-        createdAt = now;
-        updatedAt = now;
-    }
+  @PrePersist
+  protected void onCreate() {
+    Instant now = Instant.now();
+    createdAt = now;
+    updatedAt = now;
+  }
 
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = Instant.now();
-    }
+  @PreUpdate
+  protected void onUpdate() {
+    updatedAt = Instant.now();
+  }
 }

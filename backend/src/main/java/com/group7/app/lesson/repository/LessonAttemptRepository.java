@@ -6,5 +6,5 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface LessonAttemptRepository extends JpaRepository<LessonAttempt, Long> {
-    Optional<LessonAttempt> findByIdAndUserId(Long id, UUID userId);
+  Optional<LessonAttempt> findByIdAndUserId(Long id, UUID userId);
 }
