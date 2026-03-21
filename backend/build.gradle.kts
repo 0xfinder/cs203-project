@@ -3,6 +3,7 @@ plugins {
 	id("org.springframework.boot") version "3.5.10"
 	id("io.spring.dependency-management") version "1.1.7"
 	id("jacoco")
+	id("com.diffplug.spotless") version "8.4.0"
 }
 
 group = "com.group7"
@@ -38,6 +39,13 @@ dependencies {
 	testImplementation("com.h2database:h2")
 	// Swagger UI
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.15")
+}
+
+// for code formatting
+spotless {
+	java {
+		googleJavaFormat()
+	}
 }
 
 tasks.withType<Test> {

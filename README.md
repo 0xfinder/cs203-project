@@ -59,7 +59,10 @@ cd backend && ./gradlew build
 ./gradlew bootRun
 
 # run tests
-./gradlew test
+./gradlew test --rerun-tasks
+
+# format code
+./gradlew spotlessApply
 
 # build
 ./gradlew build
