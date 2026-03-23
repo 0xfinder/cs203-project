@@ -43,7 +43,7 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     to: "/add",
     label: "Add",
     icon: SquarePlus,
-    roles: ["CONTRIBUTOR", "ADMIN"],
+    roles: ["CONTRIBUTOR", "MODERATOR", "ADMIN"],
   },
   {
     to: "/dashboard",
