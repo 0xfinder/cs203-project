@@ -99,6 +99,10 @@ public class LessonAttemptResult {
     return explanation;
   }
 
+  public java.time.Instant getCreatedAt() {
+    return createdAt;
+  }
+
   @jakarta.persistence.PrePersist
   protected void onCreate() {
     createdAt = java.time.Instant.now();

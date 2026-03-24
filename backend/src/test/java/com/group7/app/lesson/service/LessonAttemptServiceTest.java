@@ -17,6 +17,7 @@ import com.group7.app.lesson.model.QuestionType;
 import com.group7.app.lesson.model.StepType;
 import com.group7.app.lesson.model.Unit;
 import com.group7.app.lesson.model.UserLessonProgress;
+import com.group7.app.lesson.model.UserStepEvent;
 import com.group7.app.lesson.model.UserVocabMemory;
 import com.group7.app.lesson.model.VocabItem;
 import com.group7.app.lesson.repository.LessonAttemptRepository;
@@ -24,6 +25,7 @@ import com.group7.app.lesson.repository.LessonAttemptResultRepository;
 import com.group7.app.lesson.repository.LessonRepository;
 import com.group7.app.lesson.repository.LessonStepRepository;
 import com.group7.app.lesson.repository.UserLessonProgressRepository;
+import com.group7.app.lesson.repository.UserStepEventRepository;
 import com.group7.app.lesson.repository.UserVocabMemoryRepository;
 import com.group7.app.lesson.repository.VocabItemRepository;
 import com.group7.app.user.Role;
@@ -56,6 +58,8 @@ class LessonAttemptServiceTest {
 
   @Mock private UserLessonProgressRepository userLessonProgressRepository;
 
+  @Mock private UserStepEventRepository userStepEventRepository;
+
   @Mock private UserVocabMemoryRepository userVocabMemoryRepository;
 
   @Mock private VocabItemRepository vocabItemRepository;
@@ -75,6 +79,7 @@ class LessonAttemptServiceTest {
             lessonAttemptRepository,
             lessonAttemptResultRepository,
             userLessonProgressRepository,
+            userStepEventRepository,
             userVocabMemoryRepository,
             vocabItemRepository);
   }
@@ -239,6 +244,91 @@ class LessonAttemptServiceTest {
 
     assertThat(progress.lessonId()).isEqualTo(55L);
     assertThat(progress.lastStepId()).isEqualTo(101L);
+  }
+
+  @Test
+  void getReviseQueuePrioritizesDueMistakesBeforeFallback() {
+    User learner = learner();
+    Lesson lesson = approvedLesson();
+    LessonStep weakStep = mcqQuestionStep(lesson, 101L, 1);
+    LessonStep fallbackStep = mcqQuestionStep(lesson, 102L, 2);
+    LessonAttempt lessonAttempt = new LessonAttempt(learner.getId(), lesson, 0, 1, 0, false);
+    ReflectionTestUtils.setField(lessonAttempt, "id", 99L);
+
+    LessonAttemptResult wrongResult =
+        new LessonAttemptResult(
+            lessonAttempt,
+            weakStep,
+            55L,
+            false,
+            JsonNodeFactory.instance.textNode("Food"),
+            JsonNodeFactory.instance.objectNode().put("text", "Charisma"),
+            "Because it means charisma.");
+    ReflectionTestUtils.setField(
+        wrongResult, "createdAt", Instant.now().minus(5, ChronoUnit.HOURS));
+
+    when(lessonStepRepository.findByStepTypeAndLessonStatusOrderByLessonOrderIndexAsc(
+            StepType.QUESTION, LessonStatus.APPROVED))
+        .thenReturn(List.of(weakStep, fallbackStep));
+    when(lessonAttemptResultRepository.findByAttemptUserIdOrderByCreatedAtAsc(learner.getId()))
+        .thenReturn(List.of(wrongResult));
+    when(userStepEventRepository.findByUserIdAndEventTypeOrderByCreatedAtAsc(
+            learner.getId(), "REVISE_ANSWERED"))
+        .thenReturn(List.of());
+    when(userLessonProgressRepository.findByUserId(learner.getId())).thenReturn(List.of());
+
+    var queue = lessonAttemptService.getReviseQueue(learner, 2);
+
+    assertThat(queue.dueCount()).isEqualTo(1);
+    assertThat(queue.items()).hasSize(2);
+    assertThat(queue.items().getFirst().stepId()).isEqualTo(101L);
+    assertThat(queue.items().getFirst().priorityReason()).isEqualTo("recent_mistake");
+    assertThat(queue.items().get(1).stepId()).isEqualTo(102L);
+  }
+
+  @Test
+  void submitReviseAttemptEvaluatesAnswersAndLogsEvents() {
+    User learner = learner();
+    Lesson lesson = approvedLesson();
+    LessonStep step = mcqQuestionStep(lesson, 101L, 1);
+
+    when(lessonStepRepository.findByIdInWithLesson(List.of(101L))).thenReturn(List.of(step));
+    when(userStepEventRepository.saveAll(any()))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+    when(lessonStepRepository.findByStepTypeAndLessonStatusOrderByLessonOrderIndexAsc(
+            StepType.QUESTION, LessonStatus.APPROVED))
+        .thenReturn(List.of(step));
+    when(lessonAttemptResultRepository.findByAttemptUserIdOrderByCreatedAtAsc(learner.getId()))
+        .thenReturn(List.of());
+    when(userStepEventRepository.findByUserIdAndEventTypeOrderByCreatedAtAsc(
+            learner.getId(), "REVISE_ANSWERED"))
+        .thenReturn(List.of());
+    when(userLessonProgressRepository.findByUserId(learner.getId())).thenReturn(List.of());
+
+    var result =
+        lessonAttemptService.submitReviseAttempt(
+            learner,
+            List.of(
+                new LessonAttemptService.AnswerInput(
+                    101L, JsonNodeFactory.instance.textNode("Charisma"))));
+
+    assertThat(result.score()).isEqualTo(100);
+    assertThat(result.correctCount()).isEqualTo(1);
+    assertThat(result.results())
+        .singleElement()
+        .satisfies(item -> assertThat(item.correct()).isTrue());
+
+    ArgumentCaptor<Iterable<UserStepEvent>> eventCaptor = ArgumentCaptor.forClass(Iterable.class);
+    verify(userStepEventRepository).saveAll(eventCaptor.capture());
+    assertThat(eventCaptor.getValue())
+        .singleElement()
+        .satisfies(
+            event -> {
+              assertThat(event.getUserId()).isEqualTo(learner.getId());
+              assertThat(event.getLessonStep().getId()).isEqualTo(101L);
+              assertThat(event.getEventType()).isEqualTo("REVISE_ANSWERED");
+              assertThat(event.getPayload().path("correct").asBoolean()).isTrue();
+            });
   }
 
   private User learner() {

@@ -19,6 +19,7 @@ import com.group7.app.lesson.repository.LessonRepository;
 import com.group7.app.lesson.repository.LessonStepRepository;
 import com.group7.app.lesson.repository.UnitRepository;
 import com.group7.app.lesson.repository.UserLessonProgressRepository;
+import com.group7.app.lesson.repository.UserStepEventRepository;
 import com.group7.app.lesson.repository.UserVocabMemoryRepository;
 import com.group7.app.lesson.repository.VocabItemRepository;
 import com.group7.app.user.Role;
@@ -51,6 +52,8 @@ class LessonSchemaV2E2ETest {
 
   @Autowired private UserLessonProgressRepository userLessonProgressRepository;
 
+  @Autowired private UserStepEventRepository userStepEventRepository;
+
   @Autowired private UserVocabMemoryRepository userVocabMemoryRepository;
 
   @Autowired private LessonStepRepository lessonStepRepository;
@@ -67,6 +70,7 @@ class LessonSchemaV2E2ETest {
   void cleanDatabase() {
     lessonAttemptResultRepository.deleteAll();
     lessonAttemptRepository.deleteAll();
+    userStepEventRepository.deleteAll();
     userLessonProgressRepository.deleteAll();
     userVocabMemoryRepository.deleteAll();
     lessonStepRepository.deleteAll();
@@ -294,6 +298,31 @@ class LessonSchemaV2E2ETest {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$[0].term").value("rizz"))
         .andExpect(jsonPath("$[0].strength").value(1));
+
+    mockMvc
+        .perform(get("/api/revise-queue").with(auth(learner)).param("limit", "5"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.items[0].stepId").value(mcqStepId))
+        .andExpect(jsonPath("$.items[0].lessonTitle").value("Rizz and Cap Basics"))
+        .andExpect(jsonPath("$.items[0].question.prompt").value("What does \"rizz\" mean?"))
+        .andExpect(jsonPath("$.items[0].payload.answerKey").doesNotExist());
+
+    ObjectNode reviseSubmission = objectMapper.createObjectNode();
+    ArrayNode reviseAnswers = reviseSubmission.putArray("answers");
+    reviseAnswers.addObject().put("stepId", mcqStepId).put("answer", "A type of food");
+
+    mockMvc
+        .perform(
+            post("/api/revise-attempts")
+                .with(auth(learner))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(reviseSubmission)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.score").value(0))
+        .andExpect(jsonPath("$.correctCount").value(0))
+        .andExpect(jsonPath("$.results[0].correct").value(false))
+        .andExpect(jsonPath("$.results[0].correctAnswer").value("Charisma or flirting ability"))
+        .andExpect(jsonPath("$.dueCount").value(0));
   }
 
   @Test

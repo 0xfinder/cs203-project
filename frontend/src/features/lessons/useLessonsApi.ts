@@ -106,10 +106,33 @@ export interface VocabMemoryItem {
   nextDueAt: string;
 }
 
+export interface ReviseQueueItem {
+  stepId: number;
+  lessonId: number;
+  lessonTitle: string;
+  priorityReason: "recent_mistake" | "due" | "weak" | "review" | "fallback";
+  question: QuestionPayload;
+  payload: Record<string, unknown> | null;
+}
+
+export interface ReviseQueueResponse {
+  items: ReviseQueueItem[];
+  dueCount: number;
+}
+
+export interface ReviseAttemptResult {
+  score: number;
+  totalQuestions: number;
+  correctCount: number;
+  dueCount: number;
+  results: AttemptResultItem[];
+}
+
 const LESSONS_KEY = ["lessons"] as const;
 const UNITS_KEY = ["units"] as const;
 const PROGRESS_KEY = ["user-lesson-progress"] as const;
 const VOCAB_MEMORY_KEY = ["vocab-memory"] as const;
+const REVISE_KEY = ["revise-queue"] as const;
 
 export function useUnits() {
   return useQuery({
@@ -162,6 +185,7 @@ export function useSubmitLessonAttempt() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: PROGRESS_KEY });
       void queryClient.invalidateQueries({ queryKey: VOCAB_MEMORY_KEY });
+      void queryClient.invalidateQueries({ queryKey: REVISE_KEY });
     },
   });
 }
@@ -213,6 +237,34 @@ export function useSubmitVocabMemoryAttempt() {
         .json<VocabMemoryItem[]>(),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: VOCAB_MEMORY_KEY });
+    },
+  });
+}
+
+export function useReviseQueue(limit: number = 10) {
+  return useQuery({
+    queryKey: [...REVISE_KEY, limit],
+    queryFn: () =>
+      api
+        .get("revise-queue", {
+          searchParams: { limit },
+        })
+        .json<ReviseQueueResponse>(),
+  });
+}
+
+export function useSubmitReviseAttempt() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (answers: Array<{ stepId: number; answer: LessonAnswer }>) =>
+      api
+        .post("revise-attempts", {
+          json: { answers },
+        })
+        .json<ReviseAttemptResult>(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: REVISE_KEY });
     },
   });
 }

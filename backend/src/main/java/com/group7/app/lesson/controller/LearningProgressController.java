@@ -1,8 +1,11 @@
 package com.group7.app.lesson.controller;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.group7.app.lesson.controller.LessonController.MatchPairPayload;
+import com.group7.app.lesson.controller.LessonController.QuestionPayload;
 import com.group7.app.lesson.service.AuthContextService;
 import com.group7.app.lesson.service.LessonAttemptService;
+import com.group7.app.lesson.service.LessonStepPayloadService;
 import com.group7.app.user.User;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,11 +33,15 @@ public class LearningProgressController {
 
   private final LessonAttemptService lessonAttemptService;
   private final AuthContextService authContextService;
+  private final LessonStepPayloadService lessonStepPayloadService;
 
   public LearningProgressController(
-      LessonAttemptService lessonAttemptService, AuthContextService authContextService) {
+      LessonAttemptService lessonAttemptService,
+      AuthContextService authContextService,
+      LessonStepPayloadService lessonStepPayloadService) {
     this.lessonAttemptService = lessonAttemptService;
     this.authContextService = authContextService;
+    this.lessonStepPayloadService = lessonStepPayloadService;
   }
 
   @PostMapping("/lesson-attempts")
@@ -89,6 +96,29 @@ public class LearningProgressController {
     return lessonAttemptService.listDueVocabMemory(actor, limit, due);
   }
 
+  @GetMapping("/revise-queue")
+  @Operation(summary = "Get adaptive revise queue")
+  public ReviseQueueResponse getReviseQueue(
+      @AuthenticationPrincipal Jwt jwt, @RequestParam(defaultValue = "10") int limit) {
+    User actor = authContextService.resolveUser(jwt);
+    LessonAttemptService.ReviseQueueResponse queue =
+        lessonAttemptService.getReviseQueue(actor, limit);
+    return new ReviseQueueResponse(
+        queue.items().stream().map(this::toReviseQueueItem).toList(), queue.dueCount());
+  }
+
+  @PostMapping("/revise-attempts")
+  @Operation(summary = "Submit revise session answers")
+  public LessonAttemptService.ReviseAttemptResult submitReviseAttempt(
+      @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody SubmitReviseAttemptRequest request) {
+    User actor = authContextService.resolveUser(jwt);
+    return lessonAttemptService.submitReviseAttempt(
+        actor,
+        request.answers().stream()
+            .map(answer -> new LessonAttemptService.AnswerInput(answer.stepId(), answer.answer()))
+            .toList());
+  }
+
   @PostMapping("/vocab-memory-attempts")
   @Operation(summary = "Submit vocab memory review results")
   public List<LessonAttemptService.VocabMemoryItem> submitVocabMemoryAttempt(
@@ -112,7 +142,73 @@ public class LearningProgressController {
 
   public record UpdateProgressRequest(@NotNull Long lastStepId) {}
 
+  public record SubmitReviseAttemptRequest(@NotNull List<AttemptAnswerRequest> answers) {}
+
   public record SubmitVocabMemoryAttemptRequest(@NotNull List<VocabMemoryAnswerRequest> answers) {}
 
   public record VocabMemoryAnswerRequest(@NotNull Long vocabItemId, boolean correct) {}
+
+  public record ReviseQueueResponse(List<ReviseQueueItem> items, int dueCount) {}
+
+  public record ReviseQueueItem(
+      Long stepId,
+      Long lessonId,
+      String lessonTitle,
+      String priorityReason,
+      QuestionPayload question,
+      JsonNode payload) {}
+
+  private ReviseQueueItem toReviseQueueItem(LessonAttemptService.ReviseQueueItem item) {
+    return new ReviseQueueItem(
+        item.stepId(),
+        item.lessonId(),
+        item.lessonTitle(),
+        item.priorityReason(),
+        toQuestionPayload(item.step()),
+        lessonStepPayloadService.sanitizePayloadForPlay(item.step()));
+  }
+
+  private QuestionPayload toQuestionPayload(com.group7.app.lesson.model.LessonStep step) {
+    LessonStepPayloadService.QuestionContent question = lessonStepPayloadService.readQuestion(step);
+    if (question.questionType() == com.group7.app.lesson.model.QuestionType.MCQ) {
+      return new QuestionPayload(
+          step.getId(),
+          question.questionType(),
+          question.prompt(),
+          question.explanation(),
+          question.choices().stream()
+              .map(
+                  choice ->
+                      new LessonController.ChoicePayload(
+                          choice.id(), choice.text(), null, choice.orderIndex()))
+              .toList(),
+          List.of(),
+          List.of(),
+          List.of());
+    }
+
+    if (question.questionType() == com.group7.app.lesson.model.QuestionType.MATCH) {
+      return new QuestionPayload(
+          step.getId(),
+          question.questionType(),
+          question.prompt(),
+          question.explanation(),
+          List.of(),
+          question.matchPairs().stream()
+              .map(pair -> new MatchPairPayload(pair.id(), pair.left(), null, pair.orderIndex()))
+              .toList(),
+          List.of(),
+          lessonStepPayloadService.shuffledRights(question));
+    }
+
+    return new QuestionPayload(
+        step.getId(),
+        question.questionType(),
+        question.prompt(),
+        question.explanation(),
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of());
+  }
 }

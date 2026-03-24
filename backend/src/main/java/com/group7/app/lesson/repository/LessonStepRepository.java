@@ -21,4 +21,26 @@ public interface LessonStepRepository extends JpaRepository<LessonStep, Long> {
   Optional<LessonStep> findByIdAndLessonId(Long id, Long lessonId);
 
   List<LessonStep> findByLessonIdAndStepTypeOrderByOrderIndexAsc(Long lessonId, StepType stepType);
+
+  @Query(
+      """
+            SELECT s
+            FROM LessonStep s
+            JOIN FETCH s.lesson l
+            WHERE s.stepType = :stepType
+              AND l.status = :status
+            ORDER BY l.orderIndex ASC, s.orderIndex ASC
+            """)
+  List<LessonStep> findByStepTypeAndLessonStatusOrderByLessonOrderIndexAsc(
+      StepType stepType, com.group7.app.lesson.model.LessonStatus status);
+
+  @Query(
+      """
+            SELECT s
+            FROM LessonStep s
+            JOIN FETCH s.lesson l
+            WHERE s.id IN :stepIds
+            ORDER BY s.orderIndex ASC
+            """)
+  List<LessonStep> findByIdInWithLesson(List<Long> stepIds);
 }
