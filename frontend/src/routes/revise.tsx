@@ -267,9 +267,11 @@ function RevisePage() {
                 <div className="rounded-2xl border border-border/70 bg-background/80 p-4">
                   <p className="text-sm font-semibold">Current lesson source</p>
                   <p className="mt-2 text-lg font-bold">{currentQueueItem.lessonTitle}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {formatPriorityDescription(currentQueueItem.priorityReason)}
-                  </p>
+                  {formatPriorityDescription(currentQueueItem.priorityReason) ? (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      {formatPriorityDescription(currentQueueItem.priorityReason)}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             </CardContent>
@@ -277,12 +279,9 @@ function RevisePage() {
         </aside>
 
         <div className="min-w-0">
-          <Card className="overflow-hidden border-border/80 bg-card shadow-[0_12px_40px_-24px_rgba(0,0,0,0.35)]">
-            <CardContent className="pt-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                From {currentQueueItem.lessonTitle}
-              </p>
-              <div className="mt-6">
+          <div className="mx-auto w-full max-w-2xl">
+            <div>
+              <div>
                 <QuestionStep step={currentStep} value={tempAnswer} onChange={setTempAnswer} />
               </div>
 
@@ -292,10 +291,7 @@ function RevisePage() {
                 </p>
               ) : null}
 
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm text-muted-foreground">
-                  Answer naturally. We&apos;ll score it using the same lesson grading rules.
-                </p>
+              <div className="mt-8 flex justify-end">
                 <Button
                   size="lg"
                   className="gap-2 sm:min-w-44"
@@ -308,8 +304,8 @@ function RevisePage() {
                   <ArrowRight className="size-4" />
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -474,7 +470,7 @@ function formatPriorityReason(reason: string) {
 function formatPriorityDescription(reason: string) {
   switch (reason) {
     case "recent_mistake":
-      return "You missed related material recently, so it was pulled forward.";
+      return "";
     case "due":
       return "This one is back on schedule and ready for another pass.";
     case "weak":
