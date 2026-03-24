@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { supabase } from "@/lib/supabase";
 import { getMe } from "@/lib/me";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -4,7 +4,6 @@ import { requireOnboardingCompleted } from "@/lib/auth";
 import { getMe } from "@/lib/me";
 import { useMyApprovedContentsWithVotes } from "@/features/content/useContentData";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
 
 export const Route = createFileRoute("/dashboard")({
