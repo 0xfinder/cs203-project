@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Check, ChevronRight, Lock } from "lucide-react";
+import { Check, ChevronRight, Lock, Trash } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,8 @@ type UnitRoadmapProps = {
   interactive?: boolean;
   compact?: boolean;
   allowAllUnlocked?: boolean;
+  headerAction?: React.ReactNode;
+  onDeleteLesson?: (lessonId: number) => void;
 };
 
 export function UnitRoadmap({
@@ -24,9 +26,20 @@ export function UnitRoadmap({
   interactive = false,
   compact = false,
   allowAllUnlocked = false,
+  headerAction,
+  onDeleteLesson,
 }: UnitRoadmapProps) {
   const progressByLessonId = new Map(progressItems?.map((item) => [item.lessonId, item]) ?? []);
   const roadmap = getUnitRoadmap(unit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
+
+  const isPlaceholderLesson = (lesson: any) => {
+    if (!lesson) return false;
+    const title = String(lesson.title ?? "");
+    const slug = String(lesson.slug ?? "");
+    return title.startsWith("Placeholder Lesson") || slug.startsWith("placeholder-") || title === "Coming soon";
+  };
+
+  const displayItems = roadmap.items.filter((item) => !isPlaceholderLesson(item.lesson));
 
   return (
     <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
@@ -40,6 +53,7 @@ export function UnitRoadmap({
             {unit.description ? (
               <p className="mt-2 max-w-sm text-sm text-muted-foreground">{unit.description}</p>
             ) : null}
+            {headerAction ? <div className="mt-3">{headerAction}</div> : null}
           </div>
 
           <Badge
@@ -64,7 +78,7 @@ export function UnitRoadmap({
       </CardHeader>
 
       <CardContent className={cn("space-y-3 p-4", compact && "space-y-2 p-3")}>
-        {roadmap.items.map((item, index) => {
+        {displayItems.map((item, index) => {
           const stepLabel = `${index + 1}`.padStart(2, "0");
           const body = (
             <div
@@ -111,9 +125,27 @@ export function UnitRoadmap({
                 )}
               </div>
 
-              {item.unlocked ? (
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-              ) : null}
+              <div className="flex items-center gap-2">
+                {onDeleteLesson ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onDeleteLesson(item.lesson.id);
+                    }}
+                    title="Delete subunit"
+                    aria-label="Delete subunit"
+                    className="inline-flex items-center justify-center rounded-full p-2 bg-destructive text-destructive-foreground hover:scale-105 transition-transform"
+                  >
+                    <Trash className="size-4" />
+                  </button>
+                ) : null}
+
+                {item.unlocked ? (
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                ) : null}
+              </div>
             </div>
           );
 

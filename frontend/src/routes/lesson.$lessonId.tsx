@@ -3,6 +3,10 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { HTTPError } from "ky";
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Dialog, { DialogTrigger, DialogContent, DialogClose } from "@/components/ui/dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { UnitRoadmap } from "@/features/lessons/components/unit-roadmap";
 import { findUnitByLessonId, getUnitRoadmap, progressMap } from "@/features/lessons/lesson-roadmap";
@@ -24,6 +28,7 @@ import {
   usePatchStep,
 } from "@/features/lessons/useLessonsApi";
 import { QuestionStep } from "@/features/lessons/components/question-step";
+import { LessonForm } from "@/components/lesson-quiz-forms";
 
 export const Route = createFileRoute("/lesson/$lessonId")({
   beforeLoad: async () => {
@@ -36,7 +41,8 @@ function LessonPage() {
   const navigate = useNavigate();
   const { lessonId } = Route.useParams();
   const numericLessonId = Number(lessonId);
-  const hasValidLessonId = Number.isInteger(numericLessonId) && numericLessonId > 0;
+  const isTempLesson = typeof lessonId === "string" && lessonId.startsWith("temp-");
+  const hasValidLessonId = (Number.isInteger(numericLessonId) && numericLessonId > 0) || isTempLesson;
 
   const { data, isLoading, error } = useLessonPlay(numericLessonId);
   const { data: units } = useUnits();
@@ -53,6 +59,7 @@ function LessonPage() {
   const lastProgressSentAtRef = useRef(0);
   const pendingProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const resumeAppliedRef = useRef(false);
+  const [tempRefresh, setTempRefresh] = useState(0);
 
   useEffect(() => {
     setCurrentIndex(0);
@@ -77,7 +84,27 @@ function LessonPage() {
     };
   }, []);
 
-  const steps = data?.steps ?? [];
+  // If this route is a temp lesson (created client-side), load placeholder data from localStorage
+  const tempData = useMemo(() => {
+    if (!isTempLesson) return null;
+    try {
+      const key = String(lessonId).slice(5);
+      const raw = typeof window !== "undefined" ? localStorage.getItem(`tempUnit:${key}`) : null;
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      return {
+        lesson: { title: parsed.title ?? "New Section" },
+        steps: parsed.steps ?? [],
+        unit: parsed,
+      };
+    } catch (e) {
+      return null;
+    }
+  }, [lessonId, tempRefresh]);
+
+  const effectiveData: any = isTempLesson ? tempData : data;
+  const effectiveSteps = effectiveData?.steps ?? [];
+  const steps = effectiveSteps;
   const currentStep = steps[currentIndex];
   const questionSteps = useMemo(
     () => steps.filter((step) => step.stepType === "QUESTION"),
@@ -85,9 +112,26 @@ function LessonPage() {
   );
   const progressByLessonId = useMemo(() => progressMap(progressItems), [progressItems]);
   const currentUnit = useMemo(
-    () => (units ? findUnitByLessonId(units, numericLessonId) : null),
-    [units, numericLessonId],
+    () => {
+      if (isTempLesson) return effectiveData?.unit ?? null;
+      return units ? findUnitByLessonId(units, numericLessonId) : null;
+    },
+    [units, numericLessonId, isTempLesson, effectiveData],
   );
+  const displayUnit = useMemo(() => {
+    if (!currentUnit) return null;
+    if (isTempLesson) {
+      // For temp units, filter out placeholder lessons so they don't render in the sidebar.
+      const lessons = Array.isArray(currentUnit.lessons) ? currentUnit.lessons : [];
+      const filtered = lessons.filter((l: any) => {
+        const title = String(l?.title ?? "");
+        const slug = String(l?.slug ?? "");
+        return !(title.startsWith("Placeholder Lesson") || slug.startsWith("placeholder-") || title === "Coming soon");
+      });
+      return filtered.length > 0 ? ({ ...currentUnit, lessons: filtered } as typeof currentUnit) : ({ ...currentUnit, lessons: [] } as typeof currentUnit);
+    }
+    return currentUnit;
+  }, [currentUnit, isTempLesson]);
   const unitRoadmap = useMemo(
     () => (currentUnit ? getUnitRoadmap(currentUnit, progressByLessonId, numericLessonId) : null),
     [currentUnit, progressByLessonId, numericLessonId],
@@ -121,13 +165,63 @@ function LessonPage() {
   const [appealSubmitting, setAppealSubmitting] = useState(false);
   const [appealError, setAppealError] = useState<string | null>(null);
   const submitContent = useSubmitContent();
+  const [addTitle, setAddTitle] = useState("");
+  const [addDesc, setAddDesc] = useState("");
+
+  const deleteTempLesson = (lessonIdToDelete: number) => {
+    try {
+      // Confirm deletion with the user
+      // eslint-disable-next-line no-restricted-globals
+      if (!window.confirm("Delete this subunit? This cannot be undone.")) return;
+
+      // If we're viewing a temp unit route (temp-<key>), remove directly from that key.
+      if (isTempLesson) {
+        const key = String(lessonId).slice(5);
+        const raw = localStorage.getItem(`tempUnit:${key}`);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        parsed.lessons = (parsed.lessons || []).filter((l: any) => l.id !== lessonIdToDelete);
+        parsed.steps = (parsed.steps || []).filter((s: any) => s.id !== lessonIdToDelete);
+        localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
+        setTempRefresh((v) => v + 1);
+        if (lessonIdToDelete === numericLessonId) {
+          navigate({ to: "/lessons" });
+        }
+        return;
+      }
+
+      // Otherwise, search all tempUnit:* entries for the lesson id and remove it if found.
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i) || "";
+        if (!key.startsWith("tempUnit:")) continue;
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          const before = (parsed.lessons || []).length;
+          parsed.lessons = (parsed.lessons || []).filter((l: any) => l.id !== lessonIdToDelete);
+          parsed.steps = (parsed.steps || []).filter((s: any) => s.id !== lessonIdToDelete);
+          const after = (parsed.lessons || []).length;
+          if (after !== before) {
+            localStorage.setItem(key, JSON.stringify(parsed));
+            setTempRefresh((v) => v + 1);
+            return;
+          }
+        } catch (e) {
+          // ignore parse errors
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  };
 
   const submitAppeal = async () => {
     if (!appealText.trim() || !currentProfile) return;
     setAppealSubmitting(true);
     setAppealError(null);
     try {
-      const title = `Appeal: Lesson ${numericLessonId} - ${data.lesson.title}`;
+      const title = `Appeal: Lesson ${numericLessonId} - ${effectiveData?.lesson?.title ?? ""}`;
       const payload = {
         term: title.slice(0, 100),
         definition: appealText.trim().slice(0, 500),
@@ -168,7 +262,12 @@ function LessonPage() {
     if (resumeAppliedRef.current) {
       return;
     }
-    if (!data || steps.length === 0) {
+    // don't attempt resume for client-only temp lessons
+    if (isTempLesson) {
+      resumeAppliedRef.current = true;
+      return;
+    }
+    if (!data || effectiveSteps.length === 0) {
       return;
     }
 
@@ -178,16 +277,16 @@ function LessonPage() {
       return;
     }
 
-    const lastStepIndex = steps.findIndex((step) => step.id === progressItem.lastStepId);
+    const lastStepIndex = effectiveSteps.findIndex((step) => step.id === progressItem.lastStepId);
     if (lastStepIndex < 0) {
       resumeAppliedRef.current = true;
       return;
     }
 
-    const resumeIndex = Math.min(lastStepIndex + 1, steps.length - 1);
+    const resumeIndex = Math.min(lastStepIndex + 1, effectiveSteps.length - 1);
     setCurrentIndex(resumeIndex);
     resumeAppliedRef.current = true;
-  }, [data, steps, progressItems, numericLessonId]);
+  }, [data, effectiveSteps, progressItems, numericLessonId, isTempLesson]);
 
   if (!hasValidLessonId) {
     return (
@@ -202,11 +301,11 @@ function LessonPage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !isTempLesson) {
     return <div className="p-8 text-center">Loading lesson...</div>;
   }
 
-  if (error || !data) {
+  if ((!isTempLesson && (error || !data)) || (isTempLesson && !effectiveData)) {
     return (
       <div className="flex flex-1 items-center justify-center bg-background px-4">
         <div className="text-center">
@@ -219,7 +318,161 @@ function LessonPage() {
     );
   }
 
+    // For temp units we will render Add Content inside the normal page layout below
+
   if (!currentStep) {
+    // For temp units show Add Content UI in the main pane while preserving the sidebar/header
+    if (isTempLesson) {
+      return (
+        <div className="flex flex-1 flex-col bg-background">
+          <div className="border-b bg-card/60 backdrop-blur">
+            <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate({ to: "/lessons" })}
+                  className="gap-1.5"
+                >
+                  <ArrowLeft className="size-4" />
+                  Exit
+                </Button>
+              </div>
+              <div className="text-right">
+                {currentUnit ? (
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    {currentUnit.title}
+                  </p>
+                ) : null}
+                <span className="text-sm font-semibold text-muted-foreground">0 / 0</span>
+              </div>
+            </div>
+            <div className="mx-auto max-w-6xl px-4 pb-3">
+              <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                <div className="h-full rounded-full bg-gradient-to-r from-chart-1 to-chart-5" style={{ width: `0%` }} />
+              </div>
+            </div>
+          </div>
+
+          <div className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 lg:py-10">
+            <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)]">
+              {currentUnit ? (
+                <aside className="hidden lg:block">
+                  <div className="sticky top-6">
+                    <UnitRoadmap
+                      unit={displayUnit ?? currentUnit}
+                      progressItems={progressItems}
+                      currentLessonId={numericLessonId}
+                      title="Unit Lessons"
+                      interactive
+                      allowAllUnlocked={isContributor || isAdmin}
+                      headerAction={
+                        isTempLesson ? (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="default">Add Subunit</Button>
+                            </DialogTrigger>
+                            <DialogContent title="Add Subunit" description="Create a lesson under this section">
+                              <div className="space-y-3">
+                                <div>
+                                  <Label htmlFor="add-lesson-title">Subunit title</Label>
+                                  <Input id="add-lesson-title" value={addTitle} onChange={(e) => setAddTitle(e.target.value)} />
+                                </div>
+                                <div>
+                                  <Label htmlFor="add-lesson-desc">Description</Label>
+                                  <Input id="add-lesson-desc" value={addDesc} onChange={(e) => setAddDesc(e.target.value)} />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                  <DialogClose asChild>
+                                    <Button variant="outline">Cancel</Button>
+                                  </DialogClose>
+                                  <DialogClose asChild>
+                                    <Button
+                                      onClick={() => {
+                                        const key = String(lessonId).slice(5);
+                                        try {
+                                          const raw = localStorage.getItem(`tempUnit:${key}`);
+                                          const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
+                                          const nextIndex = (parsed.lessons?.length ?? 0) + 1;
+                                          const newLesson = {
+                                            id: -(Date.now()),
+                                            unitId: parsed.id,
+                                            title: addTitle || `New Lesson ${nextIndex}`,
+                                            slug: `new-lesson-${nextIndex}`,
+                                            description: addDesc || "Coming soon",
+                                            learningObjective: null,
+                                            estimatedMinutes: null,
+                                            orderIndex: nextIndex,
+                                            status: "DRAFT",
+                                          };
+                                          parsed.lessons = parsed.lessons ?? [];
+                                          parsed.lessons.push(newLesson);
+                                          parsed.steps = parsed.steps ?? [];
+                                          parsed.steps.push({
+                                            id: newLesson.id,
+                                            orderIndex: newLesson.orderIndex,
+                                            stepType: "TEACH",
+                                            vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
+                                            question: null,
+                                            dialogueText: null,
+                                            payload: null,
+                                          });
+                                          localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
+                                          setTempRefresh((v) => v + 1);
+                                          setAddTitle("");
+                                          setAddDesc("");
+                                        } catch (e) {
+                                          // ignore
+                                        }
+                                      }}
+                                    >
+                                      Save
+                                    </Button>
+                                  </DialogClose>
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        ) : null
+                      }
+                      onDeleteLesson={deleteTempLesson}
+                    />
+                  </div>
+                </aside>
+              ) : null}
+
+              <div className="min-w-0">
+                <div className="mx-auto w-full max-w-2xl">
+                  <h1 className="mb-2 text-lg font-semibold text-muted-foreground">
+                    {effectiveData?.lesson?.title}
+                  </h1>
+
+                  <div className="relative">
+                    <Card className="border-chart-1/30 bg-chart-1/5">
+                      <CardContent className="pt-6 text-center">
+                        <h2 className="text-xl font-semibold">This section has no published steps</h2>
+                        <p className="mt-2 text-sm text-muted-foreground">Add lessons or quizzes to populate this section.</p>
+                        <div className="mt-6">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button size="lg">Add Content</Button>
+                            </DialogTrigger>
+                            <DialogContent title="Add Content" description="Create a lesson or quiz for this section">
+                                  <LessonForm defaultUnitId={currentUnit?.id ?? undefined} />
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-1 items-center justify-center bg-background px-4">
         <Card className="w-full max-w-md">
@@ -241,7 +494,7 @@ function LessonPage() {
     return (
       <ResultView
         result={result}
-        lessonTitle={data.lesson.title}
+        lessonTitle={effectiveData?.lesson?.title ?? ""}
         unitTitle={currentUnit?.title ?? null}
         nextLessonTitle={result.passed ? (nextLesson?.title ?? null) : null}
         onRetry={() => {
@@ -400,12 +653,81 @@ function LessonPage() {
             <aside className="hidden lg:block">
               <div className="sticky top-6">
                 <UnitRoadmap
-                  unit={currentUnit}
+                  unit={displayUnit ?? currentUnit}
                   progressItems={progressItems}
                   currentLessonId={numericLessonId}
                   title="Unit Lessons"
                   interactive
                   allowAllUnlocked={isContributor || isAdmin}
+                  headerAction={
+                    isTempLesson ? (
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="default">Add Subunit</Button>
+                        </DialogTrigger>
+                        <DialogContent title="Add Subunit" description="Create a lesson under this section">
+                          <div className="space-y-3">
+                            <div>
+                              <Label htmlFor="add-lesson-title">Subunit title</Label>
+                              <Input id="add-lesson-title" value={addTitle} onChange={(e) => setAddTitle(e.target.value)} />
+                            </div>
+                            <div>
+                              <Label htmlFor="add-lesson-desc">Description</Label>
+                              <Input id="add-lesson-desc" value={addDesc} onChange={(e) => setAddDesc(e.target.value)} />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <DialogClose asChild>
+                                <Button variant="outline">Cancel</Button>
+                              </DialogClose>
+                              <DialogClose asChild>
+                                <Button
+                                  onClick={() => {
+                                    const key = String(lessonId).slice(5);
+                                    try {
+                                      const raw = localStorage.getItem(`tempUnit:${key}`);
+                                      const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
+                                      const nextIndex = (parsed.lessons?.length ?? 0) + 1;
+                                      const newLesson = {
+                                        id: -(Date.now()),
+                                        unitId: parsed.id,
+                                        title: addTitle || `New Lesson ${nextIndex}`,
+                                        slug: `new-lesson-${nextIndex}`,
+                                        description: addDesc || "Coming soon",
+                                        learningObjective: null,
+                                        estimatedMinutes: null,
+                                        orderIndex: nextIndex,
+                                        status: "DRAFT",
+                                      };
+                                      parsed.lessons = parsed.lessons ?? [];
+                                      parsed.lessons.push(newLesson);
+                                      parsed.steps = parsed.steps ?? [];
+                                      parsed.steps.push({
+                                        id: newLesson.id,
+                                        orderIndex: newLesson.orderIndex,
+                                        stepType: "TEACH",
+                                        vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
+                                        question: null,
+                                        dialogueText: null,
+                                        payload: null,
+                                      });
+                                      localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
+                                      setTempRefresh((v) => v + 1);
+                                      setAddTitle("");
+                                      setAddDesc("");
+                                    } catch (e) {
+                                      // ignore
+                                    }
+                                  }}
+                                >
+                                  Save
+                                </Button>
+                              </DialogClose>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    ) : null
+                  }
                 />
               </div>
             </aside>
@@ -414,30 +736,51 @@ function LessonPage() {
           <div className="min-w-0">
             <div className="mx-auto w-full max-w-2xl">
               <h1 className="mb-2 text-lg font-semibold text-muted-foreground">
-                {data.lesson.title}
+                {effectiveData?.lesson?.title}
               </h1>
 
               <div className="relative">
-                <StepBody step={currentStep} tempAnswer={tempAnswer} setTempAnswer={setTempAnswer} />
-
-                {(isContributor || isAdmin) && (
+                {isTempLesson ? (
+                  <Card className="border-chart-1/30 bg-chart-1/5">
+                    <CardContent className="pt-6 text-center">
+                      <h2 className="text-xl font-semibold">This section has no published steps</h2>
+                      <p className="mt-2 text-sm text-muted-foreground">Add lessons or quizzes to populate this section.</p>
+                      <div className="mt-6">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button size="lg">Add Content</Button>
+                          </DialogTrigger>
+                          <DialogContent title="Add Content" description="Create a lesson for this section">
+                            <LessonForm defaultUnitId={currentUnit?.id ?? undefined} />
+                          </DialogContent>
+                        </Dialog>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
                   <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-                      className="absolute left-0 top-1/2 z-20 -translate-y-1/2 -translate-x-full"
-                    >
-                      <ChevronLeft className="size-4" />
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setCurrentIndex((i) => Math.min(steps.length - 1, i + 1))}
-                      className="absolute right-0 top-1/2 z-20 -translate-y-1/2 translate-x-full"
-                    >
-                      <ChevronRight className="size-4" />
-                    </Button>
+                    <StepBody step={currentStep} tempAnswer={tempAnswer} setTempAnswer={setTempAnswer} />
+
+                    {(isContributor || isAdmin) && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                          className="absolute left-0 top-1/2 z-20 -translate-y-1/2 -translate-x-full"
+                        >
+                          <ChevronLeft className="size-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setCurrentIndex((i) => Math.min(steps.length - 1, i + 1))}
+                          className="absolute right-0 top-1/2 z-20 -translate-y-1/2 translate-x-full"
+                        >
+                          <ChevronRight className="size-4" />
+                        </Button>
+                      </>
+                    )}
                   </>
                 )}
 
@@ -476,7 +819,7 @@ function LessonPage() {
                     onClick={() => {
                       void goNext();
                     }}
-                    disabled={submitAttempt.isPending || !canContinue}
+                    disabled={submitAttempt.isPending || !canContinue || isTempLesson}
                   >
                     {isLast
                       ? submitAttempt.isPending
@@ -489,7 +832,7 @@ function LessonPage() {
                 {/* Arrows moved adjacent to the step card above (to the sides) */}
 
                 {/* For admins, show edit/delete for the current page instead of appeal */}
-                {isAdmin && currentStep ? (
+                {!isTempLesson && isAdmin && currentStep ? (
                   <div className="mt-4 flex gap-2">
                     <AdminEditStepButton
                       lessonId={numericLessonId}

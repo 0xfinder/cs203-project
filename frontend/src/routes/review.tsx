@@ -26,6 +26,10 @@ function ReviewPage() {
   const pendingContents = response?.content || [];
   const appeals = pendingContents.filter((c: any) => typeof c.term === "string" && c.term.startsWith("Appeal:"));
   const newContents = pendingContents.filter((c: any) => !(typeof c.term === "string" && c.term.startsWith("Appeal:")));
+  // pending contents endpoint currently returns submitted term/content items only
+  const termItems = newContents;
+  const quizItems: any[] = [];
+  const lessonItems: any[] = [];
   const totalPages = response?.totalPages || 0;
   const totalElements = response?.totalElements || 0;
 

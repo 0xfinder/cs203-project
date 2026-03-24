@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
-import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash } from "lucide-react";
+import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   useApprovedContentsWithVotes,
@@ -14,6 +15,9 @@ import {
   type ContentWithVotesResponse,
 } from "@/features/content/useContentData";
 import { requireOnboardingCompleted } from "@/lib/auth";
+import { getMe } from "@/lib/me";
+import { api } from "@/lib/api";
+import Dialog, { DialogTrigger, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dictionary")({
@@ -79,6 +83,7 @@ function DictionaryPage() {
   const termGroups = useMemo(() => (contents ? buildTermGroups(contents) : []), [contents]);
   const deleteMutation = useDeleteContent();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isContributor, setIsContributor] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -87,6 +92,7 @@ function DictionaryPage() {
         .then((me) => {
           if (!mounted) return;
           setIsAdmin(me.role === "ADMIN" || me.role === "MODERATOR");
+          setIsContributor(me.role === "CONTRIBUTOR" || me.role === "ADMIN" || me.role === "MODERATOR");
         })
         .catch(() => {
           /* ignore */
@@ -96,6 +102,40 @@ function DictionaryPage() {
       mounted = false;
     };
   }, []);
+
+  // Add lingo form state (contributors only)
+  const [termInput, setTermInput] = useState("");
+  const [defInput, setDefInput] = useState("");
+  const [exampleInput, setExampleInput] = useState("");
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleLingoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitError(null);
+    setSubmitSuccess(null);
+    setSubmitLoading(true);
+    try {
+      const me = await getMe();
+      const payload = {
+        term: termInput.trim(),
+        definition: defInput.trim(),
+        example: exampleInput.trim() || null,
+        submittedBy: me.email ?? "",
+      };
+      await api.post("contents", { json: payload }).json();
+      setSubmitSuccess(me.role === "ADMIN" || me.role === "MODERATOR" ? "Added and live." : "Submitted — pending review.");
+      setTermInput("");
+      setDefInput("");
+      setExampleInput("");
+    } catch (err) {
+      console.error(err);
+      setSubmitError("Failed to submit term.");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
 
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -143,14 +183,50 @@ function DictionaryPage() {
 
       {/* search bar + stats */}
       <div className="mb-6 space-y-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search terms, definitions, or examples…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search terms, definitions, or examples…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {isContributor && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="rounded-full px-3 shadow-sm flex items-center gap-2 text-primary border-primary/20">
+                  <Plus className="size-3" />
+                  Add Lingo
+                </Button>
+              </DialogTrigger>
+              <DialogContent title="Add Lingo" description="Submit a new dictionary term for review">
+                <form onSubmit={handleLingoSubmit} className="space-y-3">
+                  <div>
+                    <Label htmlFor="dict-term">Term</Label>
+                    <Input id="dict-term" name="term" value={termInput} onChange={(e) => setTermInput(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="dict-definition">Definition</Label>
+                    <Input id="dict-definition" name="definition" value={defInput} onChange={(e) => setDefInput(e.target.value)} />
+                  </div>
+                  <div>
+                    <Label htmlFor="dict-example">Example (optional)</Label>
+                    <Input id="dict-example" name="example" value={exampleInput} onChange={(e) => setExampleInput(e.target.value)} />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={submitLoading || !termInput.trim() || !defInput.trim()}>
+                      {submitLoading ? "Submitting…" : "Submit"}
+                    </Button>
+                  </div>
+                  {submitSuccess && <p className="text-sm text-green-600">{submitSuccess}</p>}
+                  {submitError && <p className="text-sm text-destructive">{submitError}</p>}
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {!isLoading && contents && (
@@ -163,6 +239,8 @@ function DictionaryPage() {
           </div>
         )}
       </div>
+
+      {/* (Add Lingo is available in the search bar for contributors) */}
 
       {/* alphabet rail */}
       {!isLoading && availableLetters.length > 0 && (

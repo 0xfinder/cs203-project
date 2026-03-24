@@ -25,7 +25,7 @@ export function getUnitRoadmap(
   currentLessonId?: number,
   allowAllUnlocked = false,
 ) {
-  const orderedLessons = sortLessons(unit.lessons);
+  const orderedLessons = Array.isArray(unit.lessons) ? sortLessons(unit.lessons) : [];
   let previousCompleted = true;
 
   const items: LessonRoadmapItem[] = orderedLessons.map((lesson) => {
@@ -59,7 +59,7 @@ export function getUnitRoadmap(
 }
 
 export function getVisibleUnits(units: UnitData[]) {
-  return sortUnits(units).filter((unit) => unit.lessons.length > 0);
+  return sortUnits(units).filter((unit) => Array.isArray(unit.lessons) && unit.lessons.length > 0);
 }
 
 export function findUnitByLessonId(units: UnitData[], lessonId: number) {
