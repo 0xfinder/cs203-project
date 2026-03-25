@@ -64,11 +64,20 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
   }, [units, tempUnits]);
   const [unitId, setUnitId] = useState<number | null>(null);
   const [subunitId, setSubunitId] = useState<number | null>(null);
-  const [format, setFormat] = useState<"definition" | "dialogue">("definition");
+  const [format, setFormat] = useState<"definition" | "dialogue" | "question">("definition");
   const [term, setTerm] = useState("");
   const [defText, setDefText] = useState("");
   const [example, setExample] = useState("");
   const [dialogueText, setDialogueText] = useState("");
+  // Question state
+  const [questionType, setQuestionType] = useState<"SHORT_ANSWER" | "MCQ">("SHORT_ANSWER");
+  const [qPrompt, setQPrompt] = useState("");
+  const [qAcceptedAnswers, setQAcceptedAnswers] = useState("");
+  const [qChoices, setQChoices] = useState<Array<{ id: number; text: string; isCorrect?: boolean }>>([
+    { id: Date.now(), text: "", isCorrect: false },
+  ]);
+  const [qAllowMultiple, setQAllowMultiple] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -119,7 +128,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
             payload: null,
           },
         ];
-      } else {
+      } else if (format === "dialogue") {
         stepsPayload = [
           {
             orderIndex: 0,
@@ -127,6 +136,37 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
             vocab: null,
             dialogueText: dialogueText.trim(),
             question: null,
+            payload: null,
+          },
+        ];
+      } else {
+        // Question
+        const questionPayload: any = {
+          id: -(Date.now()),
+          questionType: questionType === "MCQ" ? "MCQ" : "SHORT_ANSWER",
+          prompt: qPrompt.trim(),
+          explanation: null,
+          choices: [],
+          acceptedAnswers: [],
+          shuffledRights: [],
+        };
+
+        if (questionType === "MCQ") {
+          questionPayload.choices = qChoices.map((c, i) => ({ id: c.id, text: c.text, isCorrect: !!c.isCorrect, orderIndex: i }));
+        }
+
+        if (questionType === "SHORT_ANSWER") {
+          const list = qAcceptedAnswers.split(",").map((s) => s.trim()).filter(Boolean);
+          questionPayload.acceptedAnswers = list.length ? list : [qPrompt.trim()];
+        }
+
+        stepsPayload = [
+          {
+            orderIndex: 0,
+            stepType: "QUESTION",
+            vocab: null,
+            dialogueText: null,
+            question: questionPayload,
             payload: null,
           },
         ];
@@ -155,6 +195,12 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       setDefText("");
       setExample("");
       setDialogueText("");
+      // reset question fields
+      setQuestionType("SHORT_ANSWER");
+      setQPrompt("");
+      setQChoices([{ id: Date.now(), text: "", isCorrect: false }]);
+      setQAcceptedAnswers("");
+      setQAllowMultiple(false);
     } catch (err) {
       console.error(err);
       setError("Failed to submit lesson. Try again.");
@@ -168,6 +214,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       <div className="flex gap-3">
         <button type="button" className={format === "definition" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setFormat("definition")}>Definition</button>
         <button type="button" className={format === "dialogue" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setFormat("dialogue")}>Dialogue</button>
+        <button type="button" className={format === "question" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setFormat("question")}>Question</button>
       </div>
 
       <div>
@@ -212,10 +259,62 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
           </div>
         </div>
       ) : (
-        <div>
-          <Label htmlFor="lesson-dialogue">Dialogue Text</Label>
-          <textarea id="lesson-dialogue" name="dialogueText" value={dialogueText} onChange={(e) => setDialogueText(e.target.value)} className="mt-1 w-full rounded-md border bg-card px-3 py-2" rows={6} placeholder={"A: ...\nB: ..."} />
-        </div>
+        format === "dialogue" ? (
+          <div>
+            <Label htmlFor="lesson-dialogue">Dialogue Text</Label>
+            <textarea id="lesson-dialogue" name="dialogueText" value={dialogueText} onChange={(e) => setDialogueText(e.target.value)} className="mt-1 w-full rounded-md border bg-card px-3 py-2" rows={6} placeholder={"A: ...\nB: ..."} />
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <Label>Question Type</Label>
+              <div className="flex gap-2 mt-2">
+                <button type="button" className={questionType === "SHORT_ANSWER" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setQuestionType("SHORT_ANSWER")}>Short Answer</button>
+                <button type="button" className={questionType === "MCQ" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setQuestionType("MCQ")}>MCQ</button>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="q-prompt">Prompt</Label>
+              <Input id="q-prompt" value={qPrompt} onChange={(e) => setQPrompt(e.target.value)} />
+            </div>
+
+            {questionType === "SHORT_ANSWER" && (
+              <div>
+                <Label htmlFor="q-accepted">Accepted answers (comma-separated)</Label>
+                <Input id="q-accepted" value={qAcceptedAnswers} onChange={(e) => setQAcceptedAnswers(e.target.value)} placeholder="answer1, answer2" />
+              </div>
+            )}
+
+            {questionType === "MCQ" && (
+              <div>
+                <Label>Choices</Label>
+                <div className="mt-2">
+                  <label className="flex items-center gap-2">
+                    <input type="checkbox" checked={qAllowMultiple} onChange={(e) => setQAllowMultiple(e.target.checked)} />
+                    <span className="text-sm">Allow multiple correct answers</span>
+                  </label>
+                </div>
+                <div className="space-y-2 mt-2">
+                  {qChoices.map((c, idx) => (
+                    <div key={c.id} className="flex gap-2 items-center">
+                      {qAllowMultiple ? (
+                        <input type="checkbox" checked={!!c.isCorrect} onChange={(e) => setQChoices((s) => s.map((cc) => cc.id === c.id ? { ...cc, isCorrect: e.target.checked } : cc))} />
+                      ) : (
+                        <input type="radio" name={`mcq-correct-${String(unitId ?? "unit")}`} checked={!!c.isCorrect} onChange={() => setQChoices((s) => s.map((cc) => ({ ...cc, isCorrect: cc.id === c.id })))} />
+                      )}
+                      <Input value={c.text} onChange={(e) => setQChoices((s) => s.map((cc) => cc.id === c.id ? { ...cc, text: e.target.value } : cc))} />
+                      <button type="button" onClick={() => setQChoices((s) => s.filter((cc) => cc.id !== c.id))} className="text-destructive">Remove</button>
+                    </div>
+                  ))}
+                  <Button type="button" onClick={() => setQChoices((s) => [...s, { id: Date.now(), text: "", isCorrect: false }])}>Add Choice</Button>
+                </div>
+              </div>
+            )}
+
+            
+          </div>
+        )
       )}
 
       <div className="flex justify-end">

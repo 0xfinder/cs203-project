@@ -366,8 +366,9 @@ function LessonPage() {
                       title="Unit Lessons"
                       interactive
                       allowAllUnlocked={isContributor || isAdmin}
+                      onDeleteLesson={deleteTempLesson}
                       headerAction={
-                        isTempLesson ? (
+                        (isContributor || isAdmin) ? (
                           <Dialog>
                             <DialogTrigger asChild>
                               <Button variant="default">Add Subunit</Button>
@@ -388,41 +389,80 @@ function LessonPage() {
                                   </DialogClose>
                                   <DialogClose asChild>
                                     <Button
-                                      onClick={() => {
-                                        const key = String(lessonId).slice(5);
+                                      onClick={async () => {
                                         try {
-                                          const raw = localStorage.getItem(`tempUnit:${key}`);
-                                          const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
-                                          const nextIndex = (parsed.lessons?.length ?? 0) + 1;
-                                          const newLesson = {
-                                            id: -(Date.now()),
-                                            unitId: parsed.id,
-                                            title: addTitle || `New Lesson ${nextIndex}`,
-                                            slug: `new-lesson-${nextIndex}`,
-                                            description: addDesc || "Coming soon",
-                                            learningObjective: null,
-                                            estimatedMinutes: null,
-                                            orderIndex: nextIndex,
-                                            status: "DRAFT",
+                                          if (isTempLesson) {
+                                            const key = String(lessonId).slice(5);
+                                            const raw = localStorage.getItem(`tempUnit:${key}`);
+                                            const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
+                                            const nextIndex = (parsed.lessons?.length ?? 0) + 1;
+                                            const newLesson = {
+                                              id: -(Date.now()),
+                                              unitId: parsed.id,
+                                              title: addTitle || `New Lesson ${nextIndex}`,
+                                              slug: `new-lesson-${nextIndex}`,
+                                              description: addDesc || "Coming soon",
+                                              learningObjective: null,
+                                              estimatedMinutes: null,
+                                              orderIndex: nextIndex,
+                                              status: "DRAFT",
+                                            };
+                                            parsed.lessons = parsed.lessons ?? [];
+                                            parsed.lessons.push(newLesson);
+                                            parsed.steps = parsed.steps ?? [];
+                                            parsed.steps.push({
+                                              id: newLesson.id,
+                                              orderIndex: newLesson.orderIndex,
+                                              stepType: "TEACH",
+                                              vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
+                                              question: null,
+                                              dialogueText: null,
+                                              payload: null,
+                                            });
+                                            localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
+                                            setTempRefresh((v) => v + 1);
+                                          } else {
+                                          // Submit to moderation queue for real units
+                                          const submitPayload = {
+                                            term: (addTitle || `New Lesson`).trim().slice(0, 100),
+                                            definition: (addDesc || "").trim().slice(0, 500),
+                                            example: null,
                                           };
-                                          parsed.lessons = parsed.lessons ?? [];
-                                          parsed.lessons.push(newLesson);
-                                          parsed.steps = parsed.steps ?? [];
-                                          parsed.steps.push({
-                                            id: newLesson.id,
-                                            orderIndex: newLesson.orderIndex,
-                                            stepType: "TEACH",
-                                            vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
-                                            question: null,
-                                            dialogueText: null,
-                                            payload: null,
-                                          });
-                                          localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
-                                          setTempRefresh((v) => v + 1);
+                                          await submitContent.mutateAsync(submitPayload);
+                                          // Also create a client-side placeholder so contributors see the subunit immediately
+                                          try {
+                                            const placeholderKey = `tempPlaceholderUnit:${currentUnit?.id}:${Date.now()}`;
+                                            const placeholder = {
+                                              id: -(Date.now()),
+                                              originalUnitId: currentUnit?.id,
+                                              title: currentUnit?.title ?? "",
+                                              description: currentUnit?.description ?? null,
+                                              orderIndex: currentUnit?.orderIndex ?? 0,
+                                              lessons: [
+                                                {
+                                                  id: -(Date.now()),
+                                                  unitId: currentUnit?.id,
+                                                  title: addTitle || "New Lesson",
+                                                  slug: `pending-${Date.now()}`,
+                                                  description: addDesc || "Pending review",
+                                                  learningObjective: null,
+                                                  estimatedMinutes: null,
+                                                  orderIndex: (currentUnit?.lessons?.length ?? 0) + 1,
+                                                  status: "PENDING",
+                                                  __placeholder: true,
+                                                },
+                                              ],
+                                            };
+                                            localStorage.setItem(placeholderKey, JSON.stringify(placeholder));
+                                            setTempRefresh((v) => v + 1);
+                                          } catch (e) {
+                                            // ignore storage errors
+                                          }
+                                          }
                                           setAddTitle("");
                                           setAddDesc("");
                                         } catch (e) {
-                                          // ignore
+                                          // ignore errors for now
                                         }
                                       }}
                                     >
@@ -510,7 +550,8 @@ function LessonPage() {
             ? () =>
                 navigate({ to: "/lesson/$lessonId", params: { lessonId: String(nextLesson.id) } })
             : undefined
-        }
+                      }
+                      onDeleteLesson={deleteTempLesson}
       />
     );
   }
@@ -658,14 +699,15 @@ function LessonPage() {
                   currentLessonId={numericLessonId}
                   title="Unit Lessons"
                   interactive
-                  allowAllUnlocked={isContributor || isAdmin}
+                    allowAllUnlocked={isContributor || isAdmin}
+                    onDeleteLesson={deleteTempLesson}
                   headerAction={
-                    isTempLesson ? (
+                    (isContributor || isAdmin) ? (
                       <Dialog>
                         <DialogTrigger asChild>
                           <Button variant="default">Add Subunit</Button>
                         </DialogTrigger>
-                        <DialogContent title="Add Subunit" description="Create a lesson under this section">
+                        <DialogContent title="Add Subunit" description={`Create a lesson under ${currentUnit?.title ?? "this section"}`}>
                           <div className="space-y-3">
                             <div>
                               <Label htmlFor="add-lesson-title">Subunit title</Label>
@@ -681,41 +723,51 @@ function LessonPage() {
                               </DialogClose>
                               <DialogClose asChild>
                                 <Button
-                                  onClick={() => {
-                                    const key = String(lessonId).slice(5);
+                                  onClick={async () => {
                                     try {
-                                      const raw = localStorage.getItem(`tempUnit:${key}`);
-                                      const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
-                                      const nextIndex = (parsed.lessons?.length ?? 0) + 1;
-                                      const newLesson = {
-                                        id: -(Date.now()),
-                                        unitId: parsed.id,
-                                        title: addTitle || `New Lesson ${nextIndex}`,
-                                        slug: `new-lesson-${nextIndex}`,
-                                        description: addDesc || "Coming soon",
-                                        learningObjective: null,
-                                        estimatedMinutes: null,
-                                        orderIndex: nextIndex,
-                                        status: "DRAFT",
-                                      };
-                                      parsed.lessons = parsed.lessons ?? [];
-                                      parsed.lessons.push(newLesson);
-                                      parsed.steps = parsed.steps ?? [];
-                                      parsed.steps.push({
-                                        id: newLesson.id,
-                                        orderIndex: newLesson.orderIndex,
-                                        stepType: "TEACH",
-                                        vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
-                                        question: null,
-                                        dialogueText: null,
-                                        payload: null,
-                                      });
-                                      localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
-                                      setTempRefresh((v) => v + 1);
+                                      if (isTempLesson) {
+                                        const key = String(lessonId).slice(5);
+                                        const raw = localStorage.getItem(`tempUnit:${key}`);
+                                        const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
+                                        const nextIndex = (parsed.lessons?.length ?? 0) + 1;
+                                        const newLesson = {
+                                          id: -(Date.now()),
+                                          unitId: parsed.id,
+                                          title: addTitle || `New Lesson ${nextIndex}`,
+                                          slug: `new-lesson-${nextIndex}`,
+                                          description: addDesc || "Coming soon",
+                                          learningObjective: null,
+                                          estimatedMinutes: null,
+                                          orderIndex: nextIndex,
+                                          status: "DRAFT",
+                                        };
+                                        parsed.lessons = parsed.lessons ?? [];
+                                        parsed.lessons.push(newLesson);
+                                        parsed.steps = parsed.steps ?? [];
+                                        parsed.steps.push({
+                                          id: newLesson.id,
+                                          orderIndex: newLesson.orderIndex,
+                                          stepType: "TEACH",
+                                          vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
+                                          question: null,
+                                          dialogueText: null,
+                                          payload: null,
+                                        });
+                                        localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
+                                        setTempRefresh((v) => v + 1);
+                                      } else {
+                                        // Submit to moderation queue for real units
+                                        const submitPayload = {
+                                          term: (addTitle || `New Lesson`).trim().slice(0, 100),
+                                          definition: (addDesc || "").trim().slice(0, 500),
+                                          example: null,
+                                        };
+                                        await submitContent.mutateAsync(submitPayload);
+                                      }
                                       setAddTitle("");
                                       setAddDesc("");
                                     } catch (e) {
-                                      // ignore
+                                      // ignore errors for now
                                     }
                                   }}
                                 >

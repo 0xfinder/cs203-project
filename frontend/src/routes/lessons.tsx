@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import type { CSSProperties } from "react";
 import { Trophy, Flame, Star, Lock, ChevronRight, Lightbulb, Trash } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -42,13 +44,9 @@ function LearnPage() {
   const role = profile?.role;
   const isContributor =
     role === "CONTRIBUTOR" || role === "ADMIN" || role === "MODERATOR";
-
-  // client-side appended units (new sections) shown until persisted server-side
   const [appendedUnits, setAppendedUnits] = useState<UnitData[]>([]);
   const [newUnitTitle, setNewUnitTitle] = useState("");
   const [newUnitDesc, setNewUnitDesc] = useState("");
-
-  // Persist appended units in localStorage so they survive refreshes
   useEffect(() => {
     try {
       if (typeof window === "undefined") return;
@@ -172,6 +170,20 @@ function LearnPage() {
       const el = document.querySelector("[data-appended-last]");
       if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     }, 100);
+  };
+
+  const queryClient = useQueryClient();
+
+  const deleteUnit = async (id: number) => {
+    // eslint-disable-next-line no-restricted-globals
+    if (!window.confirm("Delete this unit? This will remove it for everyone.")) return;
+    try {
+      await api.delete(`units/${id}`);
+      await queryClient.invalidateQueries({ queryKey: ["units"] });
+    } catch (e) {
+      // eslint-disable-next-line no-restricted-globals
+      alert("Failed to delete unit. Ensure you have permission and try again.");
+    }
   };
 
   const deleteLastAppendedUnit = () => {
@@ -327,6 +339,21 @@ function LearnPage() {
                     <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow sm:size-7 sm:text-sm">
                       ✓
                     </span>
+                  )}
+                  {isContributor && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        deleteUnit(unit.id);
+                      }}
+                      aria-label={`Delete unit ${unit.title}`}
+                      title="Delete unit"
+                      className="absolute -right-2 -bottom-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow hover:scale-105 transition-transform"
+                    >
+                      <Trash className="size-4" />
+                    </button>
                   )}
                 </div>
 

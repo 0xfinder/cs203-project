@@ -32,6 +32,35 @@ export function UnitRoadmap({
   const progressByLessonId = new Map(progressItems?.map((item) => [item.lessonId, item]) ?? []);
   const roadmap = getUnitRoadmap(unit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
 
+  // Merge any client-side placeholder lessons created for this real unit
+  let mergedUnit = unit;
+  if (typeof window !== "undefined") {
+    try {
+      const placeholders: any[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i) || "";
+        if (!key.startsWith("tempPlaceholderUnit:")) continue;
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          if (parsed?.originalUnitId && parsed.originalUnitId === unit.id) {
+            if (Array.isArray(parsed.lessons)) {
+              placeholders.push(...parsed.lessons);
+            }
+          }
+        } catch (e) {
+          // ignore malformed
+        }
+      }
+      if (placeholders.length > 0) {
+        mergedUnit = { ...unit, lessons: [...(unit.lessons ?? []), ...placeholders] } as typeof unit;
+      }
+    } catch (e) {
+      // ignore storage access
+    }
+  }
+
   const isPlaceholderLesson = (lesson: any) => {
     if (!lesson) return false;
     const title = String(lesson.title ?? "");
@@ -39,7 +68,9 @@ export function UnitRoadmap({
     return title.startsWith("Placeholder Lesson") || slug.startsWith("placeholder-") || title === "Coming soon";
   };
 
-  const displayItems = roadmap.items.filter((item) => !isPlaceholderLesson(item.lesson));
+  // Recompute roadmap using merged unit if placeholders exist
+  const effectiveRoadmap = mergedUnit === unit ? roadmap : getUnitRoadmap(mergedUnit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
+  const displayItems = effectiveRoadmap.items.filter((item) => !isPlaceholderLesson(item.lesson));
 
   return (
     <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
