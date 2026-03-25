@@ -26,10 +26,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class UserController {
 
     private final UserService userService;
+    private final org.springframework.core.env.Environment env;
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
-    public UserController(UserService userService) {
+    public UserController(UserService userService, org.springframework.core.env.Environment env) {
         this.userService = userService;
+        this.env = env;
     }
 
     @GetMapping("/me")
@@ -87,9 +89,18 @@ public class UserController {
     @PostMapping("/me/dev-role")
     @Operation(summary = "Dev: set current user's role (dev only)")
     public UserMeResponse setMyRoleDev(@AuthenticationPrincipal Jwt jwt, @RequestParam String role) {
-        // Only allow when explicitly enabled via environment variable for safety
+        // Allow when explicitly enabled via environment variable or when running
+        // with the H2 in-memory fallback (local development). This makes local
+        // testing simpler while preserving the opt-in guarded check for production.
         String allow = System.getenv("ALLOW_DEV_ROLE_CHANGE");
-        if (!"true".equalsIgnoreCase(allow)) {
+        boolean enabled = "true".equalsIgnoreCase(allow);
+        if (!enabled) {
+            String dsUrl = env.getProperty("spring.datasource.url", "");
+            if (dsUrl != null && dsUrl.contains("h2:mem")) {
+                enabled = true;
+            }
+        }
+        if (!enabled) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Dev role changes are disabled");
         }
 

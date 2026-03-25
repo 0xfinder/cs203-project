@@ -188,6 +188,26 @@ public class LessonService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "lesson step not found"));
         lessonStepRepository.delete(step);
         normalizeStepOrder(lessonId);
+
+        // If no steps remain for this lesson, remove the empty lesson as well (owner/admin only)
+        List<LessonStep> remaining = lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lessonId);
+        if (remaining == null || remaining.isEmpty()) {
+            // requireOwnerOrAdmin already checked via ensureCanEditSteps, so safe to delete
+            lessonRepository.delete(lesson);
+        }
+    }
+
+    public void deleteLesson(User actor, Long lessonId) {
+        Lesson lesson = requireLesson(lessonId);
+        requireOwnerOrAdmin(actor, lesson);
+
+        // Delete steps first
+        List<LessonStep> steps = lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId());
+        for (LessonStep s : steps) {
+            lessonStepRepository.delete(s);
+        }
+
+        lessonRepository.delete(lesson);
     }
 
     public List<LessonStep> getQuestionSteps(Long lessonId) {

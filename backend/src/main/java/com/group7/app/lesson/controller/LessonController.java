@@ -133,6 +133,16 @@ public class LessonController {
         return toDetail(lesson, steps);
     }
 
+        @DeleteMapping("/{lessonId}")
+        @Operation(summary = "Delete a lesson (owner or admin only)")
+        public org.springframework.http.ResponseEntity<Void> deleteLesson(
+                        @AuthenticationPrincipal Jwt jwt,
+                        @PathVariable Long lessonId) {
+                User actor = authContextService.resolveUser(jwt);
+                lessonService.deleteLesson(actor, lessonId);
+                return org.springframework.http.ResponseEntity.noContent().build();
+        }
+
     @PostMapping("/{lessonId}/steps")
     @Operation(summary = "Create lesson step")
     public ResponseEntity<StepResponse> createStep(

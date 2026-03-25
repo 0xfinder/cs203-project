@@ -12,8 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 import com.group7.app.content.model.Content;
 import com.group7.app.content.service.ContentService;
 
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.jwt.Jwt;
 import jakarta.validation.Valid;
 import java.util.List;
 import com.group7.app.user.UserService;
@@ -35,16 +33,13 @@ public class ContentController {
 
     // Contributor submits a new term (also used as an appeal submission)
     @PostMapping
-    @PreAuthorize("hasAnyRole('CONTRIBUTOR', 'MODERATOR', 'ADMIN')")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Create new content", description = "Submit a new content item. Contributors can use this endpoint to submit new terms or to appeal existing content; submitted items are created with status=PENDING for moderator review.")
-    public Content submitContent(
-            @AuthenticationPrincipal Jwt jwt,
-            @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody Content content) {
+    public Content submitContent(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody Content content) {
         String email = getEmail(jwt);
         content.setSubmittedBy(email);
         // If the authenticated user is an admin/moderator, auto-approve the submission
         try {
-            String email = jwt.getClaimAsString("email");
             if (email != null) {
                 User user = userService.findByEmail(email).orElse(null);
                 if (user != null) {
@@ -158,5 +153,14 @@ public class ContentController {
         return contentService.getPendingContents(
                 org.springframework.data.domain.PageRequest.of(page, size,
                         org.springframework.data.domain.Sort.by("createdAt").ascending()));
+    }
+
+    // Delete a content item (moderator/admin only)
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN')")
+    @Operation(summary = "Delete content")
+    public org.springframework.http.ResponseEntity<Void> deleteContent(@PathVariable Long id) {
+        contentService.deleteContent(id);
+        return org.springframework.http.ResponseEntity.noContent().build();
     }
 }

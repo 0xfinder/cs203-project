@@ -67,4 +67,11 @@ public class ContentServiceImpl implements ContentService {
             org.springframework.data.domain.Pageable pageable) {
         return contentRepository.findByStatus(Content.Status.PENDING, pageable);
     }
+
+    @Override
+    public void deleteContent(Long id) {
+        Content content = contentRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found"));
+        contentRepository.delete(content);
+    }
 }
