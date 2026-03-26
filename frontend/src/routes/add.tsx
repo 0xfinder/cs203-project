@@ -77,10 +77,13 @@ function SubmitContentPage() {
                   <Input id="add-example" name="example" value={example} onChange={(e) => setExample(e.target.value)} className="mt-1" />
                 </div>
                 <div className="flex justify-end">
-                  <Button type="submit" variant="default" className="rounded-md" disabled={loading || !term.trim() || !definition.trim()}>{loading ? "Submitting…" : "Submit"}</Button>
+                    <div className="flex gap-2">
+                    <Button type="submit" variant="default" className="rounded-md" disabled={loading || !term.trim() || !definition.trim()}>{loading ? "Submitting…" : "Submit"}</Button>
+                  </div>
                 </div>
                 {success && <p className="text-sm text-green-600">{success}</p>}
                 {error && <p className="text-sm text-destructive">{error}</p>}
+                
               </form>
             </TabsContent>
 

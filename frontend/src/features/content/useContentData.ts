@@ -98,11 +98,29 @@ export function useSubmitContent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (content: Omit<ContentItem, "id" | "createdAt" | "updatedAt" | "status">) =>
-      api.post("contents", { json: content }).json<ContentItem>(),
+    mutationFn: async (content: Omit<ContentItem, "id" | "createdAt" | "updatedAt" | "status">) => {
+      try {
+        return await api.post("contents", { json: content }).json<ContentItem>();
+      } catch (err: any) {
+        console.error("useSubmitContent mutation failed:", err);
+        // attempt to log response body when available
+        try {
+          const text = await err?.response?.text();
+          console.error("response body:", text);
+        } catch (e) {
+          // ignore
+        }
+        throw err;
+      }
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: CONTENTS_KEY });
       void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+      void queryClient.invalidateQueries({ queryKey: [...CONTENTS_KEY, "pending"] });
+      void queryClient.invalidateQueries({ queryKey: [...CONTENTS_KEY, "pending", "paginated"] });
+    },
+    onError: (err: any) => {
+      console.error("useSubmitContent onError:", err);
     },
   });
 }

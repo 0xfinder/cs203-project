@@ -1,6 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { getMe } from "@/lib/me";
+import { getValidAccessToken } from "@/lib/session";
+import { useSubmitContent } from "@/features/content/useContentData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -81,6 +85,10 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const submitContent = useSubmitContent();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  
 
   useEffect(() => {
     if (allUnits && allUnits.length > 0 && unitId === null) {
@@ -110,10 +118,23 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
     setSuccess(null);
     setLoading(true);
     try {
+      const getNextOrderIndex = (uId: number | null) => {
+        try {
+          if (!uId) return 0;
+          const unit = allUnits.find((uu: any) => uu.id === uId);
+          if (!unit) return 0;
+          const lessons = Array.isArray(unit.lessons) ? unit.lessons : [];
+          const max = lessons.reduce((m: number, l: any) => Math.max(m, (l.orderIndex ?? 0)), -1);
+          return max + 1;
+        } catch (e) {
+          return 0;
+        }
+      };
       const me = await getMe();
       let stepsPayload: any[] = [];
       if (format === "definition") {
         stepsPayload = [
+          
           {
             orderIndex: 0,
             stepType: "TEACH",
@@ -184,13 +205,180 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
         submittedBy: me.email ?? null,
       };
 
+      // If this is a simple definition (vocab) submission, create the vocab first
+      // then continue to create/attach a TEACH step referencing the vocab item so
+      // the lesson flows through the same review pipeline as dialogue/question.
+      let createdVocabId: number | null = null;
+      if (format === "definition") {
+        try {
+          const token = await getValidAccessToken();
+          if (!token) {
+            setError("You must be signed in to submit content. Please sign in and try again.");
+            setSuccess(null);
+            setLoading(false);
+            return;
+          }
+          const created = await submitContent.mutateAsync({
+            term: term.trim(),
+            definition: defText.trim(),
+            example: example.trim() || null,
+            submittedBy: me.email ?? "",
+          });
+
+          // ensure pending contents cache is refreshed
+          try {
+            void queryClient.invalidateQueries({ queryKey: ["contents", "pending"] });
+            void queryClient.invalidateQueries({ queryKey: ["contents", "pending", "paginated"] });
+          } catch (e) {
+            // ignore
+          }
+
+          createdVocabId = created.id;
+        } catch (err: any) {
+          console.error("[LessonForm] submit content error:", err);
+          setSuccess(null);
+          let message = "Failed to submit definition. Try again.";
+          try {
+            if (err?.response) {
+              const res = err.response;
+              let body: any = null;
+              try {
+                body = await res.json();
+              } catch (e) {
+                try { body = await res.text(); } catch (e2) { body = null; }
+              }
+              const status = res.status;
+              const bodyMsg = body && typeof body === "object" ? (body.message ?? JSON.stringify(body)) : body;
+              if (status === 403) {
+                message = "Submission forbidden — you do not have permission. Please check your account or contact a moderator.";
+              } else {
+                message = `Failed to submit definition (${status}): ${bodyMsg ?? err?.message ?? "unknown"}`;
+              }
+            } else if (err?.message) {
+              message = err.message;
+            }
+          } catch (e) {
+            console.error("[LessonForm] error while formatting submission error:", e);
+          }
+          setError(message);
+          setLoading(false);
+          return;
+        }
+        // replace the TEACH step payload with a reference to the created vocab id
+        stepsPayload = [
+          {
+            orderIndex: 0,
+            stepType: "TEACH",
+            vocabItemId: createdVocabId,
+          },
+        ];
+      }
+
       if (subunitId) {
-        // Add as a step to an existing lesson (subunit)
-        await api.post(`lessons/${subunitId}/steps`, { json: stepsPayload }).json();
+        // If adding to an existing lesson, fetch its status first. If the
+        // lesson cannot be fetched (404) fall back to creating a new lesson
+        // so the submission still succeeds instead of surfacing a 404.
+        let existingLesson: any = null;
+        try {
+          existingLesson = await api.get(`lessons/${subunitId}`).json<any>();
+        } catch (fetchErr) {
+          existingLesson = null;
+        }
+
+        if (!existingLesson || existingLesson.status === "APPROVED") {
+          // Approved lessons cannot be edited by contributors — create a new lesson draft
+          const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, orderIndex: getNextOrderIndex(unitId) } }).json<any>();
+          const newLessonId = created.id;
+          // create step(s) on the new lesson
+          for (const st of stepsPayload) {
+            await api.post(`lessons/${newLessonId}/steps`, { json: st }).json();
+          }
+          // submit the new lesson for review
+          await api.patch(`lessons/${newLessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
+          // add the created lesson to the pending cache so Review shows it immediately
+          try {
+            const summary = {
+              id: created.id,
+              unitId: created.unitId ?? unitId,
+              title: created.title ?? titleVal,
+              slug: created.slug ?? (created.id ? `lesson-${created.id}` : undefined),
+              description: created.description ?? descriptionVal,
+              learningObjective: created.learningObjective ?? null,
+              estimatedMinutes: created.estimatedMinutes ?? null,
+              orderIndex: created.orderIndex ?? 0,
+              status: "PENDING_REVIEW",
+            };
+            queryClient.setQueryData(["lessons", "pending"], (old: any) => {
+              if (!old) return [summary];
+              return [summary, ...old];
+            });
+          } catch (e) {
+            // ignore cache failures
+          }
+        } else {
+          // add the single step to the existing lesson (server expects a single StepWriteRequest)
+          const stepToCreate = stepsPayload[0];
+          await api.post(`lessons/${subunitId}/steps`, { json: stepToCreate }).json();
+          // submit the parent lesson for review so the new step is reviewed
+          await api.patch(`lessons/${subunitId}`, { json: { status: "PENDING_REVIEW" } }).json();
+          // ensure the existing lesson appears in pending cache
+          try {
+            const summary = {
+              id: existingLesson.id,
+              unitId: existingLesson.unitId ?? unitId,
+              title: existingLesson.title ?? titleVal,
+              slug: existingLesson.slug ?? `lesson-${existingLesson.id}`,
+              description: existingLesson.description ?? descriptionVal,
+              learningObjective: existingLesson.learningObjective ?? null,
+              estimatedMinutes: existingLesson.estimatedMinutes ?? null,
+              orderIndex: existingLesson.orderIndex ?? 0,
+              status: "PENDING_REVIEW",
+            };
+            queryClient.setQueryData(["lessons", "pending"], (old: any) => {
+              if (!old) return [summary];
+              // avoid duplicates
+              return [summary, ...old.filter((it: any) => it.id !== summary.id)];
+            });
+          } catch (e) {
+            // ignore
+          }
+        }
       } else {
-        await api.post("lessons", { json: payload }).json();
+        // create a new lesson draft and attach steps
+        const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, orderIndex: getNextOrderIndex(unitId) } }).json<any>();
+        const lessonId = created.id;
+        for (const st of stepsPayload) {
+          await api.post(`lessons/${lessonId}/steps`, { json: st }).json();
+        }
+        // submit the lesson for review
+        await api.patch(`lessons/${lessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
+        // add to pending cache so Review shows it
+        try {
+          const summary = {
+            id: created.id,
+            unitId: created.unitId ?? unitId,
+            title: created.title ?? titleVal,
+            slug: created.slug ?? (created.id ? `lesson-${created.id}` : undefined),
+            description: created.description ?? descriptionVal,
+            learningObjective: created.learningObjective ?? null,
+            estimatedMinutes: created.estimatedMinutes ?? null,
+            orderIndex: created.orderIndex ?? 0,
+            status: "PENDING_REVIEW",
+          };
+          queryClient.setQueryData(["lessons", "pending"], (old: any) => {
+            if (!old) return [summary];
+            return [summary, ...old];
+          });
+        } catch (e) {
+          // ignore
+        }
       }
       setSuccess("Lesson submitted — it will appear after review.");
+      // navigate to Review to let the user see the pending item (delay so success message is visible)
+        setTimeout(() => {
+          try { sessionStorage.setItem("reviewActiveSub", "lesson"); } catch (e) {}
+          navigate("/review");
+        }, 800);
       setTerm("");
       setDefText("");
       setExample("");
@@ -201,9 +389,33 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       setQChoices([{ id: Date.now(), text: "", isCorrect: false }]);
       setQAcceptedAnswers("");
       setQAllowMultiple(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      setError("Failed to submit lesson. Try again.");
+      setSuccess(null);
+      let message = "Failed to submit lesson. Try again.";
+      try {
+        if (err?.response) {
+          const res = err.response;
+          let body: any = null;
+          try {
+            body = await res.json();
+          } catch (e) {
+            try {
+              body = await res.text();
+            } catch (e2) {
+              body = null;
+            }
+          }
+          const status = res.status;
+          const bodyMsg = body && typeof body === "object" ? (body.message ?? JSON.stringify(body)) : body;
+          message = `Failed to submit lesson (${status}): ${bodyMsg ?? err?.message ?? "unknown"}`;
+        } else if (err?.message) {
+          message = err.message;
+        }
+      } catch (e) {
+        // ignore
+      }
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -236,9 +448,32 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
             onChange={(e) => setSubunitId(e.target.value ? Number(e.target.value) : null)}
             className="mt-1 w-full rounded-md border bg-card px-3 py-2"
           >
-            {(allUnits.find((u: any) => u.id === unitId)?.lessons ?? []).map((l: any) => (
-              <option key={l.id} value={l.id}>{l.title}</option>
-            ))}
+            {(() => {
+              const unit = allUnits.find((u: any) => u.id === unitId);
+              // For client-side appended 'temp' units we should not expose their
+              // placeholder lessons in the Subunit select. Detect temp units by
+              // negative id or a slug that starts with 'temp-'. Treat their
+              // lessons list as empty so users don't accidentally attach to
+              // placeholders.
+              let lessons = (unit && Array.isArray(unit.lessons)) ? unit.lessons : [];
+              const isTempUnit = unit && (typeof unit.id === "number" && unit.id < 0 || (unit.slug && String(unit.slug).startsWith("temp-")));
+              if (isTempUnit) {
+                // For temp units, show appended lessons except known placeholders
+                const isPlaceholderLesson = (l: any) => {
+                  if (!l) return false;
+                  const t = String(l.title ?? "");
+                  const s = String(l.slug ?? "");
+                  return t.startsWith("Placeholder Lesson") || s.startsWith("placeholder-") || t === "Coming soon" || s.startsWith("pending-") || !!l.__placeholder;
+                };
+                lessons = (lessons ?? []).filter((l: any) => !isPlaceholderLesson(l));
+              }
+
+              // If submitting a definition and the term matches a lesson title, hide that lesson from the subunit list
+              const filtered = (format === "definition" && term.trim().length > 0)
+                ? lessons.filter((l: any) => (l.title ?? "").trim() !== term.trim())
+                : lessons;
+              return filtered.map((l: any) => <option key={l.id} value={l.id}>{l.title}</option>);
+            })()}
           </select>
         </div>
       ) : null}
@@ -318,7 +553,11 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       )}
 
       <div className="flex justify-end">
-        <Button type="submit" disabled={loading}>{loading ? "Submitting..." : "Submit Lesson"}</Button>
+        <div className="flex flex-col items-end">
+          {success && <p className="text-sm text-green-600 mb-2">{success}</p>}
+          {error && <p className="text-sm text-destructive mb-2">{error}</p>}
+          <Button type="submit" disabled={loading}>{loading ? "Submitting..." : "Submit Lesson"}</Button>
+        </div>
       </div>
     </form>
   );

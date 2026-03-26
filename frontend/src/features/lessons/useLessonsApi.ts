@@ -118,6 +118,13 @@ export function useUnits() {
   });
 }
 
+export function usePendingLessons() {
+  return useQuery({
+    queryKey: [...LESSONS_KEY, "pending"],
+    queryFn: () => api.get("lessons", { searchParams: { status: "PENDING_REVIEW" } }).json<LessonSummary[]>(),
+  });
+}
+
 export function useLessons(unitId?: number) {
   return useQuery({
     queryKey: [...LESSONS_KEY, unitId ?? "all"],

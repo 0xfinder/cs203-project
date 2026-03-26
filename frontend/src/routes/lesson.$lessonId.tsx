@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { HTTPError } from "ky";
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
@@ -41,7 +42,9 @@ function LessonPage() {
   const navigate = useNavigate();
   const { lessonId } = Route.useParams();
   const numericLessonId = Number(lessonId);
-  const isTempLesson = typeof lessonId === "string" && lessonId.startsWith("temp-");
+  const isTempLessonString = typeof lessonId === "string" && lessonId.startsWith("temp-");
+  const isTempLessonNegative = Number.isInteger(numericLessonId) && numericLessonId < 0;
+  const isTempLesson = isTempLessonString || isTempLessonNegative;
   const hasValidLessonId = (Number.isInteger(numericLessonId) && numericLessonId > 0) || isTempLesson;
 
   const { data, isLoading, error } = useLessonPlay(numericLessonId);
@@ -88,15 +91,41 @@ function LessonPage() {
   const tempData = useMemo(() => {
     if (!isTempLesson) return null;
     try {
-      const key = String(lessonId).slice(5);
-      const raw = typeof window !== "undefined" ? localStorage.getItem(`tempUnit:${key}`) : null;
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      return {
-        lesson: { title: parsed.title ?? "New Section" },
-        steps: parsed.steps ?? [],
-        unit: parsed,
-      };
+      // string-based temp route: /lesson/temp-<key> maps directly to tempUnit:<key>
+      if (isTempLessonString) {
+        const key = String(lessonId).slice(5);
+        const raw = typeof window !== "undefined" ? localStorage.getItem(`tempUnit:${key}`) : null;
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return {
+          lesson: { title: parsed.title ?? "New Section" },
+          steps: parsed.steps ?? [],
+          unit: parsed,
+        };
+      }
+
+      // negative numeric temp lesson id: search all tempUnit:* entries for a matching lesson id
+      if (isTempLessonNegative) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (!key.startsWith("tempUnit:")) continue;
+          try {
+            const raw = localStorage.getItem(key);
+            if (!raw) continue;
+            const parsed = JSON.parse(raw);
+            const found = (parsed.lessons || []).find((l: any) => l.id === numericLessonId);
+            if (found) {
+              const steps = (parsed.steps || []).filter((s: any) => s.id === found.id);
+              return { lesson: found, steps, unit: parsed };
+            }
+          } catch (e) {
+            // ignore parse errors
+          }
+        }
+        return null;
+      }
+
+      return null;
     } catch (e) {
       return null;
     }
@@ -160,6 +189,8 @@ function LessonPage() {
   const isAdmin =
     currentProfile?.role === "ADMIN" || currentProfile?.role === "MODERATOR";
 
+  const queryClient = useQueryClient();
+
   const [appealOpen, setAppealOpen] = useState(false);
   const [appealText, setAppealText] = useState("");
   const [appealSubmitting, setAppealSubmitting] = useState(false);
@@ -175,7 +206,7 @@ function LessonPage() {
       if (!window.confirm("Delete this subunit? This cannot be undone.")) return;
 
       // If we're viewing a temp unit route (temp-<key>), remove directly from that key.
-      if (isTempLesson) {
+      if (isTempLessonString) {
         const key = String(lessonId).slice(5);
         const raw = localStorage.getItem(`tempUnit:${key}`);
         if (!raw) return;
@@ -215,6 +246,33 @@ function LessonPage() {
       // ignore
     }
   };
+
+  const deleteLessonById = async (lessonIdToDelete: number) => {
+    try {
+      if (Number.isInteger(lessonIdToDelete) && lessonIdToDelete > 0) {
+        // server-side lesson
+        // eslint-disable-next-line no-restricted-globals
+        if (!window.confirm("Delete this subunit? This will remove it for everyone.")) return;
+        await api.delete(`lessons/${lessonIdToDelete}`);
+        void queryClient.invalidateQueries({ queryKey: ["units"] });
+        void queryClient.invalidateQueries({ queryKey: ["lessons"] });
+        // if we just deleted the lesson we're viewing, navigate back
+        if (lessonIdToDelete === numericLessonId) {
+          navigate({ to: "/lessons" });
+        } else {
+          setTempRefresh((v) => v + 1);
+        }
+        return;
+      }
+      // fallback to client-side temp deletion
+      deleteTempLesson(lessonIdToDelete);
+    } catch (e) {
+      // eslint-disable-next-line no-restricted-globals
+      alert("Failed to delete subunit. Ensure you have permission and try again.");
+    }
+  };
+
+  
 
   const submitAppeal = async () => {
     if (!appealText.trim() || !currentProfile) return;
@@ -366,7 +424,7 @@ function LessonPage() {
                       title="Unit Lessons"
                       interactive
                       allowAllUnlocked={isContributor || isAdmin}
-                      onDeleteLesson={deleteTempLesson}
+                      onDeleteLesson={deleteLessonById}
                       headerAction={
                         (isContributor || isAdmin) ? (
                           <Dialog>
@@ -391,7 +449,7 @@ function LessonPage() {
                                     <Button
                                       onClick={async () => {
                                         try {
-                                          if (isTempLesson) {
+                                          if (isTempLessonString) {
                                             const key = String(lessonId).slice(5);
                                             const raw = localStorage.getItem(`tempUnit:${key}`);
                                             const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
@@ -475,7 +533,7 @@ function LessonPage() {
                           </Dialog>
                         ) : null
                       }
-                      onDeleteLesson={deleteTempLesson}
+                      onDeleteLesson={deleteLessonById}
                     />
                   </div>
                 </aside>
@@ -551,7 +609,7 @@ function LessonPage() {
                 navigate({ to: "/lesson/$lessonId", params: { lessonId: String(nextLesson.id) } })
             : undefined
                       }
-                      onDeleteLesson={deleteTempLesson}
+                      onDeleteLesson={deleteLessonById}
       />
     );
   }
@@ -700,7 +758,7 @@ function LessonPage() {
                   title="Unit Lessons"
                   interactive
                     allowAllUnlocked={isContributor || isAdmin}
-                    onDeleteLesson={deleteTempLesson}
+                    onDeleteLesson={deleteLessonById}
                   headerAction={
                     (isContributor || isAdmin) ? (
                       <Dialog>
@@ -725,7 +783,7 @@ function LessonPage() {
                                 <Button
                                   onClick={async () => {
                                     try {
-                                      if (isTempLesson) {
+                                      if (isTempLessonString) {
                                         const key = String(lessonId).slice(5);
                                         const raw = localStorage.getItem(`tempUnit:${key}`);
                                         const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
@@ -898,6 +956,7 @@ function LessonPage() {
                         setCurrentIndex((idx) => Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))));
                       }}
                     />
+                    
                   </div>
                 ) : null}
 
