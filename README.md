@@ -80,3 +80,24 @@ cd backend && ./gradlew build
 - ORM: Spring Data JPA
 - Security: Spring Security
 - Validation: Jakarta Bean Validation
+
+## Deploying
+
+Deployment is managed with docker compose, site starts at port 80, with /api requests routed to backend at 8080 by nginx
+
+### Requirements
+
+- [Docker](https://www.docker.com/)
+
+### Instructions
+
+```bash
+# copy frontend .env to project root
+cp frontend/.env ./
+
+# docker compose
+docker compose up --build
+
+# stop containers
+docker compose down
+```
