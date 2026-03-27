@@ -7,7 +7,7 @@ import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserLessonProgressRepository extends JpaRepository<UserLessonProgress, Long> {
-    List<UserLessonProgress> findByUserId(UUID userId);
+  List<UserLessonProgress> findByUserId(UUID userId);
 
-    Optional<UserLessonProgress> findByUserIdAndLessonId(UUID userId, Long lessonId);
+  Optional<UserLessonProgress> findByUserIdAndLessonId(UUID userId, Long lessonId);
 }

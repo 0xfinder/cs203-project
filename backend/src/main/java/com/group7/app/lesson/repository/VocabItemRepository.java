@@ -7,7 +7,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface VocabItemRepository extends JpaRepository<VocabItem, Long> {
-    Optional<VocabItem> findByTermIgnoreCase(String term);
+  Optional<VocabItem> findByTermIgnoreCase(String term);
 
-    List<VocabItem> findByIdIn(Collection<Long> ids);
+  List<VocabItem> findByIdIn(Collection<Long> ids);
 }

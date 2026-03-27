@@ -6,8 +6,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class RootController {
 
-    @GetMapping("/")
-    public String root() {
-        return "API is running. Visit /swagger-ui.html for API docs.";
-    }
+  @GetMapping("/")
+  public String root() {
+    return "API is running. Visit /swagger-ui.html for API docs.";
+  }
 }

@@ -1,12 +1,14 @@
 package com.group7.app.config;
 
 import java.util.List;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.core.GrantedAuthority;
@@ -29,112 +31,91 @@ public class SecurityConfig {
         this.userService = userService;
     }
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+  @Bean
+  public SecurityFilterChain filterChain(
+      HttpSecurity http,
+      Converter<Jwt, ? extends AbstractAuthenticationToken> databaseRoleJwtAuthenticationConverter)
+      throws Exception {
 
-        http
-            // Enable CORS using our CorsConfigurationSource bean
-            .cors(Customizer.withDefaults())
+    http
+        // Enable CORS using our CorsConfigurationSource bean
+        .cors(Customizer.withDefaults())
 
-            // Disable CSRF for stateless APIs
-            .csrf(csrf -> csrf.disable())
+        // Disable CSRF for stateless APIs
+        .csrf(csrf -> csrf.disable())
 
-            // Configure endpoint security
-            .authorizeHttpRequests(auth -> auth
-                // Allow preflight requests
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+        // Configure endpoint security
+        .authorizeHttpRequests(
+            auth ->
+                auth
+                    // Allow preflight requests
+                    .requestMatchers(HttpMethod.OPTIONS, "/**")
+                    .permitAll()
 
-                // Allow Swagger / root
-                .requestMatchers(
-                        "/",
-                        "/swagger-ui.html",
-                        "/swagger-ui/**",
-                        "/v3/api-docs/**"
-                ).permitAll()
+                    // Allow Swagger / root
+                    .requestMatchers("/", "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/forum/**")
+                    .permitAll()
+                    .requestMatchers(HttpMethod.POST, "/api/forum/**")
+                    .authenticated()
+                    .requestMatchers(HttpMethod.DELETE, "/api/forum/**")
+                    .authenticated()
 
-                .requestMatchers(HttpMethod.GET, "/api/forum/**").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/forum/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/api/forum/**").authenticated()                
+                    // Allow anyone to view approved content
+                    .requestMatchers(HttpMethod.GET, "/api/contents/approved/**")
+                    .permitAll()
 
-                // Allow anyone to view approved content
-                .requestMatchers(HttpMethod.GET, "/api/contents/approved/**").permitAll()
+                    // Only Contributors and Admins can submit new content
+                    .requestMatchers(HttpMethod.POST, "/api/contents")
+                    .hasAnyRole("CONTRIBUTOR", "ADMIN")
 
-                // Allow any authenticated user to submit new content (will be PENDING for review)
-                .requestMatchers(HttpMethod.POST, "/api/contents").authenticated()
+                    // Only Moderators and Admins can review pending content
+                    .requestMatchers("/api/contents/*/review")
+                    .hasAnyRole("MODERATOR", "ADMIN")
+                    .requestMatchers("/api/contents/pending/**")
+                    .hasAnyRole("MODERATOR", "ADMIN")
 
-                // Only Moderators and Admins can review pending content
-                .requestMatchers("/api/contents/*/review").hasAnyRole("MODERATOR", "ADMIN")
-                .requestMatchers("/api/contents/pending/**").hasAnyRole("MODERATOR", "ADMIN")
+                    // Restrict Admin-only endpoints
+                    .requestMatchers("/api/admin/**")
+                    .hasRole("ADMIN")
+                    // Everything else requires authentication
+                    .anyRequest()
+                    .authenticated())
 
-                // Temporary debug endpoints (permit local dev use)
-                .requestMatchers("/api/debug/**").permitAll()
+        // Enable JWT authentication (Supabase)
+        .oauth2ResourceServer(
+            oauth2 ->
+                oauth2.jwt(
+                    jwt -> jwt.jwtAuthenticationConverter(databaseRoleJwtAuthenticationConverter)));
 
-                // Restrict Admin-only endpoints
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                // Everything else requires authentication
-                .anyRequest().authenticated()
-            )
+    return http.build();
+  }
 
-            // Enable JWT authentication (Supabase) and map DB role -> GrantedAuthority
-            .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {
-                JwtAuthenticationConverter authConverter = new JwtAuthenticationConverter();
+  @Bean
+  public CorsConfigurationSource corsConfigurationSource() {
 
-                Converter<Jwt, Collection<GrantedAuthority>> grantedAuthoritiesConverter = token -> {
-                    List<GrantedAuthority> auths = new ArrayList<>();
-                    try {
-                        String subject = token.getSubject();
-                        if (subject != null && !subject.isBlank()) {
-                            UUID userId = UUID.fromString(subject);
-                            Optional<User> u = userService.findById(userId);
-                            if (u.isPresent() && u.get().getRole() != null) {
-                                auths.add(new SimpleGrantedAuthority("ROLE_" + u.get().getRole().name()));
-                            }
-                        }
-                    } catch (Exception ex) {
-                        // ignore and fallback to no DB roles
-                    }
-                    return auths;
-                };
+    CorsConfiguration config = new CorsConfiguration();
 
-                authConverter.setJwtGrantedAuthoritiesConverter(grantedAuthoritiesConverter);
-                jwt.jwtAuthenticationConverter(authConverter);
-            }));
+    // Frontend origin
+    config.setAllowedOrigins(List.of("http://localhost:5173"));
 
-        return http.build();
-    }
+    config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
 
-    @Bean
-    public CorsConfigurationSource corsConfigurationSource() {
+    // Allow all headers (includes Authorization)
+    config.setAllowedHeaders(List.of("*"));
 
-        CorsConfiguration config = new CorsConfiguration();
+    // Allow Authorization header & cookies
+    config.setAllowCredentials(true);
 
-        // Frontend origin
-        config.setAllowedOrigins(List.of("http://localhost:5173"));
+    // (Optional but recommended for JWT)
+    config.setExposedHeaders(List.of("Authorization"));
 
-        config.setAllowedMethods(List.of(
-                "GET",
-                "POST",
-                "PUT",
-                "DELETE",
-                "PATCH",
-                "OPTIONS"
-        ));
+    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 
-        // Allow all headers (includes Authorization)
-        config.setAllowedHeaders(List.of("*"));
+    // Apply CORS to all endpoints
+    source.registerCorsConfiguration("/**", config);
 
-        // Allow Authorization header & cookies
-        config.setAllowCredentials(true);
-
-        // (Optional but recommended for JWT)
-        config.setExposedHeaders(List.of("Authorization"));
-
-        UrlBasedCorsConfigurationSource source =
-                new UrlBasedCorsConfigurationSource();
-
-        // Apply CORS to all endpoints
-        source.registerCorsConfiguration("/**", config);
-
-        return source;
-    }
+    return source;
+  }
 }

@@ -2,7 +2,7 @@ import ky from "ky";
 import { getValidAccessToken } from "./session";
 
 export const api = ky.create({
-  prefixUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api",
+  prefixUrl: "/api",
   credentials: "include",
   hooks: {
     beforeRequest: [

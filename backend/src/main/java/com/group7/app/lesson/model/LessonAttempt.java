@@ -17,87 +17,92 @@ import java.util.UUID;
 @Table(name = "lesson_attempts")
 public class LessonAttempt {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
 
-    @Column(name = "user_id", nullable = false)
-    private UUID userId;
+  @Column(name = "user_id", nullable = false)
+  private UUID userId;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "lesson_id", nullable = false)
-    private Lesson lesson;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "lesson_id", nullable = false)
+  private Lesson lesson;
 
-    @Column(nullable = false)
-    private Integer score;
+  @Column(nullable = false)
+  private Integer score;
 
-    @Column(name = "total_questions", nullable = false)
-    private Integer totalQuestions;
+  @Column(name = "total_questions", nullable = false)
+  private Integer totalQuestions;
 
-    @Column(name = "correct_count", nullable = false)
-    private Integer correctCount;
+  @Column(name = "correct_count", nullable = false)
+  private Integer correctCount;
 
-    @Column(nullable = false)
-    private boolean passed;
+  @Column(nullable = false)
+  private boolean passed;
 
-    @Column(name = "started_at", nullable = false, updatable = false)
-    private Instant startedAt;
+  @Column(name = "started_at", nullable = false, updatable = false)
+  private Instant startedAt;
 
-    @Column(name = "submitted_at", nullable = false)
-    private Instant submittedAt;
+  @Column(name = "submitted_at", nullable = false)
+  private Instant submittedAt;
 
-    protected LessonAttempt() {
-    }
+  protected LessonAttempt() {}
 
-    public LessonAttempt(UUID userId, Lesson lesson, Integer score, Integer totalQuestions, Integer correctCount, boolean passed) {
-        this.userId = userId;
-        this.lesson = lesson;
-        this.score = score;
-        this.totalQuestions = totalQuestions;
-        this.correctCount = correctCount;
-        this.passed = passed;
-    }
+  public LessonAttempt(
+      UUID userId,
+      Lesson lesson,
+      Integer score,
+      Integer totalQuestions,
+      Integer correctCount,
+      boolean passed) {
+    this.userId = userId;
+    this.lesson = lesson;
+    this.score = score;
+    this.totalQuestions = totalQuestions;
+    this.correctCount = correctCount;
+    this.passed = passed;
+  }
 
-    public Long getId() {
-        return id;
-    }
+  public Long getId() {
+    return id;
+  }
 
-    public UUID getUserId() {
-        return userId;
-    }
+  public UUID getUserId() {
+    return userId;
+  }
 
-    public Lesson getLesson() {
-        return lesson;
-    }
+  public Lesson getLesson() {
+    return lesson;
+  }
 
-    public Integer getScore() {
-        return score;
-    }
+  public Integer getScore() {
+    return score;
+  }
 
-    public Integer getTotalQuestions() {
-        return totalQuestions;
-    }
+  public Integer getTotalQuestions() {
+    return totalQuestions;
+  }
 
-    public Integer getCorrectCount() {
-        return correctCount;
-    }
+  public Integer getCorrectCount() {
+    return correctCount;
+  }
 
-    public boolean isPassed() {
-        return passed;
-    }
+  public boolean isPassed() {
+    return passed;
+  }
 
-    public Instant getStartedAt() {
-        return startedAt;
-    }
+  public Instant getStartedAt() {
+    return startedAt;
+  }
 
-    public Instant getSubmittedAt() {
-        return submittedAt;
-    }
+  public Instant getSubmittedAt() {
+    return submittedAt;
+  }
 
-    @PrePersist
-    protected void onCreate() {
-        Instant now = Instant.now();
-        startedAt = now;
-        submittedAt = now;
-    }
+  @PrePersist
+  protected void onCreate() {
+    Instant now = Instant.now();
+    startedAt = now;
+    submittedAt = now;
+  }
 }

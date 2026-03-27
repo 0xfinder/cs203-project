@@ -1,9 +1,8 @@
 package com.group7.app.content.model;
 
 public record ContentWithVotesResponse(
-        Content content,
-        long thumbsUp,
-        long thumbsDown,
-        ContentVote.VoteType userVote,
-        String submittedByDisplayName) {
-}
+    Content content,
+    long thumbsUp,
+    long thumbsDown,
+    ContentVote.VoteType userVote,
+    String submittedByDisplayName) {}
