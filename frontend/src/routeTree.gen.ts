@@ -15,6 +15,7 @@ import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as LessonsRouteImport } from './routes/lessons'
+import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as ForumRouteImport } from './routes/forum'
 import { Route as DictionaryRouteImport } from './routes/dictionary'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -50,6 +51,11 @@ const LoginRoute = LoginRouteImport.update({
 const LessonsRoute = LessonsRouteImport.update({
   id: '/lessons',
   path: '/lessons',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LeaderboardRoute = LeaderboardRouteImport.update({
+  id: '/leaderboard',
+  path: '/leaderboard',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ForumRoute = ForumRouteImport.update({
@@ -89,6 +95,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/dictionary': typeof DictionaryRoute
   '/forum': typeof ForumRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/lessons': typeof LessonsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
@@ -103,6 +110,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/dictionary': typeof DictionaryRoute
   '/forum': typeof ForumRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/lessons': typeof LessonsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
@@ -118,6 +126,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/dictionary': typeof DictionaryRoute
   '/forum': typeof ForumRoute
+  '/leaderboard': typeof LeaderboardRoute
   '/lessons': typeof LessonsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
@@ -134,6 +143,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/dictionary'
     | '/forum'
+    | '/leaderboard'
     | '/lessons'
     | '/login'
     | '/onboarding'
@@ -148,6 +158,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/dictionary'
     | '/forum'
+    | '/leaderboard'
     | '/lessons'
     | '/login'
     | '/onboarding'
@@ -162,6 +173,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/dictionary'
     | '/forum'
+    | '/leaderboard'
     | '/lessons'
     | '/login'
     | '/onboarding'
@@ -177,6 +189,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   DictionaryRoute: typeof DictionaryRoute
   ForumRoute: typeof ForumRoute
+  LeaderboardRoute: typeof LeaderboardRoute
   LessonsRoute: typeof LessonsRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
@@ -230,6 +243,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LessonsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/leaderboard': {
+      id: '/leaderboard'
+      path: '/leaderboard'
+      fullPath: '/leaderboard'
+      preLoaderRoute: typeof LeaderboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/forum': {
       id: '/forum'
       path: '/forum'
@@ -281,6 +301,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   DictionaryRoute: DictionaryRoute,
   ForumRoute: ForumRoute,
+  LeaderboardRoute: LeaderboardRoute,
   LessonsRoute: LessonsRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,

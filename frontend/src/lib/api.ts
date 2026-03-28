@@ -15,3 +15,16 @@ export const api = ky.create({
     ],
   },
 });
+
+export interface LeaderboardEntry {
+  userId: string;
+  displayName: string;
+  avatarColor?: string;
+  avatarPath?: string;
+  totalScore: number;
+  lessonsCompleted: number;
+}
+
+export const getLeaderboard = async (limit = 10) => {
+  return await api.get(`leaderboard?limit=${limit}`).json<LeaderboardEntry[]>();
+};

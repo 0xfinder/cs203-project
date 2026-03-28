@@ -8,6 +8,7 @@ import {
   MessageCircleMore,
   RotateCcw,
   BarChart3,
+  Trophy,
 } from "lucide-react";
 import type { UserRole } from "./me";
 
@@ -19,6 +20,7 @@ export type AppNavPath =
   | "/review"
   | "/profile"
   | "/forum"
+  | "/leaderboard"
   | "/dashboard";
 
 export interface AppNavItem {
@@ -38,6 +40,11 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     to: "/revise",
     label: "Revise",
     icon: RotateCcw,
+  },
+  {
+    to: "/leaderboard",
+    label: "Leaderboard",
+    icon: Trophy,
   },
   {
     to: "/add",
