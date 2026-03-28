@@ -14,10 +14,15 @@ public class AnswerService {
 
   private final AnswerRepository answerRepository;
   private final QuestionRepository questionRepository;
+  private final ModerationService moderationService;
 
-  public AnswerService(AnswerRepository answerRepository, QuestionRepository questionRepository) {
+  public AnswerService(
+      AnswerRepository answerRepository,
+      QuestionRepository questionRepository,
+      ModerationService moderationService) {
     this.answerRepository = answerRepository;
     this.questionRepository = questionRepository;
+    this.moderationService = moderationService;
   }
 
   public List<Answer> getAnswersForQuestion(Long questionId) {
@@ -45,6 +50,7 @@ public class AnswerService {
                     new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Question not found with id: " + questionId));
     answer.setQuestion(question);
+    moderationService.moderateContent(answer.getContent());
     return answerRepository.save(answer);
   }
 

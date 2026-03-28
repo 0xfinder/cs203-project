@@ -76,6 +76,20 @@ type UserProfile = MeResponse;
 const FORUM_MEDIA_BUCKET = "forum-media";
 const MAX_IMAGE_MB = 5;
 
+/* -- Error extraction ------------------------------------------------------ */
+async function extractErrorMessage(e: unknown, fallback: string): Promise<string> {
+  if (e && typeof e === "object" && "response" in e) {
+    try {
+      const body = await (e as { response: Response }).response.json();
+      if (body?.message) return body.message;
+    } catch {
+      /* ignore parse errors */
+    }
+  }
+  if (e instanceof Error) return e.message;
+  return fallback;
+}
+
 /* -- Helpers ---------------------------------------------------------------- */
 function timeAgo(iso: string) {
   const diff = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -515,7 +529,7 @@ function ForumPage() {
       setShowAskForm(false);
       await fetchQuestions();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to post");
+      setError(await extractErrorMessage(e, "Failed to post"));
     } finally {
       setPosting(false);
     }
@@ -535,7 +549,7 @@ function ForumPage() {
       setAnswerDraft((prev) => ({ ...prev, [qId]: "" }));
       await fetchQuestions();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to post answer");
+      setError(await extractErrorMessage(e, "Failed to post answer"));
     } finally {
       setPostingAnswer(null);
     }

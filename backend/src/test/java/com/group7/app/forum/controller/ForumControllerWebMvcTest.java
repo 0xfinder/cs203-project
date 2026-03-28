@@ -21,6 +21,7 @@ import com.group7.app.forum.model.QuestionVote;
 import com.group7.app.forum.service.AnswerService;
 import com.group7.app.forum.service.ForumMappingService;
 import com.group7.app.forum.service.ForumVoteService;
+import com.group7.app.forum.service.ModerationService;
 import com.group7.app.forum.service.QuestionService;
 import com.group7.app.user.Role;
 import com.group7.app.user.User;
@@ -55,6 +56,8 @@ class ForumControllerWebMvcTest {
   @MockitoBean private ForumMappingService forumMappingService;
 
   @MockitoBean private UserService userService;
+
+  @MockitoBean private ModerationService moderationService;
 
   @MockitoBean private JwtDecoder jwtDecoder;
 

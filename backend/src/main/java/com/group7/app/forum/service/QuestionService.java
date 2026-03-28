@@ -11,9 +11,11 @@ import org.springframework.web.server.ResponseStatusException;
 public class QuestionService {
 
   private final QuestionRepository repository;
+  private final ModerationService moderationService;
 
-  public QuestionService(QuestionRepository repository) {
+  public QuestionService(QuestionRepository repository, ModerationService moderationService) {
     this.repository = repository;
+    this.moderationService = moderationService;
   }
 
   public List<Question> getAllQuestions() {
@@ -36,6 +38,7 @@ public class QuestionService {
     if (question.getContent() == null || question.getContent().isBlank()) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content is required");
     }
+    moderationService.moderateContent(question.getTitle() + "\n" + question.getContent());
     return repository.save(question);
   }
 
