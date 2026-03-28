@@ -18,8 +18,8 @@ class ModerationServiceTest {
   private final ObjectMapper objectMapper = new ObjectMapper();
 
   @SuppressWarnings("unchecked")
-  private ModerationService createService(String apiKey, boolean enabled, int statusCode, String body)
-      throws Exception {
+  private ModerationService createService(
+      String apiKey, boolean enabled, int statusCode, String body) throws Exception {
     HttpClient client = mock(HttpClient.class);
     HttpResponse<String> response = mock(HttpResponse.class);
     when(response.statusCode()).thenReturn(statusCode);

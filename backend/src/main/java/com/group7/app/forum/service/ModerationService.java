@@ -57,14 +57,18 @@ public class ModerationService {
     }
 
     Map<String, Object> body =
-        Map.of("model", "omni-moderation-latest", "input", List.of(Map.of("type", "text", "text", text)));
+        Map.of(
+            "model",
+            "omni-moderation-latest",
+            "input",
+            List.of(Map.of("type", "text", "text", text)));
     JsonNode result = callModerationApi(body);
     checkResults(result);
   }
 
   /**
-   * Moderate markdown content — extracts text and any embedded image URLs,
-   * then sends them all in a single moderation call.
+   * Moderate markdown content — extracts text and any embedded image URLs, then sends them all in a
+   * single moderation call.
    */
   public void moderateContent(String markdownContent) {
     if (!enabled || apiKey == null || apiKey.isBlank()) {
