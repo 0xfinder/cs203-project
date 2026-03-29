@@ -3,17 +3,17 @@ package com.group7.app.forum.service;
 import com.group7.app.forum.model.Question;
 import com.group7.app.forum.repository.QuestionRepository;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @Service
 public class QuestionService {
 
-    private final QuestionRepository repository;
-    private static final Logger log = LoggerFactory.getLogger(QuestionService.class);
+  private final QuestionRepository repository;
+  private static final Logger log = LoggerFactory.getLogger(QuestionService.class);
 
   public QuestionService(QuestionRepository repository) {
     this.repository = repository;
@@ -39,29 +39,34 @@ public class QuestionService {
     if (question.getContent() == null || question.getContent().isBlank()) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content is required");
     }
-        // Defensive normalization: trim and enforce DB column limits to avoid DataIntegrityViolationException
-        String title = question.getTitle() != null ? question.getTitle().trim() : "";
-        String author = question.getAuthor() != null ? question.getAuthor().trim() : "";
+    // Defensive normalization: trim and enforce DB column limits to avoid
+    // DataIntegrityViolationException
+    String title = question.getTitle() != null ? question.getTitle().trim() : "";
+    String author = question.getAuthor() != null ? question.getAuthor().trim() : "";
 
-        if (title.length() > 255) {
-            log.warn("Truncating title from length {} to 255", title.length());
-            title = title.substring(0, 255);
-        }
-        if (author.length() > 255) {
-            log.warn("Truncating author from length {} to 255", author.length());
-            author = author.substring(0, 255);
-        }
+    if (title.length() > 255) {
+      log.warn("Truncating title from length {} to 255", title.length());
+      title = title.substring(0, 255);
+    }
+    if (author.length() > 255) {
+      log.warn("Truncating author from length {} to 255", author.length());
+      author = author.substring(0, 255);
+    }
 
-        // Ensure non-null author (use fallback)
-        if (author.isBlank()) {
-            author = "Anonymous";
-        }
+    // Ensure non-null author (use fallback)
+    if (author.isBlank()) {
+      author = "Anonymous";
+    }
 
-        question.setTitle(title);
-        question.setAuthor(author);
+    question.setTitle(title);
+    question.setAuthor(author);
 
-        // log lengths for debugging
-        log.debug("Saving question: titleLen={} authorLen={} contentLen={}", title.length(), author.length(), question.getContent() == null ? 0 : question.getContent().length());
+    // log lengths for debugging
+    log.debug(
+        "Saving question: titleLen={} authorLen={} contentLen={}",
+        title.length(),
+        author.length(),
+        question.getContent() == null ? 0 : question.getContent().length());
 
     return repository.save(question);
   }

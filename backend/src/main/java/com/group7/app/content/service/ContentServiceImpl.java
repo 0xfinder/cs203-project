@@ -18,10 +18,10 @@ public class ContentServiceImpl implements ContentService {
 
   @Override
   public Content submitContent(Content content) {
-        // Respect any status already set (e.g. controller auto-approves for admins).
-        if (content.getStatus() != Content.Status.APPROVED) {
-        content.setStatus(Content.Status.PENDING);
-        }
+    // Respect any status already set (e.g. controller auto-approves for admins).
+    if (content.getStatus() != Content.Status.APPROVED) {
+      content.setStatus(Content.Status.PENDING);
+    }
     return contentRepository.save(content);
   }
 
@@ -71,10 +71,13 @@ public class ContentServiceImpl implements ContentService {
     return contentRepository.findByStatus(Content.Status.PENDING, pageable);
   }
 
-    @Override
-    public void deleteContent(Long id) {
-        Content content = contentRepository.findById(id)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found"));
-        contentRepository.delete(content);
-    }
+  @Override
+  public void deleteContent(Long id) {
+    Content content =
+        contentRepository
+            .findById(id)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found"));
+    contentRepository.delete(content);
+  }
 }

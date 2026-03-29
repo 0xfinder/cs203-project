@@ -22,8 +22,8 @@ public class Question {
   @Column(nullable = false, columnDefinition = "TEXT")
   private String content;
 
-    @Column(nullable = false)
-    private String author;
+  @Column(nullable = false)
+  private String author;
 
   @Column(name = "author_id")
   private UUID authorId;

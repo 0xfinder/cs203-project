@@ -72,6 +72,12 @@ export function UnitRoadmap({
   const effectiveRoadmap = mergedUnit === unit ? roadmap : getUnitRoadmap(mergedUnit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
   const displayItems = effectiveRoadmap.items.filter((item) => !isPlaceholderLesson(item.lesson));
 
+  // Compute counts and percent using only non-placeholder lessons so placeholders
+  // do not affect the displayed lesson counts or progress.
+  const shownCompletedCount = displayItems.filter((item) => item.completed).length;
+  const shownTotalLessons = displayItems.length;
+  const shownPercentComplete = shownTotalLessons === 0 ? 0 : Math.round((shownCompletedCount / shownTotalLessons) * 100);
+
   return (
     <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
       <CardHeader className="border-b border-border/70 bg-secondary/20">
@@ -91,7 +97,7 @@ export function UnitRoadmap({
             variant="secondary"
             className="rounded-full border border-border bg-background px-3 py-1 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-foreground"
           >
-            {roadmap.completedCount}/{roadmap.totalLessons}
+            {shownCompletedCount}/{shownTotalLessons}
           </Badge>
         </div>
 
@@ -99,11 +105,11 @@ export function UnitRoadmap({
           <div className="h-2 overflow-hidden rounded-full bg-border/70">
             <div
               className="h-full rounded-full bg-chart-1/70 transition-all duration-500"
-              style={{ width: `${roadmap.percentComplete}%` }}
+              style={{ width: `${shownPercentComplete}%` }}
             />
           </div>
           <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            {roadmap.percentComplete}% complete
+            {shownPercentComplete}% complete
           </p>
         </div>
       </CardHeader>

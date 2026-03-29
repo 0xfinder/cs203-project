@@ -19,7 +19,29 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
     const readTempUnits = () => {
       if (typeof window === "undefined") return;
       const items: any[] = [];
+      const placeholdersByParentId: { [key: number]: any[] } = {};
       try {
+        // First pass: read tempPlaceholderUnit:* entries and group by parent unit ID
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (!key.startsWith("tempPlaceholderUnit:")) continue;
+          try {
+            const raw = localStorage.getItem(key);
+            if (!raw) continue;
+            const parsed = JSON.parse(raw);
+            const parentUnitId = parsed.originalUnitId;
+            if (parentUnitId) {
+              if (!placeholdersByParentId[parentUnitId]) {
+                placeholdersByParentId[parentUnitId] = [];
+              }
+              placeholdersByParentId[parentUnitId].push(parsed);
+            }
+          } catch (e) {
+            // ignore malformed
+          }
+        }
+
+        // Second pass: read tempUnit:* entries and merge placeholders into their lessons
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i) || "";
           if (!key.startsWith("tempUnit:")) continue;
@@ -27,13 +49,35 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
             const raw = localStorage.getItem(key);
             if (!raw) continue;
             const parsed = JSON.parse(raw);
+            // Filter out temp units that only contain placeholder lessons so
+            // stale client-side units (e.g. deleted on server) don't persist
+            // in the Unit dropdown.
+            const rawLessons = Array.isArray(parsed.lessons) ? parsed.lessons : [];
+            const isPlaceholderLesson = (l: any) => {
+              if (!l) return false;
+              const t = String(l.title ?? "");
+              const s = String(l.slug ?? "");
+              return t.startsWith("Placeholder Lesson") || s.startsWith("placeholder-") || t === "Coming soon" || !!l.__placeholder;
+            };
+            const meaningfulLessons = rawLessons.filter((l: any) => !isPlaceholderLesson(l));
+            
+            const unitId = parsed.id ?? -(Date.now());
+            const lessons = [...(meaningfulLessons.length > 0 ? meaningfulLessons : [])];
+            
+            // Add any placeholder subunits for this unit
+            if (placeholdersByParentId[unitId]) {
+              lessons.push(...placeholdersByParentId[unitId]);
+            }
+            
+            if (lessons.length === 0) continue;
+
             items.push({
-              id: parsed.id ?? -(Date.now()),
+              id: unitId,
               title: parsed.title ?? "New Section",
               slug: parsed.slug ?? `temp-${key.replace(/^tempUnit:/, "")}`,
               description: parsed.description ?? null,
               orderIndex: parsed.orderIndex ?? 0,
-              lessons: parsed.lessons ?? [],
+              lessons: lessons,
             });
           } catch (e) {
             // ignore malformed
@@ -51,7 +95,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
         readTempUnits();
         return;
       }
-      if (ev.key.startsWith("tempUnit:")) readTempUnits();
+      if (ev.key.startsWith("tempUnit:") || ev.key.startsWith("tempPlaceholderUnit:")) readTempUnits();
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -59,12 +103,14 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
 
   const allUnits = useMemo(() => {
     const base = Array.isArray(units) ? units.slice() : [];
+    // Filter out test/temporary units (e.g., "Ultimate Slang (test)")
+    const filtered = base.filter((u: any) => !String(u.title).includes("(test)"));
     // merge tempUnits but avoid duplicates by id
-    const existingIds = new Set(base.map((u: any) => u.id));
+    const existingIds = new Set(filtered.map((u: any) => u.id));
     for (const tu of tempUnits) {
-      if (!existingIds.has(tu.id)) base.push(tu);
+      if (!existingIds.has(tu.id)) filtered.push(tu);
     }
-    return base;
+    return filtered;
   }, [units, tempUnits]);
   const [unitId, setUnitId] = useState<number | null>(null);
   const [subunitId, setSubunitId] = useState<number | null>(null);
@@ -92,11 +138,31 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
 
   useEffect(() => {
     if (allUnits && allUnits.length > 0 && unitId === null) {
-      if (defaultUnitId !== undefined && defaultUnitId !== null) {
+      let targetId: number | null = null;
+      
+      // First check if there's a unit ID in sessionStorage (set by "Add Content" button)
+      try {
+        const stored = sessionStorage.getItem("contentFormUnitId");
+        if (stored) {
+          targetId = Number(stored);
+          sessionStorage.removeItem("contentFormUnitId");
+        }
+      } catch (e) {
+        // ignore storage access errors
+      }
+      
+      // If no sessionStorage ID, use defaultUnitId
+      if (!targetId && defaultUnitId !== undefined && defaultUnitId !== null) {
         const found = allUnits.find((u: any) => u.id === defaultUnitId);
-        setUnitId(found ? defaultUnitId : allUnits[0].id);
+        targetId = found ? defaultUnitId : null;
+      }
+      
+      // If we have a target ID, use it; otherwise fall back to first unit with lessons
+      if (targetId) {
+        setUnitId(targetId);
       } else {
-        setUnitId(allUnits[0].id);
+        const withLessons = allUnits.find((u: any) => Array.isArray(u.lessons) && u.lessons.length > 0);
+        setUnitId(withLessons ? withLessons.id : allUnits[0].id);
       }
     }
   }, [allUnits, unitId, defaultUnitId]);
@@ -193,17 +259,36 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
         ];
       }
 
-      const titleVal = format === "definition" ? term.trim() || "Definition" : (dialogueText.trim().split("\n")[0] || "Dialogue");
-      const descriptionVal = format === "definition" ? defText.trim() || term.trim() : (dialogueText.trim().split("\n").slice(0,2).join(" ") || "Dialogue example");
+      let titleVal: string;
+      let descriptionVal: string;
+      if (format === "definition") {
+        titleVal = term.trim() || "Learn";
+        descriptionVal = defText.trim() || term.trim();
+      } else if (format === "dialogue") {
+        titleVal = dialogueText.trim().split("\n")[0] || "Dialogue";
+        descriptionVal = dialogueText.trim().split("\n").slice(0, 2).join(" ") || "Dialogue example";
+      } else {
+        // question
+        titleVal = qPrompt.trim() || "Question";
+        descriptionVal = (qPrompt.trim().split("\n").slice(0, 2).join(" ") || "Question prompt");
+      }
 
-      const payload = {
-        unitId,
-        title: titleVal,
-        description: descriptionVal,
-        orderIndex: 0,
-        steps: stepsPayload,
-        submittedBy: me.email ?? null,
-      };
+      // Basic client-side validation to avoid server-side 400s
+      if (!unitId) {
+        setError("Please select a Unit before submitting.");
+        setLoading(false);
+        return;
+      }
+      if (!titleVal || !titleVal.trim()) {
+        setError("Lesson title is required.");
+        setLoading(false);
+        return;
+      }
+      if (!descriptionVal || !descriptionVal.trim()) {
+        setError("Lesson description is required.");
+        setLoading(false);
+        return;
+      }
 
       // If this is a simple definition (vocab) submission, create the vocab first
       // then continue to create/attach a TEACH step referencing the vocab item so
@@ -218,26 +303,45 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
             setLoading(false);
             return;
           }
-          const created = await submitContent.mutateAsync({
-            term: term.trim(),
-            definition: defText.trim(),
-            example: example.trim() || null,
-            submittedBy: me.email ?? "",
-          });
 
-          // ensure pending contents cache is refreshed
+          // Create a VocabItem via the new vocab API so we can reference it.
+          // Some dev setups proxy `/api` via the frontend dev server; when the
+          // backend isn't running that proxy returns a Vite 404. If we detect
+          // that, retry the request directly against the expected backend
+          // port so the developer gets a clearer error.
           try {
-            void queryClient.invalidateQueries({ queryKey: ["contents", "pending"] });
-            void queryClient.invalidateQueries({ queryKey: ["contents", "pending", "paginated"] });
-          } catch (e) {
-            // ignore
+            const created = await api.post("vocab", { json: { term: term.trim(), definition: defText.trim(), example: example.trim() || null } }).json<any>();
+            createdVocabId = created.id;
+          } catch (innerErr: any) {
+            // If dev proxy returned a static 404 from the frontend server,
+            // try the backend host directly (common local backend port is 8080).
+            const status = innerErr?.response?.status;
+            let retried = false;
+            if (status === 404) {
+              try {
+                const fallback = await fetch("http://localhost:8080/api/vocab", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ term: term.trim(), definition: defText.trim(), example: example.trim() || null }),
+                });
+                if (!fallback.ok) {
+                  const txt = await fallback.text().catch(() => null);
+                  throw new Error(`Fallback vocab creation failed (${fallback.status}): ${txt ?? fallback.statusText}`);
+                }
+                const created = await fallback.json();
+                createdVocabId = created.id;
+                retried = true;
+              } catch (fallbackErr) {
+                // continue to outer catch
+                console.error("[LessonForm] fallback create vocab error:", fallbackErr);
+              }
+            }
+            if (!retried) throw innerErr;
           }
-
-          createdVocabId = created.id;
         } catch (err: any) {
-          console.error("[LessonForm] submit content error:", err);
+          console.error("[LessonForm] create vocab error:", err);
           setSuccess(null);
-          let message = "Failed to submit definition. Try again.";
+          let message = "Failed to create vocab definition. Try again.";
           try {
             if (err?.response) {
               const res = err.response;
@@ -252,18 +356,19 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
               if (status === 403) {
                 message = "Submission forbidden — you do not have permission. Please check your account or contact a moderator.";
               } else {
-                message = `Failed to submit definition (${status}): ${bodyMsg ?? err?.message ?? "unknown"}`;
+                message = `Failed to create vocab (${status}): ${bodyMsg ?? err?.message ?? "unknown"}`;
               }
             } else if (err?.message) {
               message = err.message;
             }
           } catch (e) {
-            console.error("[LessonForm] error while formatting submission error:", e);
+            console.error("[LessonForm] error while formatting vocab creation error:", e);
           }
           setError(message);
           setLoading(false);
           return;
         }
+
         // replace the TEACH step payload with a reference to the created vocab id
         stepsPayload = [
           {
@@ -287,16 +392,20 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
 
         if (!existingLesson || existingLesson.status === "APPROVED") {
           // Approved lessons cannot be edited by contributors — create a new lesson draft
-          const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, orderIndex: getNextOrderIndex(unitId) } }).json<any>();
+          const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, targetSubunitId: subunitId } }).json<any>();
           const newLessonId = created.id;
           // create step(s) on the new lesson
           for (const st of stepsPayload) {
-            await api.post(`lessons/${newLessonId}/steps`, { json: st }).json();
+            const apiStep = mapStepForApi(st);
+            await api.post(`lessons/${newLessonId}/steps`, { json: apiStep }).json();
           }
           // submit the new lesson for review
           await api.patch(`lessons/${newLessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
           // add the created lesson to the pending cache so Review shows it immediately
           try {
+            const selectedSubunitTitle = subunitId
+              ? (allUnits?.find((u: any) => u.id === unitId)?.lessons ?? []).find((l: any) => l.id === subunitId)?.title
+              : undefined;
             const summary = {
               id: created.id,
               unitId: created.unitId ?? unitId,
@@ -307,22 +416,38 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
               estimatedMinutes: created.estimatedMinutes ?? null,
               orderIndex: created.orderIndex ?? 0,
               status: "PENDING_REVIEW",
+              subunitTitle: selectedSubunitTitle,
+              subunitId: subunitId ?? null,
+              firstStepType: stepsPayload && stepsPayload.length > 0 ? stepsPayload[0].stepType : null,
+              firstQuestionType: stepsPayload && stepsPayload.length > 0 ? (stepsPayload[0].questionType ?? null) : null,
             };
             queryClient.setQueryData(["lessons", "pending"], (old: any) => {
               if (!old) return [summary];
               return [summary, ...old];
             });
+            try {
+              const key = "pendingLessonMeta";
+              const raw = localStorage.getItem(key);
+              const map = raw ? JSON.parse(raw) : {};
+              map[created.id] = { subunitTitle: selectedSubunitTitle, subunitId: subunitId ?? null, firstStepType: summary.firstStepType, firstQuestionType: summary.firstQuestionType, firstStepPrompt: (stepsPayload && stepsPayload.length > 0 && stepsPayload[0].question && stepsPayload[0].question.prompt) ? stepsPayload[0].question.prompt : null };
+              localStorage.setItem(key, JSON.stringify(map));
+            } catch (e) {
+              // ignore storage failures
+            }
           } catch (e) {
             // ignore cache failures
           }
         } else {
           // add the single step to the existing lesson (server expects a single StepWriteRequest)
-          const stepToCreate = stepsPayload[0];
+          const stepToCreate = mapStepForApi(stepsPayload[0]);
           await api.post(`lessons/${subunitId}/steps`, { json: stepToCreate }).json();
           // submit the parent lesson for review so the new step is reviewed
           await api.patch(`lessons/${subunitId}`, { json: { status: "PENDING_REVIEW" } }).json();
           // ensure the existing lesson appears in pending cache
           try {
+            const selectedSubunitTitle = subunitId
+              ? (allUnits?.find((u: any) => u.id === unitId)?.lessons ?? []).find((l: any) => l.id === subunitId)?.title
+              : undefined;
             const summary = {
               id: existingLesson.id,
               unitId: existingLesson.unitId ?? unitId,
@@ -333,42 +458,68 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
               estimatedMinutes: existingLesson.estimatedMinutes ?? null,
               orderIndex: existingLesson.orderIndex ?? 0,
               status: "PENDING_REVIEW",
+              subunitTitle: selectedSubunitTitle,
+              subunitId: subunitId ?? null,
             };
             queryClient.setQueryData(["lessons", "pending"], (old: any) => {
               if (!old) return [summary];
               // avoid duplicates
               return [summary, ...old.filter((it: any) => it.id !== summary.id)];
             });
+            try {
+              const key = "pendingLessonMeta";
+              const raw = localStorage.getItem(key);
+              const map = raw ? JSON.parse(raw) : {};
+              map[existingLesson.id] = { subunitTitle: selectedSubunitTitle, subunitId: subunitId ?? null, firstStepType: stepsPayload && stepsPayload.length > 0 ? stepsPayload[0].stepType : null, firstQuestionType: stepsPayload && stepsPayload.length > 0 ? (stepsPayload[0].questionType ?? null) : null, firstStepPrompt: (stepsPayload && stepsPayload.length > 0 && stepsPayload[0].question && stepsPayload[0].question.prompt) ? stepsPayload[0].question.prompt : null };
+              localStorage.setItem(key, JSON.stringify(map));
+            } catch (e) {
+              // ignore storage failures
+            }
           } catch (e) {
             // ignore
           }
         }
       } else {
         // create a new lesson draft and attach steps
-        const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, orderIndex: getNextOrderIndex(unitId) } }).json<any>();
+        const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, targetSubunitId: subunitId } }).json<any>();
         const lessonId = created.id;
         for (const st of stepsPayload) {
-          await api.post(`lessons/${lessonId}/steps`, { json: st }).json();
+          const apiStep = mapStepForApi(st);
+          await api.post(`lessons/${lessonId}/steps`, { json: apiStep }).json();
         }
         // submit the lesson for review
         await api.patch(`lessons/${lessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
         // add to pending cache so Review shows it
-        try {
-          const summary = {
-            id: created.id,
-            unitId: created.unitId ?? unitId,
-            title: created.title ?? titleVal,
-            slug: created.slug ?? (created.id ? `lesson-${created.id}` : undefined),
-            description: created.description ?? descriptionVal,
-            learningObjective: created.learningObjective ?? null,
-            estimatedMinutes: created.estimatedMinutes ?? null,
-            orderIndex: created.orderIndex ?? 0,
-            status: "PENDING_REVIEW",
-          };
+          try {
+            const selectedSubunitTitle = subunitId
+              ? (allUnits?.find((u: any) => u.id === unitId)?.lessons ?? []).find((l: any) => l.id === subunitId)?.title
+              : undefined;
+            const summary = {
+              id: created.id,
+              unitId: created.unitId ?? unitId,
+              title: created.title ?? titleVal,
+              slug: created.slug ?? (created.id ? `lesson-${created.id}` : undefined),
+              description: created.description ?? descriptionVal,
+              learningObjective: created.learningObjective ?? null,
+              estimatedMinutes: created.estimatedMinutes ?? null,
+              orderIndex: created.orderIndex ?? 0,
+              status: "PENDING_REVIEW",
+              subunitTitle: selectedSubunitTitle,
+              subunitId: subunitId ?? null,
+            };
           queryClient.setQueryData(["lessons", "pending"], (old: any) => {
             if (!old) return [summary];
             return [summary, ...old];
           });
+          try {
+            const key = "pendingLessonMeta";
+            const raw = localStorage.getItem(key);
+            const map = raw ? JSON.parse(raw) : {};
+            map[created.id] = { subunitTitle: selectedSubunitTitle, subunitId: subunitId ?? null, firstStepType: stepsPayload && stepsPayload.length > 0 ? stepsPayload[0].stepType : null, firstQuestionType: stepsPayload && stepsPayload.length > 0 ? (stepsPayload[0].questionType ?? null) : null, firstStepPrompt: (stepsPayload && stepsPayload.length > 0 && stepsPayload[0].question && stepsPayload[0].question.prompt) ? stepsPayload[0].question.prompt : null };
+            localStorage.setItem(key, JSON.stringify(map));
+          } catch (e) {
+            // ignore
+          }
         } catch (e) {
           // ignore
         }
@@ -407,8 +558,14 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
             }
           }
           const status = res.status;
-          const bodyMsg = body && typeof body === "object" ? (body.message ?? JSON.stringify(body)) : body;
-          message = `Failed to submit lesson (${status}): ${bodyMsg ?? err?.message ?? "unknown"}`;
+          const bodyMsg = body && typeof body === "object" ? (body.message ?? body.detail ?? JSON.stringify(body)) : body;
+          const lc = String(bodyMsg ?? "").toLowerCase();
+          // If DB or server indicated a duplicate lesson/slug, show a simple friendly message
+          if (status === 400 && (lc.includes("already exists") && (lc.includes("lesson") || lc.includes("slug") || lc.includes("lessons")) || lc.includes("[lesson]"))) {
+            message = "Failed to submit: Lesson name already exists!";
+          } else {
+            message = `Failed to submit lesson (${status}): ${bodyMsg ?? err?.message ?? "unknown"}`;
+          }
         } else if (err?.message) {
           message = err.message;
         }
@@ -421,10 +578,42 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
     }
   };
 
+  // Convert internal step payload shape into the server StepWriteRequest shape
+  function mapStepForApi(st: any) {
+    const base: any = {
+      orderIndex: st.orderIndex ?? 0,
+      stepType: st.stepType,
+    };
+    if (st.stepType === "TEACH") {
+      if (st.vocabItemId) {
+        base.vocabItemId = st.vocabItemId;
+      } else if (st.vocab && st.vocab.term) {
+        // fallback: client created TEACH with inline vocab (should not happen here)
+        base.vocabItemId = null;
+      }
+    } else if (st.stepType === "DIALOGUE") {
+      base.dialogueText = st.dialogueText ?? null;
+    } else if (st.stepType === "QUESTION") {
+      const q = st.question ?? {};
+      base.questionType = q.questionType ?? null;
+      base.prompt = q.prompt ?? null;
+      base.explanation = q.explanation ?? null;
+      if (q.choices && Array.isArray(q.choices) && q.choices.length > 0) {
+        base.options = q.choices.map((c: any) => c.text ?? "");
+        const correctIndex = q.choices.findIndex((c: any) => !!c.isCorrect);
+        base.correctOptionIndex = correctIndex >= 0 ? correctIndex : null;
+      }
+      if (q.acceptedAnswers && Array.isArray(q.acceptedAnswers)) {
+        base.acceptedAnswers = q.acceptedAnswers;
+      }
+    }
+    return base;
+  }
+
   return (
     <form onSubmit={handleSubmitLesson} className="space-y-4">
-      <div className="flex gap-3">
-        <button type="button" className={format === "definition" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setFormat("definition")}>Definition</button>
+        <div className="flex gap-3">
+        <button type="button" className={format === "definition" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setFormat("definition")}>Learn</button>
         <button type="button" className={format === "dialogue" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setFormat("dialogue")}>Dialogue</button>
         <button type="button" className={format === "question" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setFormat("question")}>Question</button>
       </div>
@@ -441,40 +630,85 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       {allUnits && unitId !== null && (allUnits.find((u: any) => u.id === unitId)?.lessons ?? []).length > 0 ? (
         <div>
           <Label htmlFor="lesson-subunit">Subunit</Label>
-          <select
-            id="lesson-subunit"
-            name="subunitId"
-            value={subunitId ?? ""}
-            onChange={(e) => setSubunitId(e.target.value ? Number(e.target.value) : null)}
-            className="mt-1 w-full rounded-md border bg-card px-3 py-2"
-          >
-            {(() => {
-              const unit = allUnits.find((u: any) => u.id === unitId);
-              // For client-side appended 'temp' units we should not expose their
-              // placeholder lessons in the Subunit select. Detect temp units by
-              // negative id or a slug that starts with 'temp-'. Treat their
-              // lessons list as empty so users don't accidentally attach to
-              // placeholders.
-              let lessons = (unit && Array.isArray(unit.lessons)) ? unit.lessons : [];
-              const isTempUnit = unit && (typeof unit.id === "number" && unit.id < 0 || (unit.slug && String(unit.slug).startsWith("temp-")));
-              if (isTempUnit) {
-                // For temp units, show appended lessons except known placeholders
-                const isPlaceholderLesson = (l: any) => {
-                  if (!l) return false;
-                  const t = String(l.title ?? "");
-                  const s = String(l.slug ?? "");
-                  return t.startsWith("Placeholder Lesson") || s.startsWith("placeholder-") || t === "Coming soon" || s.startsWith("pending-") || !!l.__placeholder;
-                };
-                lessons = (lessons ?? []).filter((l: any) => !isPlaceholderLesson(l));
-              }
+          {(() => {
+            const unit = allUnits.find((u: any) => u.id === unitId);
+            const selectedLesson = unit?.lessons?.find((l: any) => l.id === subunitId);
+            const displayTitle = selectedLesson?.title ?? (subunitId ? `Subunit ${subunitId}` : "---");
+            
+            return (
+              <div className="relative">
+                <div className="mt-1 w-full rounded-md border bg-card px-3 py-2 text-foreground pointer-events-none">
+                  {displayTitle}
+                </div>
+                <select
+                  id="lesson-subunit"
+                  name="subunitId"
+                  value={subunitId ?? ""}
+                  onChange={(e) => setSubunitId(e.target.value ? Number(e.target.value) : null)}
+                  className="absolute inset-0 w-full rounded-md border bg-card px-3 py-2 opacity-0 cursor-pointer"
+                >
+                  {(() => {
+                    const unit = allUnits.find((u: any) => u.id === unitId);
+                    let lessons = (unit && Array.isArray(unit.lessons)) ? unit.lessons : [];
+                    
+                    // For server units (positive IDs), also merge in any placeholder subunits from localStorage
+                    if (unitId && unitId > 0) {
+                      try {
+                        for (let i = 0; i < localStorage.length; i++) {
+                          const key = localStorage.key(i) || "";
+                          if (!key.startsWith("tempPlaceholderUnit:")) continue;
+                          const raw = localStorage.getItem(key);
+                          if (!raw) continue;
+                          const parsed = JSON.parse(raw);
+                          if (parsed.originalUnitId === unitId) {
+                            lessons = [...lessons, parsed];
+                          }
+                        }
+                      } catch (e) {
+                        // ignore storage errors
+                      }
+                    }
+                    
+                    const isTempUnit = unit && (typeof unit.id === "number" && unit.id < 0 || (unit.slug && String(unit.slug).startsWith("temp-")));
+                    if (isTempUnit) {
+                      // For temp units, show appended lessons except known placeholders
+                      const isPlaceholderLesson = (l: any) => {
+                        if (!l) return false;
+                        const t = String(l.title ?? "");
+                        const s = String(l.slug ?? "");
+                        return t.startsWith("Placeholder Lesson") || s.startsWith("placeholder-") || t === "Coming soon" || s.startsWith("pending-") || !!l.__placeholder;
+                      };
+                      lessons = (lessons ?? []).filter((l: any) => !isPlaceholderLesson(l));
+                    }
 
-              // If submitting a definition and the term matches a lesson title, hide that lesson from the subunit list
-              const filtered = (format === "definition" && term.trim().length > 0)
-                ? lessons.filter((l: any) => (l.title ?? "").trim() !== term.trim())
-                : lessons;
-              return filtered.map((l: any) => <option key={l.id} value={l.id}>{l.title}</option>);
-            })()}
-          </select>
+                    // If submitting a definition and the term matches a lesson title, hide that lesson from the subunit list
+                    const filtered = (format === "definition" && term.trim().length > 0)
+                      ? lessons.filter((l: any) => (l.title ?? "").trim() !== term.trim())
+                      : lessons;
+                    
+                    // Only show approved lessons as subunits — pending/other-status lessons should not be selectable
+                    // However, for client-side appended 'temp' units we want to allow their lessons to appear
+                    // (they may be drafts created in this session). Use `isTempUnit` to relax the status check.
+                    const seenIds = new Set<number>();
+                    const visible = (filtered ?? []).filter((l: any) => {
+                      if (!l) return false;
+                      // keep placeholder-lessons out
+                      if (l.__placeholder) return false;
+                      // don't include the unit itself if it somehow got into the list
+                      if (l.id === unitId) return false;
+                      // avoid duplicate lessons
+                      if (seenIds.has(l.id)) return false;
+                      seenIds.add(l.id);
+                      // if this is NOT a temp unit, enforce APPROVED status; otherwise allow drafts
+                      if (!isTempUnit && typeof l.status === "string" && l.status !== "APPROVED") return false;
+                      return true;
+                    });
+                    return visible.map((l: any) => <option key={l.id} value={l.id}>{l.title}</option>);
+                  })()}
+                </select>
+              </div>
+            );
+          })()}
         </div>
       ) : null}
 
@@ -485,7 +719,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
             <Input id="lesson-term" name="term" value={term} onChange={(e) => setTerm(e.target.value)} />
           </div>
           <div>
-            <Label htmlFor="lesson-definition">Definition</Label>
+            <Label htmlFor="lesson-definition">Learn</Label>
             <textarea id="lesson-definition" name="definition" value={defText} onChange={(e) => setDefText(e.target.value)} className="mt-1 w-full rounded-md border bg-card px-3 py-2" rows={3} />
           </div>
           <div>

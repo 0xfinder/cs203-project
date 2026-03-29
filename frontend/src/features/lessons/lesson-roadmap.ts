@@ -59,7 +59,13 @@ export function getUnitRoadmap(
 }
 
 export function getVisibleUnits(units: UnitData[]) {
-  return sortUnits(units).filter((unit) => Array.isArray(unit.lessons) && unit.lessons.length > 0);
+  // Only consider approved lessons as part of the visible roadmap so that
+  // newly-submitted (PENDING_REVIEW) lessons do not immediately appear
+  // in the Learn view. Return shallow-copies of units with their lessons
+  // filtered to approved status.
+  return sortUnits(units)
+    .map((unit) => ({ ...unit, lessons: (Array.isArray(unit.lessons) ? unit.lessons : []).filter((l: any) => l.status === "APPROVED") }))
+    .filter((unit) => Array.isArray(unit.lessons) && unit.lessons.length > 0);
 }
 
 export function findUnitByLessonId(units: UnitData[], lessonId: number) {

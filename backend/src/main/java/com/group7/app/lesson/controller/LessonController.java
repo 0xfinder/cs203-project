@@ -36,21 +36,21 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "Lessons", description = "Lesson management and lesson play endpoints")
 public class LessonController {
 
-    private final LessonService lessonService;
-    private final LessonStepPayloadService lessonStepPayloadService;
-    private final UserService userService;
-    private final AuthContextService authContextService;
+  private final LessonService lessonService;
+  private final LessonStepPayloadService lessonStepPayloadService;
+  private final UserService userService;
+  private final AuthContextService authContextService;
 
-    public LessonController(
-            LessonService lessonService,
-            LessonStepPayloadService lessonStepPayloadService,
-            AuthContextService authContextService,
-            UserService userService) {
-        this.lessonService = lessonService;
-        this.lessonStepPayloadService = lessonStepPayloadService;
-        this.userService = userService;
-        this.authContextService = authContextService;
-    }
+  public LessonController(
+      LessonService lessonService,
+      LessonStepPayloadService lessonStepPayloadService,
+      AuthContextService authContextService,
+      UserService userService) {
+    this.lessonService = lessonService;
+    this.lessonStepPayloadService = lessonStepPayloadService;
+    this.userService = userService;
+    this.authContextService = authContextService;
+  }
 
   @GetMapping
   @Operation(summary = "Get lessons")
@@ -104,7 +104,8 @@ public class LessonController {
                 request.description(),
                 request.learningObjective(),
                 request.estimatedMinutes(),
-                request.orderIndex()));
+                request.orderIndex(),
+                request.targetSubunitId()));
 
     return ResponseEntity.created(URI.create("/api/lessons/" + lesson.getId()))
         .body(toDetail(lesson, List.of()));
@@ -139,15 +140,14 @@ public class LessonController {
     return toDetail(lesson, steps);
   }
 
-        @DeleteMapping("/{lessonId}")
-        @Operation(summary = "Delete a lesson (owner or admin only)")
-        public org.springframework.http.ResponseEntity<Void> deleteLesson(
-                        @AuthenticationPrincipal Jwt jwt,
-                        @PathVariable Long lessonId) {
-                User actor = authContextService.resolveUser(jwt);
-                lessonService.deleteLesson(actor, lessonId);
-                return org.springframework.http.ResponseEntity.noContent().build();
-        }
+  @DeleteMapping("/{lessonId}")
+  @Operation(summary = "Delete a lesson (owner or admin only)")
+  public org.springframework.http.ResponseEntity<Void> deleteLesson(
+      @AuthenticationPrincipal Jwt jwt, @PathVariable Long lessonId) {
+    User actor = authContextService.resolveUser(jwt);
+    lessonService.deleteLesson(actor, lessonId);
+    return org.springframework.http.ResponseEntity.noContent().build();
+  }
 
   @PostMapping("/{lessonId}/steps")
   @Operation(summary = "Create lesson step")
@@ -182,32 +182,35 @@ public class LessonController {
     return ResponseEntity.noContent().build();
   }
 
-    private LessonSummaryResponse toSummary(Lesson lesson) {
-        String submittedBy = null;
-        try {
-            if (lesson.getCreatedBy() != null) {
-                var uOpt = userService.findById(lesson.getCreatedBy());
-                if (uOpt.isPresent()) {
-                    var u = uOpt.get();
-                    submittedBy = u.getDisplayName() != null && !u.getDisplayName().isBlank() ? u.getDisplayName() : u.getEmail();
-                }
-            }
-        } catch (Exception e) {
-            submittedBy = null;
+  private LessonSummaryResponse toSummary(Lesson lesson) {
+    String submittedBy = null;
+    try {
+      if (lesson.getCreatedBy() != null) {
+        var uOpt = userService.findById(lesson.getCreatedBy());
+        if (uOpt.isPresent()) {
+          var u = uOpt.get();
+          submittedBy =
+              u.getDisplayName() != null && !u.getDisplayName().isBlank()
+                  ? u.getDisplayName()
+                  : u.getEmail();
         }
-
-        return new LessonSummaryResponse(
-                lesson.getId(),
-                lesson.getUnit().getId(),
-                lesson.getTitle(),
-                lesson.getSlug(),
-                lesson.getDescription(),
-                lesson.getLearningObjective(),
-                lesson.getEstimatedMinutes(),
-                lesson.getOrderIndex(),
-                lesson.getStatus(),
-                submittedBy);
+      }
+    } catch (Exception e) {
+      submittedBy = null;
     }
+
+    return new LessonSummaryResponse(
+        lesson.getId(),
+        lesson.getUnit().getId(),
+        lesson.getTitle(),
+        lesson.getSlug(),
+        lesson.getDescription(),
+        lesson.getLearningObjective(),
+        lesson.getEstimatedMinutes(),
+        lesson.getOrderIndex(),
+        lesson.getStatus(),
+        submittedBy);
+  }
 
   private LessonDetailResponse toDetail(Lesson lesson, List<StepResponse> steps) {
     return new LessonDetailResponse(
@@ -367,7 +370,8 @@ public class LessonController {
       @NotBlank String description,
       String learningObjective,
       Integer estimatedMinutes,
-      Integer orderIndex) {}
+      Integer orderIndex,
+      Long targetSubunitId) {}
 
   public record PatchLessonRequest(
       Long unitId,

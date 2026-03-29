@@ -70,11 +70,18 @@ function AddLessonPage() {
 
     try {
       const me = await getMe();
+      // Ensure backend-required fields are present. If the user left title/description
+      // blank, derive them from the first step so validation (@NotBlank) succeeds.
+      const firstStepContent = steps && steps.length > 0 ? (steps[0].content || "") : "";
+      const derivedTitle = title.trim() || (firstStepContent.trim().split("\n")[0] || "Untitled Lesson");
+      const derivedDescription =
+        description.trim() || (firstStepContent.trim().split("\n").slice(0, 2).join(" ") || derivedTitle);
+
       const payload = {
         unitId,
-        title: title.trim(),
+        title: derivedTitle,
         slug: slug.trim() || undefined,
-        description: description.trim() || undefined,
+        description: derivedDescription,
         learningObjective: learningObjective.trim() || undefined,
         estimatedMinutes: estimatedMinutes ?? null,
         steps: steps.map((s, i) => ({ orderIndex: i, stepType: s.type, content: s.content })),

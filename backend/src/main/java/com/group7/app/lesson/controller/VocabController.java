@@ -26,7 +26,8 @@ public class VocabController {
     this.vocabItemRepository = vocabItemRepository;
   }
 
-  public static record CreateVocabRequest(@NotBlank String term, @NotBlank String definition, String example, String partOfSpeech) {}
+  public static record CreateVocabRequest(
+      @NotBlank String term, @NotBlank String definition, String example, String partOfSpeech) {}
 
   @PostMapping
   @Operation(summary = "Create a vocab item")
@@ -38,7 +39,8 @@ public class VocabController {
       return ResponseEntity.ok(existing.get());
     }
 
-    VocabItem item = new VocabItem(term, req.definition().trim(), req.example(), req.partOfSpeech());
+    VocabItem item =
+        new VocabItem(term, req.definition().trim(), req.example(), req.partOfSpeech());
     try {
       VocabItem saved = vocabItemRepository.save(item);
       return ResponseEntity.status(HttpStatus.CREATED).body(saved);

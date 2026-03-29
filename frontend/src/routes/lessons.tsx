@@ -264,30 +264,13 @@ function LearnPage() {
 
       <h2 className="mb-6 text-center text-2xl font-bold">Learn</h2>
 
-      {isContributor && (
-        <div className="mb-6">
-          <div className="flex justify-center">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="default" size="lg" className="rounded-full px-6 shadow-md border border-border/20 flex items-center gap-2">
-                  <Plus className="size-4" />
-                  Add Content
-                </Button>
-              </DialogTrigger>
-              <DialogContent title="Add Content" description="Create a lesson for review and publishing">
-                <LessonForm />
-              </DialogContent>
-            </Dialog>
-          </div>
-        </div>
-      )}
+      {/* Global Add Content removed — use per-unit Add Content inside each unit page */}
 
       <div className="relative flex flex-col items-center pb-4">
         {visibleUnits.map((unit, i) => {
           const unlocked = isUnlocked(i);
           const roadmap = getUnitRoadmap(unit, progressByLessonId, undefined, isContributor);
-          const completed =
-            roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
+          const completed = roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
           const isCurrent = unit.id === currentUnitId;
           const launchLesson = roadmap.nextLesson ?? null;
           const offset = PATH_OFFSETS[i % PATH_OFFSETS.length];
@@ -295,6 +278,66 @@ function LearnPage() {
             "--lesson-offset-mobile": `${Math.round(offset * MOBILE_PATH_OFFSET_SCALE)}px`,
             "--lesson-offset-desktop": `${offset}px`,
           } as CSSProperties;
+
+          const numericLessonId = launchLesson?.id ?? roadmap.orderedLessons[0]?.id ?? unit.lessons[0]?.id ?? null;
+          const lessonIdParam = numericLessonId ? String(numericLessonId) : null;
+
+          const wrapperClass = cn(
+            "group flex w-full max-w-[19rem] items-center gap-3 rounded-2xl p-2 transition-transform duration-200 translate-x-[var(--lesson-offset-mobile)] sm:max-w-none sm:gap-5 sm:translate-x-[var(--lesson-offset-desktop)]",
+            !unlocked && "pointer-events-none",
+            unlocked && "hover:scale-[1.03]",
+          );
+
+          const innerContent = (
+            <>
+              <div
+                className={cn(
+                  "relative flex size-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-500 text-2xl shadow-lg transition-shadow duration-200 sm:size-20",
+                  !unlocked && "opacity-40 saturate-0",
+                  unlocked && "group-hover:shadow-xl",
+                  isCurrent && "ring-4 ring-ring/50",
+                )}
+              >
+                {unlocked ? <span className="drop-shadow">📘</span> : <Lock className="size-6 text-white/80 sm:size-8" />}
+
+                {completed && (
+                  <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow sm:size-7 sm:text-sm">✓</span>
+                )}
+
+                {isContributor && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      deleteUnit(unit.id);
+                    }}
+                    aria-label={`Delete unit ${unit.title}`}
+                    title="Delete unit"
+                    className="absolute -right-2 -bottom-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow hover:scale-105 transition-transform"
+                  >
+                    <Trash className="size-4" />
+                  </button>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className={cn("text-sm font-bold leading-tight sm:text-base", !unlocked && "text-muted-foreground")}>
+                    {unit.title}
+                  </h3>
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">#{unit.orderIndex}</span>
+                </div>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground sm:text-sm">{unit.description}</p>
+                <p className="mt-1 text-[11px] leading-4 text-muted-foreground/70 sm:text-xs">
+                  {roadmap.completedCount}/{roadmap.totalLessons} lessons
+                  {roadmap.nextLesson ? ` · Next: ${roadmap.nextLesson.title}` : ""}
+                </p>
+              </div>
+
+              {unlocked && lessonIdParam && <ChevronRight className="hidden size-5 shrink-0 text-muted-foreground/50 sm:block" />}
+            </>
+          );
 
           return (
             <div key={unit.id} className="flex flex-col items-center">
@@ -306,84 +349,15 @@ function LearnPage() {
                 </div>
               )}
 
-              <Link
-                to="/lesson/$lessonId"
-                params={{
-                  lessonId: String(
-                    launchLesson?.id ?? roadmap.orderedLessons[0]?.id ?? unit.lessons[0]?.id ?? 0,
-                  ),
-                }}
-                preload={false}
-                className={cn(
-                  "group flex w-full max-w-[19rem] items-center gap-3 rounded-2xl p-2 transition-transform duration-200 translate-x-[var(--lesson-offset-mobile)] sm:max-w-none sm:gap-5 sm:translate-x-[var(--lesson-offset-desktop)]",
-                  !unlocked && "pointer-events-none",
-                  unlocked && "hover:scale-[1.03]",
-                )}
-                style={offsetStyle}
-              >
-                <div
-                  className={cn(
-                    "relative flex size-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-500 text-2xl shadow-lg transition-shadow duration-200 sm:size-20",
-                    !unlocked && "opacity-40 saturate-0",
-                    unlocked && "group-hover:shadow-xl",
-                    isCurrent && "ring-4 ring-ring/50",
-                  )}
-                >
-                  {unlocked ? (
-                    <span className="drop-shadow">📘</span>
-                  ) : (
-                    <Lock className="size-6 text-white/80 sm:size-8" />
-                  )}
-
-                  {completed && (
-                    <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow sm:size-7 sm:text-sm">
-                      ✓
-                    </span>
-                  )}
-                  {isContributor && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                        deleteUnit(unit.id);
-                      }}
-                      aria-label={`Delete unit ${unit.title}`}
-                      title="Delete unit"
-                      className="absolute -right-2 -bottom-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow hover:scale-105 transition-transform"
-                    >
-                      <Trash className="size-4" />
-                    </button>
-                  )}
+              {lessonIdParam ? (
+                <Link to="/lesson/$lessonId" params={{ lessonId: lessonIdParam }} preload={false} className={wrapperClass} style={offsetStyle}>
+                  {innerContent}
+                </Link>
+              ) : (
+                <div className={wrapperClass} style={offsetStyle}>
+                  {innerContent}
                 </div>
-
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <h3
-                      className={cn(
-                        "text-sm font-bold leading-tight sm:text-base",
-                        !unlocked && "text-muted-foreground",
-                      )}
-                    >
-                      {unit.title}
-                    </h3>
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-                      #{unit.orderIndex}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground sm:text-sm">
-                    {unit.description}
-                  </p>
-                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground/70 sm:text-xs">
-                    {roadmap.completedCount}/{roadmap.totalLessons} lessons
-                    {roadmap.nextLesson ? ` · Next: ${roadmap.nextLesson.title}` : ""}
-                  </p>
-                </div>
-
-                {unlocked && (
-                  <ChevronRight className="hidden size-5 shrink-0 text-muted-foreground/50 sm:block" />
-                )}
-              </Link>
+              )}
             </div>
           );
         })}
@@ -397,8 +371,20 @@ function LearnPage() {
             "--lesson-offset-desktop": `${offset}px`,
           } as CSSProperties;
 
+          const filteredLessons = (Array.isArray(unit.lessons) ? unit.lessons : []).filter((l: any) => {
+            const t = String(l?.title ?? "");
+            const s = String(l?.slug ?? "");
+            return !(t.startsWith("Placeholder Lesson") || s.startsWith("placeholder-") || t === "Coming soon");
+          });
+          const unitForRoadmap = { ...unit, lessons: filteredLessons } as typeof unit;
+          const roadmap = getUnitRoadmap(unitForRoadmap, progressByLessonId, undefined, isContributor);
+          const launchLesson = roadmap.nextLesson ?? null;
+          // Only use launchLesson.id if it's a positive integer (server-backed lesson), otherwise use temp- format
+          const lessonParam = launchLesson?.id && launchLesson.id > 0 ? String(launchLesson.id) : `temp-${(unit as any).tempKey}`;
+
           return (
             <div key={`app-${unit.id}`} data-appended-last={idx === appendedUnits.length - 1 ? "true" : undefined} className="flex flex-col items-center">
+              {/* add content buttons removed from Learn list; use unit page Add Content */}
               <div className="flex flex-col items-center gap-1.5 py-1">
                 <span className="block h-1.5 w-1.5 rounded-full bg-border" />
                 <span className="block h-1.5 w-1.5 rounded-full bg-border" />
@@ -407,7 +393,7 @@ function LearnPage() {
 
               <Link
                 to="/lesson/$lessonId"
-                params={{ lessonId: `temp-${(unit as any).tempKey}` }}
+                params={{ lessonId: lessonParam }}
                 preload={false}
                 className={cn(
                   "group flex w-full max-w-[19rem] items-center gap-3 rounded-2xl p-2 transition-transform duration-200 translate-x-[var(--lesson-offset-mobile)] sm:max-w-none sm:gap-5 sm:translate-x-[var(--lesson-offset-desktop)]",
@@ -421,7 +407,6 @@ function LearnPage() {
                     "group-hover:shadow-xl",
                   )}
                 >
-                  {"" /* book emoji */}
                   <span className="drop-shadow">📘</span>
                   <button
                     type="button"
@@ -440,7 +425,10 @@ function LearnPage() {
                     <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">#{unit.orderIndex}</span>
                   </div>
                   <p className="mt-0.5 text-xs leading-5 text-muted-foreground sm:text-sm">{unit.description}</p>
-                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground/70 sm:text-xs">0/0 lessons · Coming soon</p>
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground/70 sm:text-xs">
+                    {roadmap.completedCount}/{roadmap.totalLessons} lessons
+                    {roadmap.nextLesson ? ` · Next: ${roadmap.nextLesson.title}` : " · Coming soon"}
+                  </p>
 
                 </div>
 

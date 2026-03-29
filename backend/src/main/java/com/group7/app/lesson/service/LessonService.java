@@ -60,7 +60,12 @@ public class LessonService {
     Integer orderIndex = input.orderIndex();
     if (orderIndex == null) {
       List<Lesson> existing = lessonRepository.findByUnitIdOrderByOrderIndexAsc(unit.getId());
-      int max = existing.stream().map(Lesson::getOrderIndex).filter(i -> i != null).max(Comparator.naturalOrder()).orElse(0);
+      int max =
+          existing.stream()
+              .map(Lesson::getOrderIndex)
+              .filter(i -> i != null)
+              .max(Comparator.naturalOrder())
+              .orElse(0);
       orderIndex = max + 1;
     }
 
@@ -76,6 +81,7 @@ public class LessonService {
             orderIndex,
             actor.getId());
     lesson.setStatus(LessonStatus.DRAFT);
+    lesson.setTargetSubunitId(input.targetSubunitId());
     return lessonRepository.save(lesson);
   }
 
@@ -220,25 +226,26 @@ public class LessonService {
     lessonStepRepository.delete(step);
     normalizeStepOrder(lessonId);
 
-        // If no steps remain for this lesson, remove the empty lesson as well (owner/admin only)
-        List<LessonStep> remaining = lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lessonId);
-        if (remaining == null || remaining.isEmpty()) {
-            // requireOwnerOrAdmin already checked via ensureCanEditSteps, so safe to delete
-            lessonRepository.delete(lesson);
-        }
+    // If no steps remain for this lesson, remove the empty lesson as well (owner/admin only)
+    List<LessonStep> remaining = lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lessonId);
+    if (remaining == null || remaining.isEmpty()) {
+      // requireOwnerOrAdmin already checked via ensureCanEditSteps, so safe to delete
+      lessonRepository.delete(lesson);
+    }
+  }
+
+  public void deleteLesson(User actor, Long lessonId) {
+    Lesson lesson = requireLesson(lessonId);
+    requireOwnerOrAdmin(actor, lesson);
+
+    // Delete steps first
+    List<LessonStep> steps =
+        lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId());
+    for (LessonStep s : steps) {
+      lessonStepRepository.delete(s);
     }
 
-    public void deleteLesson(User actor, Long lessonId) {
-        Lesson lesson = requireLesson(lessonId);
-        requireOwnerOrAdmin(actor, lesson);
-
-        // Delete steps first
-        List<LessonStep> steps = lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lesson.getId());
-        for (LessonStep s : steps) {
-            lessonStepRepository.delete(s);
-        }
-
-        lessonRepository.delete(lesson);
+    lessonRepository.delete(lesson);
   }
 
   public List<LessonStep> getQuestionSteps(Long lessonId) {
@@ -273,6 +280,10 @@ public class LessonService {
       lesson.setReviewComment(isBlank(reviewComment) ? null : reviewComment.trim());
       if (targetStatus == LessonStatus.APPROVED) {
         lesson.setPublishedAt(Instant.now());
+        // Copy steps to target subunit if specified
+        if (lesson.getTargetSubunitId() != null) {
+          copyStepsToTargetSubunit(lesson);
+        }
       }
       return;
     }
@@ -286,6 +297,37 @@ public class LessonService {
 
     throw new ResponseStatusException(
         HttpStatus.BAD_REQUEST, "invalid status transition: " + current + " -> " + targetStatus);
+  }
+
+  private void copyStepsToTargetSubunit(Lesson sourceLessonWithSteps) {
+    // Get the target subunit (parent lesson/subunit where we'll add these steps)
+    Lesson targetSubunit =
+        lessonRepository
+            .findById(sourceLessonWithSteps.getTargetSubunitId())
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(HttpStatus.NOT_FOUND, "target subunit not found"));
+
+    // Get the highest order index in the target subunit
+    List<LessonStep> existingSteps =
+        lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(targetSubunit.getId());
+    int nextOrderIndex = existingSteps.isEmpty() ? 1 : existingSteps.size() + 1;
+
+    // Get all steps from the source lesson
+    List<LessonStep> sourceSteps =
+        lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(sourceLessonWithSteps.getId());
+
+    // Copy each step to the target subunit
+    for (LessonStep sourceStep : sourceSteps) {
+      LessonStep newStep = new LessonStep(targetSubunit, nextOrderIndex, sourceStep.getStepType());
+      newStep.setVocabItem(sourceStep.getVocabItem());
+      newStep.setPayload(sourceStep.getPayload());
+      lessonStepRepository.save(newStep);
+      nextOrderIndex++;
+    }
+
+    // Delete the source lesson after copying steps (it's no longer needed)
+    lessonRepository.delete(sourceLessonWithSteps);
   }
 
   private void applyStepPayload(LessonStep step, StepWriteInput input) {
@@ -377,11 +419,20 @@ public class LessonService {
   }
 
   private void ensureCanEditSteps(User actor, Lesson lesson) {
-    if (lesson.getStatus() != LessonStatus.DRAFT && lesson.getStatus() != LessonStatus.REJECTED) {
+    // Allow full editing of DRAFT and REJECTED lessons
+    if (lesson.getStatus() == LessonStatus.DRAFT || lesson.getStatus() == LessonStatus.REJECTED) {
+      requireOwnerOrAdmin(actor, lesson);
+    } else if (lesson.getStatus() == LessonStatus.APPROVED) {
+      // Only admins/moderators can edit approved lessons (e.g., hardcoded curriculum content)
+      if (!isAdminOrModerator(actor)) {
+        throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN, "only admins/moderators can edit approved lessons");
+      }
+    } else {
+      // PENDING_REVIEW or other statuses
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST, "steps can only be edited when lesson is in DRAFT or REJECTED");
     }
-    requireOwnerOrAdmin(actor, lesson);
   }
 
   private void requireOwnerOrAdmin(User actor, Lesson lesson) {
@@ -471,7 +522,8 @@ public class LessonService {
       String description,
       String learningObjective,
       Integer estimatedMinutes,
-      Integer orderIndex) {}
+      Integer orderIndex,
+      Long targetSubunitId) {}
 
   public record LessonPatchInput(
       Long unitId,

@@ -64,7 +64,10 @@ public class UnitController {
         var uOpt = userService.findById(lesson.getCreatedBy());
         if (uOpt.isPresent()) {
           var u = uOpt.get();
-          submittedBy = u.getDisplayName() != null && !u.getDisplayName().isBlank() ? u.getDisplayName() : u.getEmail();
+          submittedBy =
+              u.getDisplayName() != null && !u.getDisplayName().isBlank()
+                  ? u.getDisplayName()
+                  : u.getEmail();
         }
       }
     } catch (Exception e) {
@@ -92,7 +95,7 @@ public class UnitController {
       Integer orderIndex,
       List<LessonSummaryResponse> lessons) {}
 
-    public record LessonSummaryResponse(
+  public record LessonSummaryResponse(
       Long id,
       Long unitId,
       String title,

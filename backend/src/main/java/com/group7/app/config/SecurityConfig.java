@@ -1,5 +1,7 @@
 package com.group7.app.config;
 
+import com.group7.app.user.UserService;
+import java.util.*;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -10,26 +12,18 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.core.convert.converter.Converter;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import com.group7.app.user.UserService;
-import com.group7.app.user.User;
-import java.util.*;
 
 @Configuration
 public class SecurityConfig {
 
-    private final UserService userService;
+  private final UserService userService;
 
-    public SecurityConfig(UserService userService) {
-        this.userService = userService;
-    }
+  public SecurityConfig(UserService userService) {
+    this.userService = userService;
+  }
 
   @Bean
   public SecurityFilterChain filterChain(
