@@ -224,6 +224,7 @@ public class LessonController {
         lesson.getStatus(),
         lesson.getReviewComment(),
         lesson.getPublishedAt(),
+        lesson.getTargetSubunitId(),
         steps);
   }
 
@@ -423,6 +424,7 @@ public class LessonController {
       LessonStatus status,
       String reviewComment,
       java.time.Instant publishedAt,
+      Long targetSubunitId,
       List<StepResponse> steps) {}
 
   public record LessonPlayResponse(LessonSummaryResponse lesson, List<StepResponse> steps) {}

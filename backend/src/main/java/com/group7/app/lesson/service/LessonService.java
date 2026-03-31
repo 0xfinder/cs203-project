@@ -143,7 +143,9 @@ public class LessonService {
       }
     }
 
-    return lessonRepository.save(lesson);
+    Lesson saved = lessonRepository.save(lesson);
+
+    return saved;
   }
 
   public List<Lesson> listLessons(User actor, Long unitId, LessonStatus status) {
@@ -187,7 +189,22 @@ public class LessonService {
     Lesson lesson = requireLesson(lessonId);
     ensureCanEditSteps(actor, lesson);
 
-    LessonStep step = new LessonStep(lesson, input.orderIndex(), input.stepType());
+    // Auto-assign orderIndex if not provided (similar to createLesson)
+    int orderIndex = input.orderIndex();
+    if (orderIndex <= 0) {
+      List<LessonStep> existing = lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lessonId);
+      int max =
+          existing.stream()
+              .map(LessonStep::getOrderIndex)
+              .filter(i -> i != null && i > 0)
+              .max(Comparator.naturalOrder())
+              .orElse(0);
+      orderIndex = max + 1;
+      System.out.println(
+          "[DEBUG] Auto-assigning step orderIndex for lesson " + lessonId + ": " + orderIndex);
+    }
+
+    LessonStep step = new LessonStep(lesson, orderIndex, input.stepType());
     applyStepPayload(step, input);
 
     LessonStep saved = lessonStepRepository.save(step);
@@ -282,7 +299,24 @@ public class LessonService {
         lesson.setPublishedAt(Instant.now());
         // Copy steps to target subunit if specified
         if (lesson.getTargetSubunitId() != null) {
-          copyStepsToTargetSubunit(lesson);
+          try {
+            System.out.println(
+                "Copying steps from lesson "
+                    + lesson.getId()
+                    + " to target subunit "
+                    + lesson.getTargetSubunitId());
+            copyStepsToTargetSubunit(lesson);
+            System.out.println(
+                "Successfully copied steps from lesson " + lesson.getId() + " to target subunit");
+          } catch (Exception e) {
+            System.err.println(
+                "Error copying steps to target subunit for lesson "
+                    + lesson.getId()
+                    + ": "
+                    + e.getMessage());
+            e.printStackTrace();
+            // Still save the lesson as approved even if step copying fails
+          }
         }
       }
       return;
@@ -326,8 +360,7 @@ public class LessonService {
       nextOrderIndex++;
     }
 
-    // Delete the source lesson after copying steps (it's no longer needed)
-    lessonRepository.delete(sourceLessonWithSteps);
+    // NOTE: Do NOT delete the source lesson here - it will be deleted after patchLesson saves it
   }
 
   private void applyStepPayload(LessonStep step, StepWriteInput input) {

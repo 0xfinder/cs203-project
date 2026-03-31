@@ -70,7 +70,25 @@ export function UnitRoadmap({
 
   // Recompute roadmap using merged unit if placeholders exist
   const effectiveRoadmap = mergedUnit === unit ? roadmap : getUnitRoadmap(mergedUnit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
-  const displayItems = effectiveRoadmap.items.filter((item) => !isPlaceholderLesson(item.lesson));
+  const displayItems = effectiveRoadmap.items.filter((item) => {
+    if (!item.lesson) return false;
+    // Filter out placeholder lessons
+    if (isPlaceholderLesson(item.lesson)) return false;
+    // Filter out wrapper lessons (those with targetSubunitId set)
+    if (item.lesson.targetSubunitId) return false;
+    // Additional safety: filter out lessons that are APPROVED but have no order_index or are very new
+    // This catches wrapper lessons that might have been created recently
+    if (item.lesson.status === "APPROVED" && item.lesson.publishedAt) {
+      const now = new Date();
+      const published = new Date(item.lesson.publishedAt);
+      const ageSeconds = (now.getTime() - published.getTime()) / 1000;
+      // If APPROVED less than 5 seconds ago and has a generic title, it's likely a wrapper
+      if (ageSeconds < 5 && (String(item.lesson.title ?? "").includes("Understand") || String(item.lesson.title ?? "").includes("Recognize") || String(item.lesson.title ?? "").includes("Identify"))) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   // Compute counts and percent using only non-placeholder lessons so placeholders
   // do not affect the displayed lesson counts or progress.

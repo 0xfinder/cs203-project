@@ -87,6 +87,47 @@ function LessonPage() {
     };
   }, []);
 
+  // Listen for appended lessons changes (e.g., when rejected from review page)
+  useEffect(() => {
+    const handleAppendedLessonsChanged = () => {
+      // Refresh tempData when appended units are modified
+      setTempRefresh((v) => v + 1);
+    };
+    window.addEventListener("appended-lessons-changed", handleAppendedLessonsChanged);
+    
+    // Also listen for steps being added (from approval)
+    const handleStepsAdded = () => {
+      // Refresh tempData to re-read steps from localStorage
+      setTempRefresh((v) => v + 1);
+    };
+    window.addEventListener("tempUnit-steps-added", handleStepsAdded);
+    
+    // Also listen for steps being deleted
+    const handleStepDeleted = () => {
+      // Refresh tempData to re-read steps from localStorage
+      setTempRefresh((v) => v + 1);
+    };
+    window.addEventListener("tempUnit-step-deleted", handleStepDeleted);
+    
+    return () => {
+      window.removeEventListener("appended-lessons-changed", handleAppendedLessonsChanged);
+      window.removeEventListener("tempUnit-steps-added", handleStepsAdded);
+      window.removeEventListener("tempUnit-step-deleted", handleStepDeleted);
+    };
+  }, []);
+
+  // Refresh when page becomes visible (e.g. user switches tabs and returns)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        // Page is now visible - refresh appended unit data
+        setTempRefresh((v) => v + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
   // If this route is a temp lesson (created client-side), load placeholder data from localStorage
   const tempData = useMemo(() => {
     try {
@@ -116,9 +157,21 @@ function LessonPage() {
             const lessonsArray = Array.isArray(parsed.lessons) ? parsed.lessons : [];
             const foundLesson = lessonsArray.find((l: any) => l?.id === numericLessonId);
             if (foundLesson) {
+              // Steps can be stored either:
+              // 1. On the lesson object itself (foundLesson.steps)
+              // 2. In the unit's steps array with step.id matching the lesson ID
+              // 3. In the unit's steps array with step.targetSubunitId matching the lesson ID (after approval)
+              let stepsArray = Array.isArray(foundLesson.steps) ? foundLesson.steps : [];
+              
+              // If no steps on lesson, look in unit's steps array by matching lesson ID or targetSubunitId
+              if (stepsArray.length === 0) {
+                const unitSteps = Array.isArray(parsed.steps) ? parsed.steps : [];
+                stepsArray = unitSteps.filter((s: any) => s?.id === numericLessonId || s?.targetSubunitId === numericLessonId);
+              }
+              
               return {
                 lesson: foundLesson,
-                steps: Array.isArray(foundLesson.steps) ? foundLesson.steps : [],
+                steps: stepsArray,
                 unit: parsed,
               };
             }
@@ -135,7 +188,25 @@ function LessonPage() {
 
   const effectiveData: any = tempData ?? data;
   const effectiveSteps = effectiveData?.steps ?? [];
-  const steps = effectiveSteps;
+  
+  // Auto-navigate to first subunit when opening appended unit
+  useEffect(() => {
+    if (isTempLesson && tempData?.unit) {
+      const lessons = Array.isArray(tempData.unit.lessons) ? tempData.unit.lessons : [];
+      // If unit has subunits and we're not already viewing one, navigate to first subunit
+      if (lessons.length > 0) {
+        const firstSubunit = lessons[0];
+        if (firstSubunit?.id) {
+          // Navigate to first subunit
+          navigate({ to: `/lesson/${firstSubunit.id}` });
+        }
+      }
+    }
+  }, [isTempLesson, tempData?.unit?.lessons?.length, navigate]);
+  
+  // Filter out placeholder steps (marked with __placeholder flag when creating new subunits)
+  const steps = effectiveSteps.filter((step: any) => !step.__placeholder);
+  
   const currentStep = steps[currentIndex];
   const questionSteps = useMemo(
     () => steps.filter((step) => step.stepType === "QUESTION"),
@@ -155,31 +226,79 @@ function LessonPage() {
   );
   const displayUnit = useMemo(() => {
     if (!currentUnit) return null;
-    // Filter placeholder lessons out for temp units
+    // Filter for temp units: only show placeholder subunits and approved lessons in sidebar
+    // Hide submitted content (DRAFT, PENDING_REVIEW, REJECTED) until it's approved
     if (tempData?.unit) {
       const lessons = Array.isArray(currentUnit.lessons) ? currentUnit.lessons : [];
+      const isPlaceholder = (lesson: any) => {
+        const title = String(lesson?.title ?? "");
+        const slug = String(lesson?.slug ?? "");
+        const description = String(lesson?.description ?? "");
+        return (
+          title.startsWith("Placeholder Lesson") ||
+          slug.startsWith("placeholder-") ||
+          title === "Coming soon" ||
+          title.startsWith("New Lesson") ||
+          slug.startsWith("new-lesson-") ||
+          description === "Coming soon"
+        );
+      };
       const filtered = lessons.filter((l: any) => {
-        const title = String(l?.title ?? "");
-        const slug = String(l?.slug ?? "");
-        return !(title.startsWith("Placeholder Lesson") || slug.startsWith("placeholder-") || title === "Coming soon");
+        // Show if it's a placeholder subunit OR if it's approved
+        if (isPlaceholder(l)) return true;
+        if (l.status === "APPROVED") return true;
+        // Hide anything else (DRAFT, PENDING_REVIEW, REJECTED)
+        return false;
       });
       return filtered.length > 0 ? ({ ...currentUnit, lessons: filtered } as typeof currentUnit) : ({ ...currentUnit, lessons: [] } as typeof currentUnit);
     }
-    return currentUnit;
+    
+    // Also filter server units: hide DRAFT/PENDING_REVIEW/REJECTED lessons from sidebar
+    const lessons = Array.isArray(currentUnit?.lessons) ? currentUnit.lessons : [];
+    const isPlaceholder = (lesson: any) => {
+      const title = String(lesson?.title ?? "");
+      const slug = String(lesson?.slug ?? "");
+      const description = String(lesson?.description ?? "");
+      return (
+        title.startsWith("Placeholder Lesson") ||
+        slug.startsWith("placeholder-") ||
+        title === "Coming soon" ||
+        title.startsWith("New Lesson") ||
+        slug.startsWith("new-lesson-") ||
+        description === "Coming soon"
+      );
+    };
+    const filtered = lessons.filter((l: any) => {
+      // Show placeholder subunits
+      if (isPlaceholder(l)) return true;
+      // Show approved/published lessons, hide DRAFT/PENDING_REVIEW/REJECTED
+      if (l.status === "DRAFT" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") return false;
+      // Show everything else (published, approved, etc.)
+      return true;
+    });
+    
+    return filtered.length > 0 ? ({ ...currentUnit, lessons: filtered } as typeof currentUnit) : ({ ...currentUnit, lessons: [] } as typeof currentUnit);
   }, [currentUnit, tempData]);
+  
+  // Debug: log displayUnit vs currentUnit
+  useEffect(() => {
+    if (currentUnit?.id && currentUnit.id < 0) {
+      console.log("DEBUG displayUnit lessons:", displayUnit?.lessons?.map((l: any) => ({ id: l.id, title: l.title, status: l.status })));
+      console.log("DEBUG currentUnit lessons:", currentUnit?.lessons?.map((l: any) => ({ id: l.id, title: l.title, status: l.status })));
+    }
+  }, [displayUnit, currentUnit]);
+  
   const unitRoadmap = useMemo(
-    () => (currentUnit ? getUnitRoadmap(currentUnit, progressByLessonId, numericLessonId) : null),
-    [currentUnit, progressByLessonId, numericLessonId],
+    () => (displayUnit ? getUnitRoadmap(displayUnit, progressByLessonId, numericLessonId) : null),
+    [displayUnit, progressByLessonId, numericLessonId],
   );
 
   // Debug effect: log whenever displayUnit or currentUnit changes
   useEffect(() => {
-    console.log("DEBUG useEffect: displayUnit changed");
-    console.log("DEBUG: displayUnit now has lessons:", displayUnit?.lessons?.length);
-    console.log("DEBUG: currentUnit now has lessons:", currentUnit?.lessons?.length);
-    console.log("DEBUG: units query data has lessons:", units?.find((u: any) => u.id === currentUnit?.id)?.lessons?.length);
-    console.log("DEBUG: All units in query:", units?.map((u: any) => ({ id: u.id, lessonsCount: u.lessons?.length })));
-  }, [displayUnit, currentUnit, units]);
+    if (currentUnit?.id && currentUnit.id < 0) {
+      console.log("DEBUG: Viewing temp/appended unit with ID:", currentUnit.id, "lessons:", currentUnit.lessons?.length);
+    }
+  }, [currentUnit]);
 
   const nextLesson = useMemo(() => {
     if (!unitRoadmap) {
@@ -238,7 +357,8 @@ function LessonPage() {
         if (!raw) return;
         const parsed = JSON.parse(raw);
         parsed.lessons = (parsed.lessons || []).filter((l: any) => l.id !== lessonIdToDelete);
-        parsed.steps = (parsed.steps || []).filter((s: any) => s.id !== lessonIdToDelete);
+        // Delete steps that belong to this lesson (either by id or targetSubunitId)
+        parsed.steps = (parsed.steps || []).filter((s: any) => s.id !== lessonIdToDelete && s.targetSubunitId !== lessonIdToDelete);
         localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
         setTempRefresh((v) => v + 1);
         if (lessonIdToDelete === numericLessonId) {
@@ -257,7 +377,8 @@ function LessonPage() {
           const parsed = JSON.parse(raw);
           const before = (parsed.lessons || []).length;
           parsed.lessons = (parsed.lessons || []).filter((l: any) => l.id !== lessonIdToDelete);
-          parsed.steps = (parsed.steps || []).filter((s: any) => s.id !== lessonIdToDelete);
+          // Delete steps that belong to this lesson (either by id or targetSubunitId)
+          parsed.steps = (parsed.steps || []).filter((s: any) => s.id !== lessonIdToDelete && s.targetSubunitId !== lessonIdToDelete);
           const after = (parsed.lessons || []).length;
           if (after !== before) {
             localStorage.setItem(key, JSON.stringify(parsed));
@@ -449,7 +570,7 @@ function LessonPage() {
                                 <Button variant="default">Add Content</Button>
                               </DialogTrigger>
                               <DialogContent title="Add Content" description="Create a lesson for this section" className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                                <LessonForm defaultUnitId={currentUnit?.id ?? undefined} />
+                                <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
                               </DialogContent>
                             </Dialog>
                             <Dialog>
@@ -474,13 +595,7 @@ function LessonPage() {
                                     <Button
                                       onClick={async () => {
                                         try {
-                                          console.log("DEBUG: Add subunit clicked");
-                                          console.log("DEBUG: isTempLesson=", isTempLesson);
-                                          console.log("DEBUG: currentUnit=", currentUnit);
-                                          console.log("DEBUG: currentUnit?.id=", currentUnit?.id);
-                                          
                                           if (isTempLesson) {
-                                            console.log("DEBUG: Handling temp lesson");
                                             const key = String(lessonId).slice(5);
                                             const raw = localStorage.getItem(`tempUnit:${key}`);
                                             const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
@@ -507,12 +622,11 @@ function LessonPage() {
                                               question: null,
                                               dialogueText: null,
                                               payload: null,
+                                              __placeholder: true,
                                             });
                                             localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
                                             setTempRefresh((v) => v + 1);
-                                            console.log("DEBUG: Temp lesson saved");
                                           } else if (currentUnit?.id && currentUnit.id < 0) {
-                                          console.log("DEBUG: Handling hardcoded unit");
                                           const nextIndex = (currentUnit.lessons?.length ?? 0) + 1;
                                           const newLesson = {
                                             id: -(Date.now()),
@@ -525,13 +639,9 @@ function LessonPage() {
                                             orderIndex: nextIndex,
                                             status: "DRAFT",
                                           };
-                                          console.log("DEBUG: Created new lesson:", newLesson);
                                           const tempKey = currentUnit.id;
-                                          console.log("DEBUG: tempKey=", tempKey);
                                           const raw = localStorage.getItem(`tempPlaceholderUnit:${tempKey}`);
-                                          console.log("DEBUG: Retrieved from localStorage:", raw ? "found" : "not found");
                                           const parsed = raw ? JSON.parse(raw) : { ...currentUnit, lessons: [], steps: [] };
-                                          console.log("DEBUG: Parsed data before concat:", parsed);
                                           parsed.lessons = (parsed.lessons ?? []).concat(newLesson);
                                           parsed.steps = (parsed.steps ?? []).concat({
                                             id: newLesson.id,
@@ -541,68 +651,31 @@ function LessonPage() {
                                             question: null,
                                             dialogueText: null,
                                             payload: null,
+                                            __placeholder: true,
                                           });
-                                          console.log("DEBUG: Parsed data after concat:", parsed);
                                           localStorage.setItem(`tempPlaceholderUnit:${tempKey}`, JSON.stringify(parsed));
-                                          console.log("DEBUG: Saved to localStorage");
                                           setTempRefresh((v) => v + 1);
                                           } else {
-                                          console.log("DEBUG: Handling server unit");
+                                          // Submit to lessons API for real units
                                           const finalTitle = (addTitle || "").trim() || "New Lesson";
                                           const finalDesc = (addDesc || "").trim() || "Coming soon";
-                                          console.log("DEBUG: Posting to API with params:", {
-                                            unitId: currentUnit?.id,
-                                            title: finalTitle,
-                                            description: finalDesc,
+                                          await api.post("lessons", {
+                                            json: {
+                                              unitId: currentUnit?.id,
+                                              title: finalTitle.slice(0, 100),
+                                              description: finalDesc.slice(0, 500),
+                                              learningObjective: null,
+                                              estimatedMinutes: null,
+                                              targetSubunitId: currentUnit?.id,
+                                            },
                                           });
-                                          try {
-                                            const response = await api.post("lessons", {
-                                              json: {
-                                                unitId: currentUnit?.id,
-                                                title: finalTitle.slice(0, 100),
-                                                description: finalDesc.slice(0, 500),
-                                                learningObjective: null,
-                                                estimatedMinutes: null,
-                                                targetSubunitId: currentUnit?.id,
-                                              },
-                                            });
-                                            console.log("DEBUG: API response:", response);
-                                          } catch (apiError) {
-                                            console.error("DEBUG: API error:", apiError);
-                                            throw apiError;
-                                          }
                                           // Refetch units to show new lesson
-                                          console.log("DEBUG: Refetching units...");
-                                          try {
-                                            const refetchResult = await refetchUnits();
-                                            console.log("DEBUG: Refetch result:", refetchResult);
-                                            // Check the actual units query data after refetch
-                                            const unitsData = refetchResult.data || units;
-                                            console.log("DEBUG: Units data after refetch:", unitsData);
-                                            if (unitsData && currentUnit) {
-                                              const foundUnit = unitsData.find((u: any) => u.id === currentUnit.id);
-                                              console.log("DEBUG: Found unit after refetch:", foundUnit);
-                                              if (foundUnit) {
-                                                console.log("DEBUG: Lessons in found unit:", foundUnit.lessons);
-                                                console.log("DEBUG: Last 3 lessons:", foundUnit.lessons?.slice(-3));
-                                                console.log("DEBUG: Last 3 lessons detailed:", JSON.stringify(foundUnit.lessons?.slice(-3), null, 2));
-                                                console.log("DEBUG: New lesson found?:", foundUnit.lessons?.some((l: any) => l.title.includes("ss") || l.title.includes("zz") || l.title.includes("xx")));
-                                              }
-                                            }
-                                            // Force re-render by incrementing tempRefresh
-                                            setTempRefresh((v) => v + 1);
-                                            console.log("DEBUG: After setting tempRefresh, about to log displayUnit");
-                                            // Note: displayUnit won't update yet in this closure, but logging for context
-                                          } catch (refetchError) {
-                                            console.error("DEBUG: Refetch error:", refetchError);
-                                            throw refetchError;
-                                          }
+                                          await refetchUnits();
+                                          setTempRefresh((v) => v + 1);
                                           }
                                           setAddTitle("");
                                           setAddDesc("");
-                                          console.log("DEBUG: Add subunit complete");
                                         } catch (e) {
-                                          console.error("ERROR in add subunit:", e);
                                           alert(`Error adding subunit: ${e instanceof Error ? e.message : String(e)}`);
                                         }
                                       }}
@@ -640,7 +713,7 @@ function LessonPage() {
                               <Button size="lg">Add Content</Button>
                             </DialogTrigger>
                             <DialogContent title="Add Content" description="Create a lesson or quiz for this section">
-                                  <LessonForm defaultUnitId={currentUnit?.id ?? undefined} />
+                                  <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
                             </DialogContent>
                           </Dialog>
                         </div>
@@ -851,7 +924,7 @@ function LessonPage() {
                             <Button variant="default">Add Content</Button>
                           </DialogTrigger>
                           <DialogContent title="Add Content" description="Create a lesson for this section" className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                            <LessonForm defaultUnitId={currentUnit?.id ?? undefined} />
+                            <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
                           </DialogContent>
                         </Dialog>
                         <Dialog>
@@ -912,9 +985,7 @@ function LessonPage() {
                                         });
                                         localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
                                         setTempRefresh((v) => v + 1);
-                                        console.log("DEBUG: Temp lesson saved (handler 2)");
                                       } else if (currentUnit?.id && currentUnit.id < 0) {
-                                        console.log("DEBUG: Handling hardcoded unit (handler 2)");
                                         const nextIndex = (currentUnit.lessons?.length ?? 0) + 1;
                                         const newLesson = {
                                           id: -(Date.now()),
@@ -927,13 +998,9 @@ function LessonPage() {
                                           orderIndex: nextIndex,
                                           status: "DRAFT",
                                         };
-                                        console.log("DEBUG: Created new lesson (handler 2):", newLesson);
                                         const tempKey = currentUnit.id;
-                                        console.log("DEBUG: tempKey=", tempKey);
                                         const raw = localStorage.getItem(`tempPlaceholderUnit:${tempKey}`);
-                                        console.log("DEBUG: Retrieved from localStorage (handler 2):", raw ? "found" : "not found");
                                         const parsed = raw ? JSON.parse(raw) : { ...currentUnit, lessons: [], steps: [] };
-                                        console.log("DEBUG: Parsed data before concat (handler 2):", parsed);
                                         parsed.lessons = (parsed.lessons ?? []).concat(newLesson);
                                         parsed.steps = (parsed.steps ?? []).concat({
                                           id: newLesson.id,
@@ -944,64 +1011,29 @@ function LessonPage() {
                                           dialogueText: null,
                                           payload: null,
                                         });
-                                        console.log("DEBUG: Parsed data after concat (handler 2):", parsed);
                                         localStorage.setItem(`tempPlaceholderUnit:${tempKey}`, JSON.stringify(parsed));
-                                        console.log("DEBUG: Saved to localStorage (handler 2)");
                                         setTempRefresh((v) => v + 1);
                                       } else {
-                                        console.log("DEBUG: Handling server unit (handler 2)");
+                                        // Submit to lessons API for real units
                                         const finalTitle = (addTitle || "").trim() || "New Lesson";
                                         const finalDesc = (addDesc || "").trim() || "Coming soon";
-                                        console.log("DEBUG: Posting to API with params:", {
-                                          unitId: currentUnit?.id,
-                                          title: finalTitle,
-                                          description: finalDesc,
+                                        await api.post("lessons", {
+                                          json: {
+                                            unitId: currentUnit?.id,
+                                            title: finalTitle.slice(0, 100),
+                                            description: finalDesc.slice(0, 500),
+                                            learningObjective: null,
+                                            estimatedMinutes: null,
+                                            targetSubunitId: currentUnit?.id,
+                                          },
                                         });
-                                        try {
-                                          const response = await api.post("lessons", {
-                                            json: {
-                                              unitId: currentUnit?.id,
-                                              title: finalTitle.slice(0, 100),
-                                              description: finalDesc.slice(0, 500),
-                                              learningObjective: null,
-                                              estimatedMinutes: null,
-                                              targetSubunitId: currentUnit?.id,
-                                            },
-                                          });
-                                          console.log("DEBUG: API response:", response);
-                                        } catch (apiError) {
-                                          console.error("DEBUG: API error:", apiError);
-                                          throw apiError;
-                                        }
                                         // Refetch units to show new lesson
-                                        console.log("DEBUG: Refetching units...");
-                                        try {
-                                          const refetchResult = await refetchUnits();
-                                          console.log("DEBUG: Refetch result:", refetchResult);
-                                          // Check the actual units query data after refetch
-                                          const unitsData = refetchResult.data || units;
-                                          console.log("DEBUG: Units data after refetch:", unitsData);
-                                          if (unitsData && currentUnit) {
-                                            const foundUnit = unitsData.find((u: any) => u.id === currentUnit.id);
-                                            console.log("DEBUG: Found unit after refetch:", foundUnit);
-                                            if (foundUnit) {
-                                              console.log("DEBUG: Lessons in found unit:", foundUnit.lessons);
-                                              console.log("DEBUG: Last 3 lessons:", foundUnit.lessons?.slice(-3));
-                                              console.log("DEBUG: New lesson 'aa' found?:", foundUnit.lessons?.some((l: any) => l.title === "aa"));
-                                            }
-                                          }
-                                          // Force re-render by incrementing tempRefresh
-                                          setTempRefresh((v) => v + 1);
-                                        } catch (refetchError) {
-                                          console.error("DEBUG: Refetch error:", refetchError);
-                                          throw refetchError;
-                                        }
+                                        await refetchUnits();
+                                        setTempRefresh((v) => v + 1);
                                       }
                                       setAddTitle("");
                                       setAddDesc("");
-                                      console.log("DEBUG: Add subunit complete (handler 2)");
                                     } catch (e) {
-                                      console.error("ERROR in add subunit (handler 2):", e);
                                       alert(`Error adding subunit: ${e instanceof Error ? e.message : String(e)}`);
                                     }
                                   }}
@@ -1039,7 +1071,7 @@ function LessonPage() {
                             <Button size="lg">Add Content</Button>
                           </DialogTrigger>
                           <DialogContent title="Add Content" description="Create a lesson for this section">
-                            <LessonForm defaultUnitId={currentUnit?.id ?? undefined} />
+                            <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
                           </DialogContent>
                         </Dialog>
                       </div>
@@ -1130,6 +1162,7 @@ function LessonPage() {
                     <AdminDeleteStepButton
                       lessonId={numericLessonId}
                       stepId={currentStep.id}
+                      step={currentStep}
                       onDeleted={() => {
                         setCurrentIndex((idx) => Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))));
                       }}
@@ -1330,10 +1363,12 @@ function readStringArrayField(payload: LessonStepPayload["payload"], key: string
 function AdminDeleteStepButton({
   lessonId,
   stepId,
+  step,
   onDeleted,
 }: {
   lessonId: number;
   stepId: number;
+  step?: LessonStepPayload;
   onDeleted?: () => void;
 }) {
   const deleteStep = useDeleteStep();
@@ -1343,10 +1378,74 @@ function AdminDeleteStepButton({
     if (!confirm("Delete this step? This cannot be undone.")) return;
     setBusy(true);
     try {
+      // For appended unit lessons (negative IDs), delete from localStorage instead of API
+      if (lessonId < 0) {
+        if (!step) throw new Error("Step data required for appended unit deletion");
+        
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (!key.startsWith("tempUnit:")) continue;
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          const steps = Array.isArray(parsed.steps) ? parsed.steps : [];
+          const before = steps.length;
+          
+          // For appended units, delete by matching (lessonId OR targetSubunitId) AND orderIndex
+          // A step belongs to current lesson if:
+          // 1. step.id === lessonId (original lesson, not yet approved), OR
+          // 2. step.targetSubunitId === lessonId (copied to target subunit after approval)
+          parsed.steps = steps.filter((s: any) => {
+            const belongsToLesson = (s.id === lessonId || s.targetSubunitId === lessonId);
+            const sameOrderIndex = s.orderIndex === step.orderIndex;
+            return !(belongsToLesson && sameOrderIndex);
+          });
+          
+          if (parsed.steps.length !== before) {
+            // Re-index remaining steps for this lesson to ensure orderIndex is sequential
+            const lessonSteps = parsed.steps.filter((s: any) => 
+              s.id === lessonId || s.targetSubunitId === lessonId
+            );
+            const otherSteps = parsed.steps.filter((s: any) => 
+              s.id !== lessonId && s.targetSubunitId !== lessonId
+            );
+            
+            // Re-order the steps for this lesson
+            lessonSteps.forEach((s: any, idx: number) => {
+              s.orderIndex = idx;
+            });
+            
+            // Combine back
+            parsed.steps = [...lessonSteps, ...otherSteps];
+            
+            localStorage.setItem(key, JSON.stringify(parsed));
+            
+            // Dispatch storage event for listeners
+            window.dispatchEvent(new StorageEvent('storage', {
+              key: key,
+              newValue: JSON.stringify(parsed),
+              oldValue: null,
+              storageArea: localStorage,
+            }));
+            
+            // Dispatch custom event to trigger UI refresh
+            window.dispatchEvent(new CustomEvent('tempUnit-step-deleted', { 
+              detail: { lessonId, stepDeletedIndex: step.orderIndex } 
+            }));
+            
+            onDeleted?.();
+            setBusy(false);
+            return;
+          }
+        }
+        throw new Error("Step not found in storage");
+      }
+      
+      // For server lessons, use the API with the actual step ID
       await deleteStep.mutateAsync({ lessonId, stepId });
       onDeleted?.();
     } catch (err) {
-      // no-op: errors surface via network layer
+      alert(`Error deleting step: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }

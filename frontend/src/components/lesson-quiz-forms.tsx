@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useUnits } from "@/features/lessons/useLessonsApi";
 
-export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
+export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: number; setTempRefresh?: (fn: (v: number) => number) => void } = {}) {
   const { data: units } = useUnits();
 
   const [tempUnits, setTempUnits] = useState<any[]>([]);
@@ -69,15 +69,19 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
               lessons.push(...placeholdersByParentId[unitId]);
             }
             
-            if (lessons.length === 0) continue;
+            // Skip only if original lessons exist but all are placeholders (stale unit).
+            // Include newly-created empty units (rawLessons.length === 0)
+            if (rawLessons.length > 0 && meaningfulLessons.length === 0) continue;
 
+            const tempKey = key.replace(/^tempUnit:/, "");
             items.push({
               id: unitId,
               title: parsed.title ?? "New Section",
-              slug: parsed.slug ?? `temp-${key.replace(/^tempUnit:/, "")}`,
+              slug: parsed.slug ?? `temp-${tempKey}`,
               description: parsed.description ?? null,
               orderIndex: parsed.orderIndex ?? 0,
               lessons: lessons,
+              tempKey: tempKey,
             });
           } catch (e) {
             // ignore malformed
@@ -290,6 +294,152 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
         return;
       }
 
+      // HANDLE APPENDED UNITS (stored in localStorage with negative IDs)
+      if (unitId < 0) {
+        // For appended units, we must have a target subunit selected
+        if (!subunitId) {
+          setError("Please select a specific lesson (subunit) to add content to.");
+          setLoading(false);
+          return;
+        }
+        try {
+          // Get current user info to include in submission
+          const me = await getMe();
+          const submittedByUser = me?.displayName ?? me?.email ?? "Unknown";
+          
+          // Get the selected subunit's title
+          const selectedUnit = allUnits.find((u: any) => u.id === unitId);
+          let subunitTitle: string | null = null;
+          if (selectedUnit && Array.isArray(selectedUnit.lessons) && subunitId) {
+            const selectedSubunit = selectedUnit.lessons.find((l: any) => l.id === subunitId);
+            if (selectedSubunit) {
+              subunitTitle = selectedSubunit.title;
+            }
+          }
+          
+          // Create a lesson object with a negative ID
+          const lessonId = -(Date.now());
+          const newLesson = {
+            id: lessonId,
+            unitId: unitId,
+            title: titleVal,
+            slug: `lesson-${lessonId}`,
+            description: descriptionVal,
+            learningObjective: null,
+            estimatedMinutes: null,
+            orderIndex: 0,
+            status: "DRAFT",
+            submittedBy: submittedByUser,
+            subunitId: subunitId,
+            subunitTitle: subunitTitle,
+          };
+
+          // Build steps array (similar to backend step creation)
+          const stepsToStore: any[] = [];
+
+          if (format === "definition") {
+            // For definitions, store vocab inline in the TEACH step
+            stepsToStore.push({
+              id: lessonId,
+              orderIndex: 0,
+              stepType: "TEACH",
+              vocabItemId: null,
+              vocab: { 
+                term: term.trim(), 
+                definition: defText.trim(), 
+                exampleSentence: example.trim() || null,
+                partOfSpeech: null 
+              },
+              question: null,
+              dialogueText: null,
+              payload: null,
+            });
+          } else if (format === "dialogue") {
+            stepsToStore.push({
+              id: lessonId,
+              orderIndex: 0,
+              stepType: "DIALOGUE",
+              vocabItemId: null,
+              vocab: null,
+              question: null,
+              dialogueText: dialogueText.trim(),
+              payload: null,
+            });
+          } else if (format === "question") {
+            stepsToStore.push({
+              id: lessonId,
+              orderIndex: 0,
+              stepType: "QUESTION",
+              vocabItemId: null,
+              vocab: null,
+              question: {
+                questionType: questionType,
+                prompt: qPrompt.trim(),
+                choices: qChoices,
+                acceptedAnswers: qAcceptedAnswers,
+                allowMultiple: qAllowMultiple,
+              },
+              dialogueText: null,
+              payload: null,
+            });
+          }
+
+          // Retrieve the tempUnit entry from localStorage and add lesson/steps
+          // Find the unit object to get its tempKey (appended units have separate tempKey)
+          const unit = allUnits?.find((u: any) => u.id === unitId);
+          if (!unit) {
+            setError("Could not find the selected unit. Please try again.");
+            setLoading(false);
+            return;
+          }
+
+          // Appended units store with key tempUnit:<tempKey>, not tempUnit:<unitId>
+          const tempKey = unit.tempKey || String(unitId);
+          const raw = localStorage.getItem(`tempUnit:${tempKey}`);
+          if (!raw) {
+            setError("Could not find appended unit in storage. Please try again.");
+            setLoading(false);
+            return;
+          }
+
+          const tempUnit = JSON.parse(raw);
+          tempUnit.lessons = tempUnit.lessons || [];
+          tempUnit.steps = tempUnit.steps || [];
+          tempUnit.lessons.push(newLesson);
+          tempUnit.steps.push(...stepsToStore);
+
+          localStorage.setItem(`tempUnit:${tempKey}`, JSON.stringify(tempUnit));
+
+          // Update UI and show success
+          setSuccess("Lesson submitted — it will appear after review.");
+          setError(null);
+          setTerm("");
+          setDefText("");
+          setExample("");
+          setDialogueText("");
+          setQPrompt("");
+          setQuestionType("SHORT_ANSWER");
+          setQChoices([{ id: Date.now(), text: "", isCorrect: false }]);
+          setQAcceptedAnswers("");
+          setQAllowMultiple(false);
+
+          // Trigger refresh in parent component (lesson.$lessonId.tsx)
+          if (setTempRefresh) {
+            setTempRefresh((v) => v + 1);
+          }
+
+          setLoading(false);
+          return;
+        } catch (err: any) {
+          console.error("[LessonForm] appended unit submission error:", err);
+          setSuccess(null);
+          setError("Failed to submit content to appended unit. Try again.");
+          setLoading(false);
+          return;
+        }
+      }
+
+      // HANDLE SERVER UNITS (positive IDs, stored on backend)
       // If this is a simple definition (vocab) submission, create the vocab first
       // then continue to create/attach a TEACH step referencing the vocab item so
       // the lesson flows through the same review pipeline as dialogue/question.
@@ -380,29 +530,21 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       }
 
       if (subunitId) {
-        // If adding to an existing lesson, fetch its status first. If the
-        // lesson cannot be fetched (404) fall back to creating a new lesson
-        // so the submission still succeeds instead of surfacing a 404.
-        let existingLesson: any = null;
-        try {
-          existingLesson = await api.get(`lessons/${subunitId}`).json<any>();
-        } catch (fetchErr) {
-          existingLesson = null;
+        // Create a new lesson wrapper for review with targetSubunitId set
+        const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, targetSubunitId: subunitId } }).json<any>();
+        const newLessonId = created.id;
+        console.log(`[Submission] Created wrapper lesson ${newLessonId} for subunit ${subunitId}`);
+        // create step(s) on the new lesson
+        for (const st of stepsPayload) {
+          const apiStep = mapStepForApi(st);
+          await api.post(`lessons/${newLessonId}/steps`, { json: apiStep }).json();
         }
-
-        if (!existingLesson || existingLesson.status === "APPROVED") {
-          // Approved lessons cannot be edited by contributors — create a new lesson draft
-          const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, targetSubunitId: subunitId } }).json<any>();
-          const newLessonId = created.id;
-          // create step(s) on the new lesson
-          for (const st of stepsPayload) {
-            const apiStep = mapStepForApi(st);
-            await api.post(`lessons/${newLessonId}/steps`, { json: apiStep }).json();
-          }
-          // submit the new lesson for review
-          await api.patch(`lessons/${newLessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
-          // add the created lesson to the pending cache so Review shows it immediately
-          try {
+        // submit the new lesson for review
+        await api.patch(`lessons/${newLessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
+        console.log(`[Submission] Submitted wrapper lesson for review`);
+        
+        // add the created lesson to the pending cache so Review shows it immediately
+        try {
             const selectedSubunitTitle = subunitId
               ? (allUnits?.find((u: any) => u.id === unitId)?.lessons ?? []).find((l: any) => l.id === subunitId)?.title
               : undefined;
@@ -437,48 +579,6 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
           } catch (e) {
             // ignore cache failures
           }
-        } else {
-          // add the single step to the existing lesson (server expects a single StepWriteRequest)
-          const stepToCreate = mapStepForApi(stepsPayload[0]);
-          await api.post(`lessons/${subunitId}/steps`, { json: stepToCreate }).json();
-          // submit the parent lesson for review so the new step is reviewed
-          await api.patch(`lessons/${subunitId}`, { json: { status: "PENDING_REVIEW" } }).json();
-          // ensure the existing lesson appears in pending cache
-          try {
-            const selectedSubunitTitle = subunitId
-              ? (allUnits?.find((u: any) => u.id === unitId)?.lessons ?? []).find((l: any) => l.id === subunitId)?.title
-              : undefined;
-            const summary = {
-              id: existingLesson.id,
-              unitId: existingLesson.unitId ?? unitId,
-              title: existingLesson.title ?? titleVal,
-              slug: existingLesson.slug ?? `lesson-${existingLesson.id}`,
-              description: existingLesson.description ?? descriptionVal,
-              learningObjective: existingLesson.learningObjective ?? null,
-              estimatedMinutes: existingLesson.estimatedMinutes ?? null,
-              orderIndex: existingLesson.orderIndex ?? 0,
-              status: "PENDING_REVIEW",
-              subunitTitle: selectedSubunitTitle,
-              subunitId: subunitId ?? null,
-            };
-            queryClient.setQueryData(["lessons", "pending"], (old: any) => {
-              if (!old) return [summary];
-              // avoid duplicates
-              return [summary, ...old.filter((it: any) => it.id !== summary.id)];
-            });
-            try {
-              const key = "pendingLessonMeta";
-              const raw = localStorage.getItem(key);
-              const map = raw ? JSON.parse(raw) : {};
-              map[existingLesson.id] = { subunitTitle: selectedSubunitTitle, subunitId: subunitId ?? null, firstStepType: stepsPayload && stepsPayload.length > 0 ? stepsPayload[0].stepType : null, firstQuestionType: stepsPayload && stepsPayload.length > 0 ? (stepsPayload[0].questionType ?? null) : null, firstStepPrompt: (stepsPayload && stepsPayload.length > 0 && stepsPayload[0].question && stepsPayload[0].question.prompt) ? stepsPayload[0].question.prompt : null };
-              localStorage.setItem(key, JSON.stringify(map));
-            } catch (e) {
-              // ignore storage failures
-            }
-          } catch (e) {
-            // ignore
-          }
-        }
       } else {
         // create a new lesson draft and attach steps
         const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, targetSubunitId: subunitId } }).json<any>();
@@ -699,6 +799,8 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                       // avoid duplicate lessons
                       if (seenIds.has(l.id)) return false;
                       seenIds.add(l.id);
+                      // Hide wrapper lessons (those with targetSubunitId set) - they're only for review
+                      if (l.targetSubunitId) return false;
                       // if this is NOT a temp unit, enforce APPROVED status; otherwise allow drafts
                       if (!isTempUnit && typeof l.status === "string" && l.status !== "APPROVED") return false;
                       return true;

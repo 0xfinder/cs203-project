@@ -12,9 +12,11 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { getMe } from "@/lib/me";
 import { usePendingLessons, useUnits, useApproveLesson, useRejectLesson } from "@/features/lessons/useLessonsApi";
+import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
 function ReviewPage() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
   const [activeTab, setActiveTab] = useState("content");
   const [contentSubTab, setContentSubTab] = useState("term");
@@ -46,8 +48,13 @@ function ReviewPage() {
   const termItems = newContents;
   const quizItems: any[] = [];
   const { data: pendingLessons } = usePendingLessons();
-  const lessonItems: any[] = Array.isArray(pendingLessons) ? pendingLessons : [];
+  const [appendedUnitLessons, setAppendedUnitLessons] = useState<any[]>([]);
+  const lessonItems: any[] = [
+    ...(Array.isArray(pendingLessons) ? pendingLessons : []),
+    ...appendedUnitLessons,
+  ];
   const { data: units } = useUnits();
+  const [appendedUnitsCache, setAppendedUnitsCache] = useState<any[]>([]);
   const [firstStepMap, setFirstStepMap] = useState<Record<number, { stepType?: string; questionType?: string }>>({});
   const [pendingMetaMap, setPendingMetaMap] = useState<Record<number, any> | null>(null);
   const [debugInfo, setDebugInfo] = useState<{ serverPendingCount?: number; serverAllCount?: number } | null>(null);
@@ -56,11 +63,37 @@ function ReviewPage() {
   const openLessonModal = async (id: number) => {
     setModalLoading(true);
     try {
-      // Fetch lesson detail (includes step payloads with answers for preview)
-      const detail = await api.get(`lessons/${id}`).json<any>();
-      // Use the detail's steps for preview so we can show correct answers
-      const steps = detail?.steps ?? [];
-      setModalLesson({ detail, steps });
+      // Check if this is an appended unit lesson (negative ID)
+      if (id < 0) {
+        // Read from localStorage
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (!key.startsWith("tempUnit:")) continue;
+          try {
+            const raw = localStorage.getItem(key);
+            if (!raw) continue;
+            const parsed = JSON.parse(raw);
+            const lessons = Array.isArray(parsed.lessons) ? parsed.lessons : [];
+            const lesson = lessons.find((l: any) => l.id === id);
+            if (lesson) {
+              const steps = Array.isArray(parsed.steps)
+                ? parsed.steps.filter((s: any) => s.id === id)
+                : [];
+              setModalLesson({ detail: lesson, steps });
+              return;
+            }
+          } catch (e) {
+            // ignore
+          }
+        }
+        setModalLesson({ error: "Lesson not found in storage" });
+      } else {
+        // Fetch lesson detail from backend (includes step payloads with answers for preview)
+        const detail = await api.get(`lessons/${id}`).json<any>();
+        // Use the detail's steps for preview so we can show correct answers
+        const steps = detail?.steps ?? [];
+        setModalLesson({ detail, steps });
+      }
     } catch (e) {
       setModalLesson({ error: String(e) });
     } finally {
@@ -70,6 +103,22 @@ function ReviewPage() {
   const closeLessonModal = () => setModalLesson(null);
   const totalPages = response?.totalPages || 0;
   const totalElements = response?.totalElements || 0;
+
+  // Helper to identify placeholder lessons (empty subunit containers)
+  const isPlaceholderLesson = (lesson: any) => {
+    if (!lesson) return false;
+    const title = String(lesson.title ?? "");
+    const slug = String(lesson.slug ?? "");
+    const description = String(lesson.description ?? "");
+    return (
+      title.startsWith("Placeholder Lesson") ||
+      slug.startsWith("placeholder-") ||
+      title === "Coming soon" ||
+      description === "Coming soon" ||
+      !!lesson.__placeholder ||
+      title.startsWith("New Lesson")
+    );
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -134,7 +183,139 @@ function ReviewPage() {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
+  // Load appended unit lessons from localStorage (negative IDs)
+  // These are client-side submissions to appended units that haven't been synced to server
+  useEffect(() => {
+    try {
+      const collected: any[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i) || "";
+        if (!key.startsWith("tempUnit:")) continue;
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          const lessons = Array.isArray(parsed.lessons) ? parsed.lessons : [];
+          // Filter for DRAFT status (newly submitted lessons waiting for review)
+          // Exclude placeholder lessons (empty subunit containers)
+          lessons.forEach((lesson: any) => {
+            if (lesson.status === "DRAFT" && lesson.id && lesson.id < 0 && !isPlaceholderLesson(lesson)) {
+              collected.push({
+                id: lesson.id,
+                unitId: lesson.unitId,
+                title: lesson.title,
+                slug: lesson.slug,
+                description: lesson.description,
+                learningObjective: lesson.learningObjective,
+                estimatedMinutes: lesson.estimatedMinutes,
+                orderIndex: lesson.orderIndex,
+                status: "PENDING_REVIEW",
+                submittedBy: lesson.submittedBy,
+                subunitId: lesson.subunitId,
+                subunitTitle: lesson.subunitTitle,
+              });
+            }
+          });
+        } catch (e) {
+          // ignore malformed entries
+        }
+      }
+      setAppendedUnitLessons(collected);
+    } catch (e) {
+      setAppendedUnitLessons([]);
+    }
+
+    // Listen for storage changes to refresh appended unit lessons
+    const onStorage = (ev: StorageEvent) => {
+      if (!ev.key) return;
+      if (ev.key.startsWith("tempUnit:")) {
+        // Re-read all appended unit lessons
+        try {
+          const collected: any[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i) || "";
+            if (!k.startsWith("tempUnit:")) continue;
+            try {
+              const r = localStorage.getItem(k);
+              if (!r) continue;
+              const p = JSON.parse(r);
+              const l = Array.isArray(p.lessons) ? p.lessons : [];
+              l.forEach((lesson: any) => {
+                if (lesson.status === "DRAFT" && lesson.id && lesson.id < 0 && !isPlaceholderLesson(lesson)) {
+                  collected.push({
+                    id: lesson.id,
+                    unitId: lesson.unitId,
+                    title: lesson.title,
+                    slug: lesson.slug,
+                    description: lesson.description,
+                    learningObjective: lesson.learningObjective,
+                    estimatedMinutes: lesson.estimatedMinutes,
+                    orderIndex: lesson.orderIndex,
+                    status: "PENDING_REVIEW",
+                    submittedBy: lesson.submittedBy,
+                    subunitId: lesson.subunitId,
+                    subunitTitle: lesson.subunitTitle,
+                  });
+                }
+              });
+            } catch (ignore) {}
+          }
+          setAppendedUnitLessons(collected);
+        } catch (ignore) {}
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  // Load appended units data from localStorage for unit lookups
+  useEffect(() => {
+    try {
+      const collected: any[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i) || "";
+        if (!key.startsWith("tempUnit:")) continue;
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          if (parsed.id && parsed.id < 0) {
+            collected.push(parsed);
+          }
+        } catch (e) {
+          // ignore malformed entries
+        }
+      }
+      setAppendedUnitsCache(collected);
+    } catch (e) {
+      setAppendedUnitsCache([]);
+    }
+
+    const onStorage = (ev: StorageEvent) => {
+      if (!ev.key?.startsWith("tempUnit:")) return;
+      try {
+        const collected: any[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i) || "";
+          if (!k.startsWith("tempUnit:")) continue;
+          try {
+            const r = localStorage.getItem(k);
+            if (!r) continue;
+            const p = JSON.parse(r);
+            if (p.id && p.id < 0) {
+              collected.push(p);
+            }
+          } catch (ignore) {}
+        }
+        setAppendedUnitsCache(collected);
+      } catch (ignore) {}
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
   // For pending lessons that don't include firstStepType/firstQuestionType, fetch their first step so we can show Type on the card
+  // For appended unit lessons (negative IDs), read steps from localStorage instead
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -142,12 +323,32 @@ function ReviewPage() {
         const toFetch = lessonItems.filter((l: any) => !(l.firstStepType || l.firstQuestionType) && !firstStepMap[l.id]);
         for (const l of toFetch) {
           try {
-            const resp = await api.get(`lessons/${l.id}/content`).json<any>();
-            const steps = resp?.steps ?? resp ?? [];
-            if (!mounted) return;
-            if (Array.isArray(steps) && steps.length > 0) {
-              const first = steps[0];
-              setFirstStepMap((prev) => ({ ...prev, [l.id]: { stepType: first.stepType, questionType: first?.question?.questionType ?? null, prompt: first?.question?.prompt ?? null } }));
+            // Check if this is an appended unit lesson (negative ID)
+            if (l.id < 0) {
+              // Read from localStorage
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i) || "";
+                if (!key.startsWith("tempUnit:")) continue;
+                const raw = localStorage.getItem(key);
+                if (!raw) continue;
+                const parsed = JSON.parse(raw);
+                const steps = Array.isArray(parsed.steps) ? parsed.steps.filter((s: any) => s.id === l.id) : [];
+                if (steps.length > 0) {
+                  const first = steps[0];
+                  if (!mounted) return;
+                  setFirstStepMap((prev) => ({ ...prev, [l.id]: { stepType: first.stepType, questionType: first?.question?.questionType ?? null, prompt: first?.question?.prompt ?? null } }));
+                  break;
+                }
+              }
+            } else {
+              // Fetch from backend API
+              const resp = await api.get(`lessons/${l.id}/content`).json<any>();
+              const steps = resp?.steps ?? resp ?? [];
+              if (!mounted) return;
+              if (Array.isArray(steps) && steps.length > 0) {
+                const first = steps[0];
+                setFirstStepMap((prev) => ({ ...prev, [l.id]: { stepType: first.stepType, questionType: first?.question?.questionType ?? null, prompt: first?.question?.prompt ?? null } }));
+              }
             }
           } catch (e) {
             // ignore per-lesson fetch failures
@@ -183,8 +384,182 @@ function ReviewPage() {
   };
 
   const handleApproveLesson = async (id: number) => {
+    // For appended unit lessons (negative IDs), append steps to the target subunit
+    if (id < 0) {
+      try {
+        // Find the lesson being approved from appendedUnitLessons
+        const lesson = appendedUnitLessons.find((l: any) => l.id === id);
+        if (!lesson) {
+          console.error("Could not find lesson to approve:", id);
+          alert("Error: Could not find lesson to approve");
+          setExpandedId(null);
+          return;
+        }
+
+        console.log("Approving lesson:", lesson);
+
+        // The subunitId tells us which subunit to add steps to
+        const targetSubunitId = lesson.subunitId;
+        if (!targetSubunitId) {
+          console.error("Lesson has no subunitId:", id, "lesson:", lesson);
+          alert(`Error: Lesson has no subunit selected. Lesson: ${JSON.stringify(lesson)}`);
+          setExpandedId(null);
+          return;
+        }
+
+        console.log("Target subunit ID:", targetSubunitId);
+
+        // Get the steps for this lesson from localStorage
+        let stepsToApprove: any[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (!key.startsWith("tempUnit:")) continue;
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          const steps = Array.isArray(parsed.steps) ? parsed.steps : [];
+          stepsToApprove = steps.filter((s: any) => s.id === id);
+          if (stepsToApprove.length > 0) {
+            console.log(`Found ${stepsToApprove.length} steps in ${key}`, stepsToApprove);
+            break;
+          }
+        }
+
+        if (stepsToApprove.length === 0) {
+          console.error("No steps found for lesson:", id);
+          alert("Error: No steps found for this lesson");
+          setExpandedId(null);
+          return;
+        }
+
+        console.log("Adding steps to subunit", targetSubunitId);
+
+        // For appended unit lessons, add steps directly to the target subunit in localStorage
+        // Find the tempUnit entry containing the target subunit
+        let targetSubunitFound = false;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (!key.startsWith("tempUnit:")) continue;
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          const lessons = Array.isArray(parsed.lessons) ? parsed.lessons : [];
+          
+          // Find if target subunit is in this unit
+          const targetSubunit = lessons.find((l: any) => l.id === targetSubunitId);
+          if (targetSubunit) {
+            console.log("Found target subunit in storage:", targetSubunit);
+            targetSubunitFound = true;
+            
+            // Add steps directly to the target subunit's steps array in this unit
+            parsed.steps = Array.isArray(parsed.steps) ? parsed.steps : [];
+            
+            // Add all steps from the lesson being approved, but associate them with the target subunit
+            for (const step of stepsToApprove) {
+              const newStep = {
+                ...step,
+                // Keep original lesson ID for deletion context
+                // Add targetSubunitId to track where step was copied to
+                targetSubunitId: targetSubunitId,
+              };
+              parsed.steps.push(newStep);
+              console.log("Added step to target subunit:", newStep);
+            }
+            
+            localStorage.setItem(key, JSON.stringify(parsed));
+            // Dispatch custom event to notify unit component that steps changed
+            window.dispatchEvent(new CustomEvent('tempUnit-steps-added', { detail: { unitKey: key, targetSubunitId, stepsCount: stepsToApprove.length } }));
+            break;
+          }
+        }
+        
+        if (!targetSubunitFound) {
+          console.error("Target subunit not found in localStorage:", targetSubunitId);
+          alert("Error: Could not find target subunit in storage. Steps not added.");
+          throw new Error("Target subunit not found");
+        }
+
+        // Remove the lesson from localStorage
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (!key.startsWith("tempUnit:")) continue;
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          const lessons = Array.isArray(parsed.lessons) ? parsed.lessons : [];
+          const lessonIndex = lessons.findIndex((l: any) => l.id === id);
+          if (lessonIndex >= 0) {
+            // Remove lesson and associated steps
+            parsed.lessons = lessons.filter((l: any) => l.id !== id);
+            parsed.steps = (Array.isArray(parsed.steps) ? parsed.steps : []).filter((s: any) => s.id !== id);
+            localStorage.setItem(key, JSON.stringify(parsed));
+            console.log("Removed lesson from localStorage:", key);
+            // Trigger storage event so listeners update
+            window.dispatchEvent(new StorageEvent('storage', {
+              key: key,
+              newValue: JSON.stringify(parsed),
+              oldValue: null,
+              storageArea: localStorage,
+            }));
+            break;
+          }
+        }
+
+        // Update UI
+        setAppendedUnitLessons((prev) => prev.filter((l: any) => l.id !== id));
+        window.dispatchEvent(new CustomEvent("appended-lessons-changed", { detail: { lessonId: id, action: "approved" } }));
+        
+        // Dispatch a generic storage event to trigger re-reads everywhere
+        window.dispatchEvent(new StorageEvent('storage', {
+          key: null,
+          newValue: null,
+          oldValue: null,
+          storageArea: localStorage,
+        }));
+        
+        alert("Lesson approved and steps added to subunit!");
+      } catch (e) {
+        console.error("Error approving appended unit lesson:", e);
+      }
+      setReviewData((prev) => {
+        const newData = { ...prev };
+        delete newData[id];
+        return newData;
+      });
+      setExpandedId(null);
+      return;
+    }
+
+    // For server lessons, use backend mutation
     const comment = reviewData[id]?.comment;
-    approveLessonMutation.mutate({ id, reviewComment: comment });
+    approveLessonMutation.mutate(
+      { id, reviewComment: comment },
+      {
+        onSuccess: () => {
+          // Invalidate units cache so wrappers with targetSubunitId are filtered out
+          queryClient.invalidateQueries({ queryKey: ['units'] });
+          // Dispatch event for other listeners
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('lesson-approved', { detail: { lessonId: id } }));
+          }
+        },
+        onError: (error: any) => {
+          console.error("Error approving lesson:", error);
+          let errorMsg = "Failed to approve lesson";
+          try {
+            if (error?.response?.body) {
+              const body = typeof error.response.body === 'object' ? error.response.body : JSON.parse(String(error.response.body));
+              errorMsg = body.message || body.detail || String(error.response.body);
+            } else if (error?.message) {
+              errorMsg = error.message;
+            }
+          } catch (e) {
+            // ignore parse error
+          }
+          alert("Error: " + errorMsg);
+        },
+      }
+    );
     setReviewData((prev) => {
       const newData = { ...prev };
       delete newData[id];
@@ -194,8 +569,60 @@ function ReviewPage() {
   };
 
   const handleRejectLesson = async (id: number) => {
+    // For appended unit lessons (negative IDs), delete from localStorage
+    if (id < 0) {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (!key.startsWith("tempUnit:")) continue;
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          const lessons = Array.isArray(parsed.lessons) ? parsed.lessons : [];
+          if (lessons.some((l: any) => l.id === id)) {
+            parsed.lessons = lessons.filter((l: any) => l.id !== id);
+            parsed.steps = (Array.isArray(parsed.steps) ? parsed.steps : []).filter((s: any) => s.id !== id);
+            localStorage.setItem(key, JSON.stringify(parsed));
+            setAppendedUnitLessons((prev) => prev.filter((l: any) => l.id !== id));
+            // Dispatch custom event to notify lesson page of deletion
+            window.dispatchEvent(new CustomEvent("appended-lessons-changed", { detail: { lessonId: id, action: "deleted" } }));
+            break;
+          }
+        }
+      } catch (e) {
+        console.error("Error rejecting appended unit lesson:", e);
+      }
+      setReviewData((prev) => {
+        const newData = { ...prev };
+        delete newData[id];
+        return newData;
+      });
+      setExpandedId(null);
+      return;
+    }
+
+    // For server lessons, use backend mutation
     const comment = reviewData[id]?.comment || "No reason provided";
-    rejectLessonMutation.mutate({ id, reviewComment: comment });
+    rejectLessonMutation.mutate(
+      { id, reviewComment: comment },
+      {
+        onError: (error: any) => {
+          console.error("Error rejecting lesson:", error);
+          let errorMsg = "Failed to reject lesson";
+          try {
+            if (error?.response?.body) {
+              const body = typeof error.response.body === 'object' ? error.response.body : JSON.parse(String(error.response.body));
+              errorMsg = body.message || body.detail || String(error.response.body);
+            } else if (error?.message) {
+              errorMsg = error.message;
+            }
+          } catch (e) {
+            // ignore parse error
+          }
+          alert("Error: " + errorMsg);
+        },
+      }
+    );
     setReviewData((prev) => {
       const newData = { ...prev };
       delete newData[id];
@@ -322,7 +749,11 @@ function ReviewPage() {
                 ) : (
                   <div className="grid gap-4">
                     {lessonItems.map((lesson: any) => {
-                      const unit = units?.find((u: any) => u.id === lesson.unitId);
+                      // Look up unit from server units or appended units cache
+                      let unit = units?.find((u: any) => u.id === lesson.unitId);
+                      if (!unit && lesson.unitId < 0) {
+                        unit = appendedUnitsCache.find((u: any) => u.id === lesson.unitId);
+                      }
                       // prefer server-provided metadata, fall back to client-cached firstStepMap
                       const firstMeta = {
                         stepType: lesson.firstStepType ?? firstStepMap[lesson.id]?.stepType,
