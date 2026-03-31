@@ -146,6 +146,7 @@ function LessonPage() {
 
       // Case 2: negative numeric ID — search all tempUnit:* entries for a lesson with this ID
       if (numericLessonId < 0 && typeof window !== "undefined") {
+        console.log("[tempData lookup] Searching for lesson with ID:", numericLessonId);
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i) || "";
           if (!key.startsWith("tempUnit:")) continue;
@@ -157,18 +158,30 @@ function LessonPage() {
             const lessonsArray = Array.isArray(parsed.lessons) ? parsed.lessons : [];
             const foundLesson = lessonsArray.find((l: any) => l?.id === numericLessonId);
             if (foundLesson) {
+              console.log("[tempData lookup] Found lesson:", foundLesson.title, "in", key);
               // Steps can be stored either:
               // 1. On the lesson object itself (foundLesson.steps)
               // 2. In the unit's steps array with step.id matching the lesson ID
               // 3. In the unit's steps array with step.targetSubunitId matching the lesson ID (after approval)
               let stepsArray = Array.isArray(foundLesson.steps) ? foundLesson.steps : [];
+              console.log("[tempData lookup] Steps on lesson object:", stepsArray.length);
               
               // If no steps on lesson, look in unit's steps array by matching lesson ID or targetSubunitId
               if (stepsArray.length === 0) {
                 const unitSteps = Array.isArray(parsed.steps) ? parsed.steps : [];
-                stepsArray = unitSteps.filter((s: any) => s?.id === numericLessonId || s?.targetSubunitId === numericLessonId);
+                console.log("[tempData lookup] Unit has", unitSteps.length, "total steps with:", unitSteps.map((s: any) => ({ id: s?.id, targetSubunitId: s?.targetSubunitId, orderIndex: s?.orderIndex })));
+                console.log("[tempData lookup] Looking for steps with id===", numericLessonId, 'or targetSubunitId===', numericLessonId);
+                stepsArray = unitSteps.filter((s: any) => {
+                  const matchesId = s?.id === numericLessonId;
+                  const matchesTargetSubunitId = s?.targetSubunitId === numericLessonId;
+                  const matches = matchesId || matchesTargetSubunitId;
+                  console.log("[tempData lookup]   Step id:", s?.id, "targetSubunitId:", s?.targetSubunitId, "matchesId:", matchesId, "matchesTargetSubunitId:", matchesTargetSubunitId, "→", matches ? "MATCH" : "no match");
+                  return matches;
+                });
+                console.log("[tempData lookup] Found", stepsArray.length, "matching steps");
               }
               
+              console.log("[tempData lookup] Returning tempData with", stepsArray.length, "steps");
               return {
                 lesson: foundLesson,
                 steps: stepsArray,
@@ -246,9 +259,12 @@ function LessonPage() {
       const filtered = lessons.filter((l: any) => {
         // Show if it's a placeholder subunit OR if it's approved
         if (isPlaceholder(l)) return true;
+        // Hide lessons that are wrappers for adding to specific subunits (targetSubunitId set)
+        if (l.targetSubunitId) return false;
         if (l.status === "APPROVED") return true;
         // Hide anything else (DRAFT, PENDING_REVIEW, REJECTED)
-        return false;
+        if (l.status === "DRAFT" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") return false;
+        return true;
       });
       return filtered.length > 0 ? ({ ...currentUnit, lessons: filtered } as typeof currentUnit) : ({ ...currentUnit, lessons: [] } as typeof currentUnit);
     }
@@ -271,6 +287,8 @@ function LessonPage() {
     const filtered = lessons.filter((l: any) => {
       // Show placeholder subunits
       if (isPlaceholder(l)) return true;
+      // Hide lessons that are wrappers for adding to specific subunits (targetSubunitId set)
+      if (l.targetSubunitId) return false;
       // Show approved/published lessons, hide DRAFT/PENDING_REVIEW/REJECTED
       if (l.status === "DRAFT" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") return false;
       // Show everything else (published, approved, etc.)
@@ -1165,6 +1183,7 @@ function LessonPage() {
                       step={currentStep}
                       onDeleted={() => {
                         setCurrentIndex((idx) => Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))));
+                        setTempRefresh((v) => v + 1);
                       }}
                     />
                   </div>

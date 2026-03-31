@@ -328,7 +328,7 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
             learningObjective: null,
             estimatedMinutes: null,
             orderIndex: 0,
-            status: "DRAFT",
+            status: "PENDING_REVIEW",
             submittedBy: submittedByUser,
             subunitId: subunitId,
             subunitTitle: subunitTitle,
@@ -366,6 +366,17 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
               payload: null,
             });
           } else if (format === "question") {
+            // Process answers and choices exactly like server flow
+            let acceptedAnswersArray: any[] = [];
+            let processedChoices: any[] = [];
+            
+            if (questionType === "MCQ") {
+              processedChoices = qChoices.map((c, i) => ({ id: c.id, text: c.text, isCorrect: !!c.isCorrect, orderIndex: i }));
+            } else if (questionType === "SHORT_ANSWER") {
+              const list = qAcceptedAnswers.split(",").map((s) => s.trim()).filter(Boolean);
+              acceptedAnswersArray = list.length ? list : [qPrompt.trim()];
+            }
+            
             stepsToStore.push({
               id: lessonId,
               orderIndex: 0,
@@ -375,8 +386,8 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
               question: {
                 questionType: questionType,
                 prompt: qPrompt.trim(),
-                choices: qChoices,
-                acceptedAnswers: qAcceptedAnswers,
+                choices: processedChoices,
+                acceptedAnswers: acceptedAnswersArray,
                 allowMultiple: qAllowMultiple,
               },
               dialogueText: null,

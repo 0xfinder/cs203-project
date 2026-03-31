@@ -209,7 +209,8 @@ public class LessonController {
         lesson.getEstimatedMinutes(),
         lesson.getOrderIndex(),
         lesson.getStatus(),
-        submittedBy);
+        submittedBy,
+        lesson.getTargetSubunitId());
   }
 
   private LessonDetailResponse toDetail(Lesson lesson, List<StepResponse> steps) {
@@ -411,7 +412,8 @@ public class LessonController {
       Integer estimatedMinutes,
       Integer orderIndex,
       LessonStatus status,
-      String submittedBy) {}
+      String submittedBy,
+      Long targetSubunitId) {}
 
   public record LessonDetailResponse(
       Long id,

@@ -374,8 +374,21 @@ function LearnPage() {
           const filteredLessons = (Array.isArray(unit.lessons) ? unit.lessons : []).filter((l: any) => {
             const t = String(l?.title ?? "");
             const s = String(l?.slug ?? "");
-            return !(t.startsWith("Placeholder Lesson") || s.startsWith("placeholder-") || t === "Coming soon");
+            // Exclude: placeholders, "coming soon", PENDING_REVIEW lessons, and lessons being added to hardcoded subunits
+            return !(
+              t.startsWith("Placeholder Lesson") || 
+              s.startsWith("placeholder-") || 
+              t === "Coming soon" ||
+              l?.status === "PENDING_REVIEW" ||  // Hide pending review lessons
+              l?.subunitId // Hide lessons that are being added to hardcoded subunits
+            );
           });
+
+          // Skip appended units with no valid lessons
+          if (filteredLessons.length === 0) {
+            return null;
+          }
+
           const unitForRoadmap = { ...unit, lessons: filteredLessons } as typeof unit;
           const roadmap = getUnitRoadmap(unitForRoadmap, progressByLessonId, undefined, isContributor);
           const launchLesson = roadmap.nextLesson ?? null;

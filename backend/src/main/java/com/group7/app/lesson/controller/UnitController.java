@@ -84,7 +84,8 @@ public class UnitController {
         lesson.getEstimatedMinutes(),
         lesson.getOrderIndex(),
         lesson.getStatus(),
-        submittedBy);
+        submittedBy,
+        lesson.getTargetSubunitId());
   }
 
   public record UnitResponse(
@@ -105,5 +106,6 @@ public class UnitController {
       Integer estimatedMinutes,
       Integer orderIndex,
       com.group7.app.lesson.model.LessonStatus status,
-      String submittedBy) {}
+      String submittedBy,
+      Long targetSubunitId) {}
 }

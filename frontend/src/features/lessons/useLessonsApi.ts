@@ -11,6 +11,7 @@ export interface LessonSummary {
   estimatedMinutes: number | null;
   orderIndex: number;
   status: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  targetSubunitId?: number | null;
 }
 
 export interface UnitData {

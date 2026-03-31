@@ -196,10 +196,10 @@ function ReviewPage() {
           if (!raw) continue;
           const parsed = JSON.parse(raw);
           const lessons = Array.isArray(parsed.lessons) ? parsed.lessons : [];
-          // Filter for DRAFT status (newly submitted lessons waiting for review)
+          // Filter for PENDING_REVIEW status (newly submitted lessons waiting for review)
           // Exclude placeholder lessons (empty subunit containers)
           lessons.forEach((lesson: any) => {
-            if (lesson.status === "DRAFT" && lesson.id && lesson.id < 0 && !isPlaceholderLesson(lesson)) {
+            if (lesson.status === "PENDING_REVIEW" && lesson.id && lesson.id < 0 && !isPlaceholderLesson(lesson)) {
               collected.push({
                 id: lesson.id,
                 unitId: lesson.unitId,
@@ -241,7 +241,7 @@ function ReviewPage() {
               const p = JSON.parse(r);
               const l = Array.isArray(p.lessons) ? p.lessons : [];
               l.forEach((lesson: any) => {
-                if (lesson.status === "DRAFT" && lesson.id && lesson.id < 0 && !isPlaceholderLesson(lesson)) {
+                if (lesson.status === "PENDING_REVIEW" && lesson.id && lesson.id < 0 && !isPlaceholderLesson(lesson)) {
                   collected.push({
                     id: lesson.id,
                     unitId: lesson.unitId,
@@ -454,19 +454,38 @@ function ReviewPage() {
             // Add steps directly to the target subunit's steps array in this unit
             parsed.steps = Array.isArray(parsed.steps) ? parsed.steps : [];
             
+            // Calculate next orderIndex for target subunit (to prevent all steps having orderIndex 0)
+            const existingStepsForTarget = parsed.steps.filter((s: any) => 
+              s.id === targetSubunitId || s.targetSubunitId === targetSubunitId
+            );
+            let nextOrderIndex = 0;
+            if (existingStepsForTarget.length > 0) {
+              nextOrderIndex = Math.max(...existingStepsForTarget.map((s: any) => s.orderIndex ?? 0)) + 1;
+            }
+            
             // Add all steps from the lesson being approved, but associate them with the target subunit
             for (const step of stepsToApprove) {
+              console.log("Original step properties:", Object.keys(step));
               const newStep = {
                 ...step,
-                // Keep original lesson ID for deletion context
                 // Add targetSubunitId to track where step was copied to
                 targetSubunitId: targetSubunitId,
+                // Set proper sequential orderIndex to prevent deletion bug
+                orderIndex: nextOrderIndex++,
               };
+              console.log("NewStep properties:", Object.keys(newStep));
+              console.log("NewStep targetSubunitId explicitly:", newStep.targetSubunitId);
               parsed.steps.push(newStep);
               console.log("Added step to target subunit:", newStep);
             }
             
+            console.log("Before saving to localStorage, parsed.steps has targetSubunitIds:", parsed.steps.map((s: any) => ({ id: s.id, targetSubunitId: s.targetSubunitId, orderIndex: s.orderIndex })));
             localStorage.setItem(key, JSON.stringify(parsed));
+            
+            // Verify what was saved
+            const verify = localStorage.getItem(key);
+            const verifyParsed = JSON.parse(verify);
+            console.log("Verification after parse: steps saved have targetSubunitIds:", verifyParsed.steps.map((s: any) => ({ id: s.id, targetSubunitId: s.targetSubunitId, orderIndex: s.orderIndex })));
             // Dispatch custom event to notify unit component that steps changed
             window.dispatchEvent(new CustomEvent('tempUnit-steps-added', { detail: { unitKey: key, targetSubunitId, stepsCount: stepsToApprove.length } }));
             break;
@@ -491,7 +510,12 @@ function ReviewPage() {
           if (lessonIndex >= 0) {
             // Remove lesson and associated steps
             parsed.lessons = lessons.filter((l: any) => l.id !== id);
-            parsed.steps = (Array.isArray(parsed.steps) ? parsed.steps : []).filter((s: any) => s.id !== id);
+            // Only remove steps that DON'T have targetSubunitId (those are temporary session steps)
+            // Keep steps with targetSubunitId because they were just added to the subunit
+            parsed.steps = (Array.isArray(parsed.steps) ? parsed.steps : []).filter((s: any) => 
+              !(s.id === id && !s.targetSubunitId)
+            );
+            console.log("After removal, parsed.steps:", parsed.steps.map((s: any) => ({ id: s.id, targetSubunitId: s.targetSubunitId })));
             localStorage.setItem(key, JSON.stringify(parsed));
             console.log("Removed lesson from localStorage:", key);
             // Trigger storage event so listeners update
@@ -538,6 +562,8 @@ function ReviewPage() {
         onSuccess: () => {
           // Invalidate units cache so wrappers with targetSubunitId are filtered out
           queryClient.invalidateQueries({ queryKey: ['units'] });
+          // Invalidate all lesson play queries to refresh with new steps
+          queryClient.invalidateQueries({ queryKey: ['lessons', 'play'] });
           // Dispatch event for other listeners
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('lesson-approved', { detail: { lessonId: id } }));
