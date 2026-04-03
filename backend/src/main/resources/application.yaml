@@ -27,3 +27,8 @@ spring:
       ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     show-sql: true
     open-in-view: false
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  moderation:
+    enabled: ${OPENAI_MODERATION_ENABLED:true}

@@ -14,9 +14,11 @@ public class QuestionService {
 
   private final QuestionRepository repository;
   private static final Logger log = LoggerFactory.getLogger(QuestionService.class);
+  private final ModerationService moderationService;
 
-  public QuestionService(QuestionRepository repository) {
+  public QuestionService(QuestionRepository repository, ModerationService moderationService) {
     this.repository = repository;
+    this.moderationService = moderationService;
   }
 
   public List<Question> getAllQuestions() {
@@ -68,6 +70,7 @@ public class QuestionService {
         author.length(),
         question.getContent() == null ? 0 : question.getContent().length());
 
+    moderationService.moderateContent(question.getTitle() + "\n" + question.getContent());
     return repository.save(question);
   }
 
