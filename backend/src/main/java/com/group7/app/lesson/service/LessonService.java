@@ -377,12 +377,17 @@ public class LessonService {
                     () ->
                         new ResponseStatusException(HttpStatus.NOT_FOUND, "vocab item not found"));
         step.setVocabItem(vocabItem);
-        step.setPayload(
-            lessonStepPayloadService.buildTeachPayload(
-                vocabItem.getTerm(),
-                vocabItem.getDefinition(),
-                vocabItem.getExampleSentence(),
-                vocabItem.getPartOfSpeech()));
+        // Use provided payload if exists, otherwise build from vocab item
+        if (input.payload() != null && !input.payload().isEmpty()) {
+          step.setPayload(input.payload());
+        } else {
+          step.setPayload(
+              lessonStepPayloadService.buildTeachPayload(
+                  vocabItem.getTerm(),
+                  vocabItem.getDefinition(),
+                  vocabItem.getExampleSentence(),
+                  vocabItem.getPartOfSpeech()));
+        }
       }
       case DIALOGUE -> {
         if (isBlank(input.dialogueText())) {

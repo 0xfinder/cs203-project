@@ -421,7 +421,7 @@ begin
             'QUESTION',
             null,
             jsonb_build_object(
-                'questionType', 'CLOZE',
+                'questionType', 'SHORT_ANSWER',
                 'prompt', 'Complete the sentence: "No way, that''s ___."',
                 'explanation', 'Cap means a lie.',
                 'choices', '[]'::jsonb,

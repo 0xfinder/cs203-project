@@ -11,7 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { UnitRoadmap } from "@/features/lessons/components/unit-roadmap";
 import { findUnitByLessonId, getUnitRoadmap, progressMap } from "@/features/lessons/lesson-roadmap";
 import { requireOnboardingCompleted, requireContributorOrOnboarded } from "@/lib/auth";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import { api } from "@/lib/api";
 import { useSubmitContent } from "@/features/content/useContentData";
@@ -20,6 +20,7 @@ import {
   type LessonAnswer,
   type LessonStepPayload,
   useLessonPlay,
+  useLessonForEdit,
   useLessonProgress,
   useUpdateLessonProgress,
   useSubmitLessonAttempt,
@@ -43,10 +44,12 @@ function LessonPage() {
   const { lessonId } = Route.useParams();
   const numericLessonId = Number(lessonId);
   const isTempLesson = typeof lessonId === "string" && lessonId.startsWith("temp-");
+  const tempUnitKey = isTempLesson ? String(lessonId).slice(5) : null;
   // valid if: positive integer (server lesson), temp- route, or negative integer (client-side lesson in temp unit)
   const hasValidLessonId = Number.isInteger(numericLessonId) || isTempLesson;
 
   const { data, isLoading, error } = useLessonPlay(numericLessonId);
+  const { data: editData } = useLessonForEdit(numericLessonId);
   const { data: units, refetch: refetchUnits } = useUnits();
   const { data: progressItems } = useLessonProgress();
   const submitAttempt = useSubmitLessonAttempt();
@@ -1170,22 +1173,50 @@ function LessonPage() {
                 {/* Arrows moved adjacent to the step card above (to the sides) */}
 
                 {/* For admins, show edit/delete for the current page instead of appeal */}
-                {!isTempLesson && isAdmin && currentStep ? (
+                {isAdmin && currentStep ? (
                   <div className="mt-4 flex gap-2">
-                    <AdminEditStepButton
-                      lessonId={numericLessonId}
-                      step={currentStep}
-                      onSaved={() => void null}
-                    />
-                    <AdminDeleteStepButton
-                      lessonId={numericLessonId}
-                      stepId={currentStep.id}
-                      step={currentStep}
-                      onDeleted={() => {
-                        setCurrentIndex((idx) => Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))));
-                        setTempRefresh((v) => v + 1);
-                      }}
-                    />
+                    {isTempLesson && tempUnitKey ? (
+                      <>
+                        <TempEditStepButton
+                          lessonId={lessonId}
+                          step={currentStep}
+                          unitKey={tempUnitKey}
+                          onSaved={() => setTempRefresh((v) => v + 1)}
+                        />
+                        <AdminDeleteStepButton
+                          lessonId={numericLessonId}
+                          stepId={currentStep.id}
+                          step={currentStep}
+                          onDeleted={() => {
+                            setCurrentIndex((idx) => Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))));
+                            setTempRefresh((v) => v + 1);
+                          }}
+                        />
+                      </>
+                    ) : (
+                      <>
+                        {(() => {
+                          const editStep = editData?.steps?.find((s) => s.id === currentStep?.id);
+                          return (
+                            <AdminEditStepButton
+                              lessonId={numericLessonId}
+                              step={currentStep}
+                              editStep={editStep}
+                              onSaved={() => void null}
+                            />
+                          );
+                        })()}
+                        <AdminDeleteStepButton
+                          lessonId={numericLessonId}
+                          stepId={currentStep.id}
+                          step={currentStep}
+                          onDeleted={() => {
+                            setCurrentIndex((idx) => Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))));
+                            setTempRefresh((v) => v + 1);
+                          }}
+                        />
+                      </>
+                    )}
                   </div>
                 ) : null}
 
@@ -1246,15 +1277,20 @@ function StepBody({
   setTempAnswer: (value: LessonAnswer) => void;
 }) {
   if (step.stepType === "TEACH" && step.vocab) {
+    // Use payload if available (edited values), otherwise fall back to vocab
+    const title = step.payload?.title || step.vocab.term;
+    const body = step.payload?.body || step.vocab.definition;
+    const example = step.payload?.example || step.vocab.exampleSentence;
+    
     return (
       <Card className="border-chart-1/30 bg-chart-1/5">
         <CardContent className="pt-6">
           <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">learn</p>
-          <h2 className="mt-2 text-3xl font-bold">{step.vocab.term}</h2>
-          <p className="mt-4 text-lg">{step.vocab.definition}</p>
-          {step.vocab.exampleSentence && (
+          <h2 className="mt-2 text-3xl font-bold">{title}</h2>
+          <p className="mt-4 text-lg">{body}</p>
+          {example && (
             <p className="mt-3 text-sm italic text-muted-foreground">
-              "{step.vocab.exampleSentence}"
+              "{example}"
             </p>
           )}
         </CardContent>
@@ -1480,53 +1516,246 @@ function AdminDeleteStepButton({
 function AdminEditStepButton({
   lessonId,
   step,
+  editStep,
   onSaved,
 }: {
   lessonId: number;
   step: LessonStepPayload;
+  editStep?: LessonStepPayload;
   onSaved?: () => void;
 }) {
   const patchStep = usePatchStep();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [text, setText] = useState<string>(() => JSON.stringify(step.payload ?? {}, null, 2));
+  
+  // Use editStep (with answers) if available, otherwise fallback to step (learner-safe)
+  const stepForEditing = editStep ?? step;
+  
+  // Form fields - initialize based on step type
+  const [term, setTerm] = useState(stepForEditing.vocab?.term ?? "");
+  const [defText, setDefText] = useState(stepForEditing.vocab?.definition ?? "");
+  const [example, setExample] = useState(stepForEditing.vocab?.exampleSentence ?? "");
+  const [dialogueText, setDialogueText] = useState(stepForEditing.dialogueText ?? "");
+  const [qPrompt, setQPrompt] = useState(stepForEditing.question?.prompt ?? "");
+  const [questionType, setQuestionType] = useState<"MCQ" | "SHORT_ANSWER">(
+    (stepForEditing.question?.questionType as any) || "SHORT_ANSWER"
+  );
+  const [qChoices, setQChoices] = useState(
+    stepForEditing.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
+      { id: Date.now(), text: "", isCorrect: false },
+    ]
+  );
+  
+  // Helper to normalize acceptedAnswers - could be array or string
+  const normalizeAcceptedAnswers = (answers: any): string => {
+    if (!answers) return "";
+    if (Array.isArray(answers)) return answers.join(", ");
+    if (typeof answers === "string") return answers;
+    return "";
+  };
+  
+  const [qAcceptedAnswers, setQAcceptedAnswers] = useState(
+    normalizeAcceptedAnswers(stepForEditing.question?.acceptedAnswers)
+  );
+
+  // RECAP fields
+  const readStringField = (payload: any, key: string): string => {
+    if (!payload || typeof payload !== "object") return "";
+    return payload[key] ?? "";
+  };
+  const readStringArrayField = (payload: any, key: string): string[] => {
+    if (!payload || typeof payload !== "object") return [];
+    const val = payload[key];
+    if (Array.isArray(val)) return val;
+    return [];
+  };
+
+  const [recapHeadline, setRecapHeadline] = useState(
+    readStringField(stepForEditing.payload, "headline") ?? "Quick recap"
+  );
+  const [recapSummary, setRecapSummary] = useState(
+    readStringField(stepForEditing.payload, "summary") ?? 
+    "You reached the end of this lesson. Lock in the key idea before you move on."
+  );
+  const [recapTakeaways, setRecapTakeaways] = useState(
+    readStringArrayField(stepForEditing.payload, "takeaways").join("\n")
+  );
 
   useEffect(() => {
-    setText(JSON.stringify(step.payload ?? {}, null, 2));
-  }, [step]);
+    if (!open) return;
+    // Reset form when step changes
+    // For TEACH: use payload if available (edited values), otherwise vocab
+    setTerm((stepForEditing.payload as any)?.title ?? stepForEditing.vocab?.term ?? "");
+    setDefText((stepForEditing.payload as any)?.body ?? stepForEditing.vocab?.definition ?? "");
+    setExample((stepForEditing.payload as any)?.example ?? stepForEditing.vocab?.exampleSentence ?? "");
+    setDialogueText(stepForEditing.dialogueText ?? "");
+    setQPrompt(stepForEditing.question?.prompt ?? "");
+    setQuestionType((stepForEditing.question?.questionType as any) || "SHORT_ANSWER");
+    setQChoices(
+      stepForEditing.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
+        { id: Date.now(), text: "", isCorrect: false },
+      ]
+    );
+    // Explicitly load accepted answers - check both question and payload fields
+    const answers = stepForEditing.question?.acceptedAnswers ?? (stepForEditing.payload as any)?.acceptedAnswers;
+    if (Array.isArray(answers) && answers.length > 0) {
+      setQAcceptedAnswers(answers.join(", "));
+    } else if (typeof answers === "string" && answers.trim()) {
+      setQAcceptedAnswers(answers);
+    } else {
+      setQAcceptedAnswers("");
+    }
+    
+    // Reset RECAP fields
+    setRecapHeadline(readStringField(stepForEditing.payload, "headline") ?? "Quick recap");
+    setRecapSummary(readStringField(stepForEditing.payload, "summary") ?? "You reached the end of this lesson. Lock in the key idea before you move on.");
+    setRecapTakeaways(readStringArrayField(stepForEditing.payload, "takeaways").join("\n"));
+  }, [stepForEditing, open]);
 
   const handleSave = async () => {
-    let parsed: any;
-    try {
-      parsed = JSON.parse(text);
-    } catch (e) {
-      alert("Invalid JSON payload");
-      return;
-    }
-
     setBusy(true);
     try {
-      const body = {
-        orderIndex: step.orderIndex,
+      let body: any = {
+        orderIndex: stepForEditing.orderIndex,
         stepType: step.stepType,
-        vocabItemId: step.vocab?.id ?? null,
-        questionId: step.question?.id ?? null,
-        questionType: step.question ? (step.question.questionType as any) : null,
-        prompt: step.question?.prompt ?? null,
-        explanation: step.question?.explanation ?? null,
-        options: step.question?.choices?.map((c) => c.text) ?? null,
-        correctOptionIndex: null,
-        acceptedAnswers: step.question?.acceptedAnswers ?? null,
-        matchPairs: null,
-        dialogueText: step.dialogueText ?? null,
-        payload: parsed,
       };
 
-      await patchStep.mutateAsync({ lessonId, stepId: step.id, body });
+      if (step.stepType === "TEACH") {
+        body = {
+          ...body,
+          vocabItemId: step.vocab?.id ?? null,
+          payload: {
+            title: term.trim(),
+            body: defText.trim(),
+            example: example.trim() || null,
+            partOfSpeech: stepForEditing.vocab?.partOfSpeech ?? null,
+          },
+        };
+      } else if (stepForEditing.stepType === "DIALOGUE") {
+        body = {
+          ...body,
+          dialogueText: dialogueText.trim(),
+        };
+      } else if (stepForEditing.stepType === "QUESTION") {
+        const acceptedAnswersArray = questionType === "SHORT_ANSWER"
+          ? qAcceptedAnswers.split(",").map((s) => s.trim()).filter(Boolean)
+          : [];
+        
+        const optionsArray = questionType === "MCQ" 
+          ? qChoices.map((c) => c.text)
+          : null;
+        
+        // Find the index of the correct answer for MCQ
+        const correctOptionIndex = questionType === "MCQ"
+          ? qChoices.findIndex((c) => c.isCorrect)
+          : null;
+        
+        body = {
+          ...body,
+          questionId: stepForEditing.question?.id ?? null,
+          questionType,
+          prompt: qPrompt.trim(),
+          explanation: stepForEditing.question?.explanation ?? null,
+          options: optionsArray,
+          correctOptionIndex: correctOptionIndex,
+          acceptedAnswers: acceptedAnswersArray,
+          matchPairs: null,
+        };
+      } else if (stepForEditing.stepType === "RECAP") {
+        const takeawaysArray = recapTakeaways
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        body = {
+          ...body,
+          payload: {
+            headline: recapHeadline.trim(),
+            summary: recapSummary.trim(),
+            takeaways: takeawaysArray,
+          },
+        };
+      }
+
+      // For appended unit lessons (negative IDs), update localStorage instead of API
+      if (lessonId < 0) {
+        // Find the tempUnit entry in localStorage
+        let found = false;
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i) || "";
+          if (!key.startsWith("tempUnit:")) continue;
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          const steps = Array.isArray(parsed.steps) ? parsed.steps : [];
+          
+          // Find the step to update
+          for (const s of steps) {
+            if (s.id === stepForEditing.id) {
+              // Update the step with new data
+              if (step.stepType === "TEACH") {
+                s.vocab = {
+                  ...s.vocab,
+                  term: body.term,
+                  definition: body.definition,
+                  exampleSentence: body.exampleSentence,
+                  partOfSpeech: body.partOfSpeech,
+                };
+              } else if (step.stepType === "DIALOGUE") {
+                s.dialogueText = body.dialogueText;
+              } else if (step.stepType === "QUESTION") {
+                s.question = {
+                  ...s.question,
+                  prompt: body.prompt,
+                  questionType: body.questionType,
+                  choices: questionType === "MCQ" 
+                    ? qChoices.map((c) => ({
+                        id: c.id,
+                        text: c.text,
+                        isCorrect: c.isCorrect,
+                      }))
+                    : [],
+                  acceptedAnswers: body.acceptedAnswers,
+                  explanation: body.explanation,
+                };
+              } else if (step.stepType === "RECAP") {
+                s.payload = {
+                  headline: body.payload.headline,
+                  summary: body.payload.summary,
+                  takeaways: body.payload.takeaways,
+                };
+              }
+              localStorage.setItem(key, JSON.stringify(parsed));
+              
+              // Dispatch event to refresh appended unit data immediately
+              window.dispatchEvent(new CustomEvent("appended-lessons-changed", { detail: { stepId: stepForEditing.id, action: "edited" } }));
+              
+              found = true;
+              break;
+            }
+          }
+          if (found) break;
+        }
+        
+        if (!found) {
+          throw new Error("Could not find step in localStorage");
+        }
+      } else {
+        console.log("🚀 Sending PATCH request with body:", JSON.stringify(body, null, 2));
+        await patchStep.mutateAsync({ lessonId, stepId: stepForEditing.id, body });
+        console.log("✅ PATCH succeeded, refetching queries...");
+        // Wait for queries to refetch after mutation
+        await Promise.all([
+          queryClient.refetchQueries({ queryKey: ["lessons", "play", lessonId] }),
+          queryClient.refetchQueries({ queryKey: ["lessons", "edit", lessonId] }),
+        ]);
+        console.log("✅ Queries refetched");
+      }
+      
       setOpen(false);
       onSaved?.();
     } catch (err) {
-      // no-op
+      alert(`Error saving: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }
@@ -1539,15 +1768,542 @@ function AdminEditStepButton({
       </Button>
       {open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="w-full max-w-2xl rounded-lg bg-card p-6">
-            <h3 className="mb-2 text-lg font-semibold">Edit step payload</h3>
-            <p className="mb-3 text-sm text-muted-foreground">Edit the JSON payload for this step.</p>
-            <textarea
-              className="w-full min-h-[240px] rounded-md border px-3 py-2 text-sm font-mono"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-            />
-            <div className="mt-4 flex justify-end gap-2">
+          <div className="w-full max-w-2xl rounded-lg bg-card p-6 max-h-[90vh] overflow-y-auto">
+            <h3 className="mb-4 text-lg font-semibold">
+              Edit {step.stepType === "TEACH" ? "Definition" : step.stepType === "DIALOGUE" ? "Dialogue" : "Question"}
+            </h3>
+
+            <form className="space-y-4 pr-4">
+              {step.stepType === "TEACH" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Term</label>
+                    <input
+                      type="text"
+                      className="w-full rounded-md border bg-background px-3 py-2"
+                      value={term}
+                      onChange={(e) => setTerm(e.target.value)}
+                      placeholder="Enter term"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Definition</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                      rows={3}
+                      value={defText}
+                      onChange={(e) => setDefText(e.target.value)}
+                      placeholder="Enter definition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Example sentence (optional)</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                      rows={2}
+                      value={example}
+                      onChange={(e) => setExample(e.target.value)}
+                      placeholder="Enter example"
+                    />
+                  </div>
+                </>
+              )}
+
+              {step.stepType === "DIALOGUE" && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Dialogue</label>
+                  <textarea
+                    className="w-full rounded-md border bg-background px-3 py-2 text-base font-mono text-sm"
+                    rows={6}
+                    value={dialogueText}
+                    onChange={(e) => setDialogueText(e.target.value)}
+                    placeholder="Enter dialogue"
+                  />
+                </div>
+              )}
+
+              {step.stepType === "QUESTION" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Question type</label>
+                    <div className="w-full rounded-md border bg-muted/30 px-3 py-2">
+                      <p className="text-sm">{questionType === "MCQ" ? "Multiple Choice" : "Short Answer"}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Question</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                      rows={2}
+                      value={qPrompt}
+                      onChange={(e) => setQPrompt(e.target.value)}
+                      placeholder="Enter question"
+                    />
+                  </div>
+
+                  {questionType === "MCQ" && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Choices</label>
+                      <div className="space-y-2">
+                        {qChoices.map((choice, idx) => (
+                          <div key={choice.id} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              className="flex-1 rounded-md border bg-background px-3 py-2"
+                              value={choice.text}
+                              onChange={(e) => {
+                                const updated = [...qChoices];
+                                updated[idx] = { ...choice, text: e.target.value };
+                                setQChoices(updated);
+                              }}
+                              placeholder={`Choice ${idx + 1}`}
+                            />
+                            <input
+                              type="checkbox"
+                              checked={choice.isCorrect}
+                              onChange={(e) => {
+                                const updated = [...qChoices];
+                                updated[idx] = { ...choice, isCorrect: e.target.checked };
+                                setQChoices(updated);
+                              }}
+                              title="Mark as correct"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setQChoices(qChoices.filter((_, i) => i !== idx))}
+                              className="text-sm text-red-500 hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQChoices([...qChoices, { id: Date.now(), text: "", isCorrect: false }])
+                          }
+                          className="text-sm text-blue-500 hover:underline"
+                        >
+                          + Add choice
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {questionType === "SHORT_ANSWER" && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Accepted answers (comma-separated)</label>
+                      <textarea
+                        className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                        rows={2}
+                        value={qAcceptedAnswers}
+                        onChange={(e) => setQAcceptedAnswers(e.target.value)}
+                        placeholder="e.g. answer1, answer2"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {step.stepType === "RECAP" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Headline</label>
+                    <input
+                      type="text"
+                      className="w-full rounded-md border bg-background px-3 py-2"
+                      value={recapHeadline}
+                      onChange={(e) => setRecapHeadline(e.target.value)}
+                      placeholder="Enter headline"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Summary</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                      rows={3}
+                      value={recapSummary}
+                      onChange={(e) => setRecapSummary(e.target.value)}
+                      placeholder="Enter summary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Takeaways (one per line)</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base font-mono text-sm"
+                      rows={4}
+                      value={recapTakeaways}
+                      onChange={(e) => setRecapTakeaways(e.target.value)}
+                      placeholder="Enter takeaways, one per line"
+                    />
+                  </div>
+                </>
+              )}
+            </form>
+
+            <div className="mt-6 flex justify-end gap-2 flex-shrink-0">
+              <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={busy}>
+                {busy ? "Saving…" : "Save"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Temp lesson editor - allows editing of hardcoded/localStorage lessons in JSON-like form format
+function TempEditStepButton({
+  lessonId,
+  step,
+  unitKey,
+  onSaved,
+}: {
+  lessonId: string | number;
+  step: LessonStepPayload;
+  unitKey: string;
+  onSaved?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  
+  // Form fields - initialize based on step type
+  const [term, setTerm] = useState(step.vocab?.term ?? "");
+  const [defText, setDefText] = useState(step.vocab?.definition ?? "");
+  const [example, setExample] = useState(step.vocab?.exampleSentence ?? "");
+  const [dialogueText, setDialogueText] = useState(step.dialogueText ?? "");
+  const [qPrompt, setQPrompt] = useState(step.question?.prompt ?? "");
+  const [questionType, setQuestionType] = useState<"MCQ" | "SHORT_ANSWER">(
+    (step.question?.questionType as any) || "SHORT_ANSWER"
+  );
+  const [qChoices, setQChoices] = useState(
+    step.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
+      { id: Date.now(), text: "", isCorrect: false },
+    ]
+  );
+  
+  // Helper to normalize acceptedAnswers - could be array or string
+  const normalizeAcceptedAnswers = (answers: any): string => {
+    if (!answers) return "";
+    if (Array.isArray(answers)) return answers.join(", ");
+    if (typeof answers === "string") return answers;
+    return "";
+  };
+  
+  const [qAcceptedAnswers, setQAcceptedAnswers] = useState(
+    normalizeAcceptedAnswers(step.question?.acceptedAnswers)
+  );
+
+  // RECAP fields
+  const readStringField = (payload: any, key: string): string => {
+    if (!payload || typeof payload !== "object") return "";
+    return payload[key] ?? "";
+  };
+  const readStringArrayField = (payload: any, key: string): string[] => {
+    if (!payload || typeof payload !== "object") return [];
+    const val = payload[key];
+    if (Array.isArray(val)) return val;
+    return [];
+  };
+
+  const [recapHeadline, setRecapHeadline] = useState(
+    readStringField(step.payload, "headline") ?? "Quick recap"
+  );
+  const [recapSummary, setRecapSummary] = useState(
+    readStringField(step.payload, "summary") ?? 
+    "You reached the end of this lesson. Lock in the key idea before you move on."
+  );
+  const [recapTakeaways, setRecapTakeaways] = useState(
+    readStringArrayField(step.payload, "takeaways").join("\n")
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    // Reset form when step changes
+    // For TEACH: use payload if available (edited values), otherwise vocab
+    setTerm((step.payload as any)?.title ?? step.vocab?.term ?? "");
+    setDefText((step.payload as any)?.body ?? step.vocab?.definition ?? "");
+    setExample((step.payload as any)?.example ?? step.vocab?.exampleSentence ?? "");
+    setDialogueText(step.dialogueText ?? "");
+    setQPrompt(step.question?.prompt ?? "");
+    setQuestionType((step.question?.questionType as any) || "SHORT_ANSWER");
+    setQChoices(
+      step.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
+        { id: Date.now(), text: "", isCorrect: false },
+      ]
+    );
+    // Explicitly load accepted answers
+    const answers = step.question?.acceptedAnswers;
+    if (Array.isArray(answers)) {
+      setQAcceptedAnswers(answers.join(", "));
+    } else if (typeof answers === "string") {
+      setQAcceptedAnswers(answers);
+    } else {
+      setQAcceptedAnswers("");
+    }
+    
+    // Reset RECAP fields
+    setRecapHeadline(readStringField(step.payload, "headline") ?? "Quick recap");
+    setRecapSummary(readStringField(step.payload, "summary") ?? "You reached the end of this lesson. Lock in the key idea before you move on.");
+    setRecapTakeaways(readStringArrayField(step.payload, "takeaways").join("\n"));
+  }, [step, open]);
+
+  const handleSave = async () => {
+    setBusy(true);
+    try {
+      // Load the temp unit from localStorage
+      const raw = localStorage.getItem(`tempUnit:${unitKey}`);
+      if (!raw) {
+        throw new Error("Could not find temp unit in localStorage");
+      }
+
+      const tempUnit = JSON.parse(raw);
+
+      // Find the step
+      const stepIndex = (tempUnit.steps ?? []).findIndex((s: any) => s.id === step.id);
+      if (stepIndex === -1) {
+        throw new Error("Could not find step in temp unit");
+      }
+
+      // Build update based on step type
+      let updatedStep = { ...step };
+
+      if (step.stepType === "TEACH") {
+        updatedStep.vocab = {
+          ...updatedStep.vocab,
+          term: term.trim(),
+          definition: defText.trim(),
+          exampleSentence: example.trim() || null,
+          partOfSpeech: updatedStep.vocab?.partOfSpeech ?? null,
+        };
+      } else if (step.stepType === "DIALOGUE") {
+        updatedStep.dialogueText = dialogueText.trim();
+      } else if (step.stepType === "QUESTION") {
+        const acceptedAnswersArray = questionType === "SHORT_ANSWER"
+          ? qAcceptedAnswers.split(",").map((s) => s.trim()).filter(Boolean)
+          : [];
+        
+        updatedStep.question = {
+          ...updatedStep.question,
+          questionType,
+          prompt: qPrompt.trim(),
+          choices: questionType === "MCQ" ? qChoices : [],
+          acceptedAnswers: acceptedAnswersArray,
+        } as any;
+      } else if (step.stepType === "RECAP") {
+        const takeawaysArray = recapTakeaways
+          .split("\n")
+          .map((s) => s.trim())
+          .filter(Boolean);
+        updatedStep.payload = {
+          headline: recapHeadline.trim(),
+          summary: recapSummary.trim(),
+          takeaways: takeawaysArray,
+        };
+      }
+
+      // Update with new step
+      tempUnit.steps[stepIndex] = updatedStep;
+
+      // Save back to localStorage
+      localStorage.setItem(`tempUnit:${unitKey}`, JSON.stringify(tempUnit));
+
+      setOpen(false);
+      onSaved?.();
+    } catch (err) {
+      alert(`Error saving: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+        Edit
+      </Button>
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="w-full max-w-2xl rounded-lg bg-card p-6 max-h-[90vh] flex flex-col">
+            <h3 className="mb-4 text-lg font-semibold">
+              Edit {step.stepType === "TEACH" ? "Definition" : step.stepType === "DIALOGUE" ? "Dialogue" : step.stepType === "RECAP" ? "Recap" : "Question"}
+            </h3>
+
+            <form className="space-y-4 pr-4 overflow-y-auto flex-1">
+              {step.stepType === "TEACH" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Term</label>
+                    <input
+                      type="text"
+                      className="w-full rounded-md border bg-background px-3 py-2"
+                      value={term}
+                      onChange={(e) => setTerm(e.target.value)}
+                      placeholder="Enter term"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Definition</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                      rows={3}
+                      value={defText}
+                      onChange={(e) => setDefText(e.target.value)}
+                      placeholder="Enter definition"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Example sentence (optional)</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                      rows={2}
+                      value={example}
+                      onChange={(e) => setExample(e.target.value)}
+                      placeholder="Enter example"
+                    />
+                  </div>
+                </>
+              )}
+
+              {step.stepType === "DIALOGUE" && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Dialogue</label>
+                  <textarea
+                    className="w-full rounded-md border bg-background px-3 py-2 text-base font-mono text-sm"
+                    rows={6}
+                    value={dialogueText}
+                    onChange={(e) => setDialogueText(e.target.value)}
+                    placeholder="Enter dialogue"
+                  />
+                </div>
+              )}
+
+              {step.stepType === "QUESTION" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Question type</label>
+                    <div className="w-full rounded-md border bg-muted/30 px-3 py-2">
+                      <p className="text-sm">{questionType === "MCQ" ? "Multiple Choice" : "Short Answer"}</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Question</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                      rows={2}
+                      value={qPrompt}
+                      onChange={(e) => setQPrompt(e.target.value)}
+                      placeholder="Enter question"
+                    />
+                  </div>
+
+                  {questionType === "MCQ" && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Choices</label>
+                      <div className="space-y-2">
+                        {qChoices.map((choice, idx) => (
+                          <div key={choice.id} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              className="flex-1 rounded-md border bg-background px-3 py-2"
+                              value={choice.text}
+                              onChange={(e) => {
+                                const updated = [...qChoices];
+                                updated[idx] = { ...choice, text: e.target.value };
+                                setQChoices(updated);
+                              }}
+                              placeholder={`Choice ${idx + 1}`}
+                            />
+                            <input
+                              type="checkbox"
+                              checked={choice.isCorrect}
+                              onChange={(e) => {
+                                const updated = [...qChoices];
+                                updated[idx] = { ...choice, isCorrect: e.target.checked };
+                                setQChoices(updated);
+                              }}
+                              title="Mark as correct"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setQChoices(qChoices.filter((_, i) => i !== idx))}
+                              className="text-sm text-red-500 hover:underline"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQChoices([...qChoices, { id: Date.now(), text: "", isCorrect: false }])
+                          }
+                          className="text-sm text-blue-500 hover:underline"
+                        >
+                          + Add choice
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {questionType === "SHORT_ANSWER" && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Accepted answers (comma-separated)</label>
+                      <textarea
+                        className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                        rows={2}
+                        value={qAcceptedAnswers}
+                        onChange={(e) => setQAcceptedAnswers(e.target.value)}
+                        placeholder="e.g. answer1, answer2"
+                      />
+                    </div>
+                  )}
+                </>
+              )}
+
+              {step.stepType === "RECAP" && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Headline</label>
+                    <input
+                      type="text"
+                      className="w-full rounded-md border bg-background px-3 py-2"
+                      value={recapHeadline}
+                      onChange={(e) => setRecapHeadline(e.target.value)}
+                      placeholder="Enter headline"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Summary</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base"
+                      rows={3}
+                      value={recapSummary}
+                      onChange={(e) => setRecapSummary(e.target.value)}
+                      placeholder="Enter summary"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Takeaways (one per line)</label>
+                    <textarea
+                      className="w-full rounded-md border bg-background px-3 py-2 text-base font-mono text-sm"
+                      rows={4}
+                      value={recapTakeaways}
+                      onChange={(e) => setRecapTakeaways(e.target.value)}
+                      placeholder="Enter takeaways, one per line"
+                    />
+                  </div>
+                </>
+              )}
+            </form>
+
+            <div className="mt-6 flex justify-end gap-2">
               <Button variant="ghost" onClick={() => setOpen(false)} disabled={busy}>
                 Cancel
               </Button>

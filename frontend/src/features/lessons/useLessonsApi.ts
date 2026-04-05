@@ -39,7 +39,7 @@ export interface MatchPairPayload {
 
 export interface QuestionPayload {
   id: number;
-  questionType: "MCQ" | "CLOZE" | "MATCH" | "SHORT_ANSWER";
+  questionType: "MCQ" | "MATCH" | "SHORT_ANSWER";
   prompt: string;
   explanation: string | null;
   choices: ChoicePayload[];
@@ -198,6 +198,18 @@ export function useLessonPlay(lessonId: number) {
   });
 }
 
+export function useLessonForEdit(lessonId: number) {
+  return useQuery({
+    queryKey: [...LESSONS_KEY, "edit", lessonId],
+    queryFn: () => api.get(`lessons/${lessonId}`).json<LessonPlayResponse>(),
+    // Only fetch for positive, server-backed lesson IDs. Client-only temp lessons use negative ids
+    // or `temp-` routes and should be loaded from localStorage by the route component.
+    enabled: Number.isInteger(lessonId) && lessonId > 0,
+    // avoid long loading states on not-found/unauthorized responses
+    retry: false,
+  });
+}
+
 export function useSubmitLessonAttempt() {
   const queryClient = useQueryClient();
 
@@ -302,6 +314,7 @@ export function usePatchStep() {
         .json(),
     onSuccess: (_data, vars) => {
       void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "play", vars.lessonId] });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "edit", vars.lessonId] });
       void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY] });
     },
   });
