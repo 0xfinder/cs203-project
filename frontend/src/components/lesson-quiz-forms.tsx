@@ -124,13 +124,16 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
   const [example, setExample] = useState("");
   const [dialogueText, setDialogueText] = useState("");
   // Question state
-  const [questionType, setQuestionType] = useState<"SHORT_ANSWER" | "MCQ">("SHORT_ANSWER");
+  const [questionType, setQuestionType] = useState<"SHORT_ANSWER" | "MCQ" | "MATCH">("SHORT_ANSWER");
   const [qPrompt, setQPrompt] = useState("");
   const [qAcceptedAnswers, setQAcceptedAnswers] = useState("");
   const [qChoices, setQChoices] = useState<Array<{ id: number; text: string; isCorrect?: boolean }>>([
     { id: Date.now(), text: "", isCorrect: false },
   ]);
   const [qAllowMultiple, setQAllowMultiple] = useState(false);
+  const [qMatchPairs, setQMatchPairs] = useState<Array<{ id: number | string; left: string; right: string }>>([
+    { id: Date.now(), left: "", right: "" },
+  ]);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -234,11 +237,12 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
         // Question
         const questionPayload: any = {
           id: -(Date.now()),
-          questionType: questionType === "MCQ" ? "MCQ" : "SHORT_ANSWER",
+          questionType: questionType,
           prompt: qPrompt.trim(),
           explanation: null,
           choices: [],
           acceptedAnswers: [],
+          matchPairs: [],
           shuffledRights: [],
         };
 
@@ -249,6 +253,10 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
         if (questionType === "SHORT_ANSWER") {
           const list = qAcceptedAnswers.split(",").map((s) => s.trim()).filter(Boolean);
           questionPayload.acceptedAnswers = list.length ? list : [qPrompt.trim()];
+        }
+
+        if (questionType === "MATCH") {
+          questionPayload.matchPairs = qMatchPairs.filter((p) => p.left.trim() && p.right.trim()).map((p, i) => ({ id: p.id, left: p.left, right: p.right, orderIndex: i }));
         }
 
         stepsPayload = [
@@ -369,12 +377,15 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
             // Process answers and choices exactly like server flow
             let acceptedAnswersArray: any[] = [];
             let processedChoices: any[] = [];
+            let processedMatchPairs: any[] = [];
             
             if (questionType === "MCQ") {
               processedChoices = qChoices.map((c, i) => ({ id: c.id, text: c.text, isCorrect: !!c.isCorrect, orderIndex: i }));
             } else if (questionType === "SHORT_ANSWER") {
               const list = qAcceptedAnswers.split(",").map((s) => s.trim()).filter(Boolean);
               acceptedAnswersArray = list.length ? list : [qPrompt.trim()];
+            } else if (questionType === "MATCH") {
+              processedMatchPairs = qMatchPairs.filter((p) => p.left.trim() && p.right.trim()).map((p, i) => ({ id: p.id, left: p.left, right: p.right, orderIndex: i }));
             }
             
             stepsToStore.push({
@@ -388,6 +399,7 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
                 prompt: qPrompt.trim(),
                 choices: processedChoices,
                 acceptedAnswers: acceptedAnswersArray,
+                matchPairs: processedMatchPairs,
                 allowMultiple: qAllowMultiple,
               },
               dialogueText: null,
@@ -544,7 +556,6 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
         // Create a new lesson wrapper for review with targetSubunitId set
         const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, targetSubunitId: subunitId } }).json<any>();
         const newLessonId = created.id;
-        console.log(`[Submission] Created wrapper lesson ${newLessonId} for subunit ${subunitId}`);
         // create step(s) on the new lesson
         for (const st of stepsPayload) {
           const apiStep = mapStepForApi(st);
@@ -552,7 +563,6 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
         }
         // submit the new lesson for review
         await api.patch(`lessons/${newLessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
-        console.log(`[Submission] Submitted wrapper lesson for review`);
         
         // add the created lesson to the pending cache so Review shows it immediately
         try {
@@ -709,13 +719,22 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
       base.questionType = q.questionType ?? null;
       base.prompt = q.prompt ?? null;
       base.explanation = q.explanation ?? null;
-      if (q.choices && Array.isArray(q.choices) && q.choices.length > 0) {
-        base.options = q.choices.map((c: any) => c.text ?? "");
-        const correctIndex = q.choices.findIndex((c: any) => !!c.isCorrect);
-        base.correctOptionIndex = correctIndex >= 0 ? correctIndex : null;
-      }
-      if (q.acceptedAnswers && Array.isArray(q.acceptedAnswers)) {
-        base.acceptedAnswers = q.acceptedAnswers;
+      
+      // Include question-type specific fields only for relevant types
+      if (q.questionType === "MCQ") {
+        if (q.choices && Array.isArray(q.choices) && q.choices.length > 0) {
+          base.options = q.choices.map((c: any) => c.text ?? "");
+          const correctIndex = q.choices.findIndex((c: any) => !!c.isCorrect);
+          base.correctOptionIndex = correctIndex >= 0 ? correctIndex : null;
+        }
+      } else if (q.questionType === "SHORT_ANSWER") {
+        if (q.acceptedAnswers && Array.isArray(q.acceptedAnswers) && q.acceptedAnswers.length > 0) {
+          base.acceptedAnswers = q.acceptedAnswers;
+        }
+      } else if (q.questionType === "MATCH") {
+        if (q.matchPairs && Array.isArray(q.matchPairs)) {
+          base.matchPairs = q.matchPairs;
+        }
       }
     }
     return base;
@@ -853,6 +872,7 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
               <div className="flex gap-2 mt-2">
                 <button type="button" className={questionType === "SHORT_ANSWER" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setQuestionType("SHORT_ANSWER")}>Short Answer</button>
                 <button type="button" className={questionType === "MCQ" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setQuestionType("MCQ")}>MCQ</button>
+                <button type="button" className={questionType === "MATCH" ? "px-3 py-1 rounded bg-primary text-white" : "px-3 py-1 rounded border"} onClick={() => setQuestionType("MATCH")}>Matching</button>
               </div>
             </div>
 
@@ -894,7 +914,34 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
               </div>
             )}
 
-            
+            {questionType === "MATCH" && (
+              <div>
+                <Label>Match Pairs</Label>
+                <div className="space-y-2 mt-2">
+                  {qMatchPairs.map((pair, idx) => (
+                    <div key={pair.id} className="flex gap-2 items-end">
+                      <div className="flex-1">
+                        <Input
+                          value={pair.left}
+                          onChange={(e) => setQMatchPairs((s) => s.map((p) => p.id === pair.id ? { ...p, left: e.target.value } : p))}
+                          placeholder={`Term ${idx + 1}`}
+                        />
+                      </div>
+                      <span>→</span>
+                      <div className="flex-1">
+                        <Input
+                          value={pair.right}
+                          onChange={(e) => setQMatchPairs((s) => s.map((p) => p.id === pair.id ? { ...p, right: e.target.value } : p))}
+                          placeholder={`Definition ${idx + 1}`}
+                        />
+                      </div>
+                      <button type="button" onClick={() => setQMatchPairs((s) => s.filter((p) => p.id !== pair.id))} className="text-destructive">Remove</button>
+                    </div>
+                  ))}
+                  <Button type="button" onClick={() => setQMatchPairs((s) => [...s, { id: Date.now(), left: "", right: "" }])}>Add Pair</Button>
+                </div>
+              </div>
+            )}
           </div>
         )
       )}
@@ -995,6 +1042,7 @@ export function QuizForm() {
                   <select value={q.questionType} onChange={(e) => updateQuestion(qi, { questionType: e.target.value })} className="rounded-md border bg-card px-2">
                     <option value="MCQ">Multiple Choice</option>
                     <option value="SHORT_ANSWER">Short Answer</option>
+                    <option value="MATCH">Matching</option>
                   </select>
                   <Button type="button" variant="destructive" onClick={() => removeQuestion(qi)}>Remove</Button>
                 </div>

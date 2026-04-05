@@ -302,6 +302,10 @@ public class LessonController {
                   pair ->
                       new MatchPairPayload(pair.id(), pair.left(), pair.right(), pair.orderIndex()))
               .toList();
+      List<String> shuffledOptions =
+          includeAnswers
+              ? List.of()
+              : lessonStepPayloadService.shuffledRights(question);
       payload =
           new QuestionPayload(
               step.getId(),
@@ -317,7 +321,7 @@ public class LessonController {
                               new MatchPairPayload(pair.id(), pair.left(), null, pair.orderIndex()))
                       .toList(),
               List.of(),
-              includeAnswers ? List.of() : lessonStepPayloadService.shuffledRights(question));
+              shuffledOptions);
     } else {
       List<String> acceptedAnswers = includeAnswers ? question.acceptedAnswers() : List.of();
       payload =

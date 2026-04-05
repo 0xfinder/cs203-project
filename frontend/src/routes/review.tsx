@@ -396,8 +396,6 @@ function ReviewPage() {
           return;
         }
 
-        console.log("Approving lesson:", lesson);
-
         // The subunitId tells us which subunit to add steps to
         const targetSubunitId = lesson.subunitId;
         if (!targetSubunitId) {
@@ -406,8 +404,6 @@ function ReviewPage() {
           setExpandedId(null);
           return;
         }
-
-        console.log("Target subunit ID:", targetSubunitId);
 
         // Get the steps for this lesson from localStorage
         let stepsToApprove: any[] = [];
@@ -420,7 +416,6 @@ function ReviewPage() {
           const steps = Array.isArray(parsed.steps) ? parsed.steps : [];
           stepsToApprove = steps.filter((s: any) => s.id === id);
           if (stepsToApprove.length > 0) {
-            console.log(`Found ${stepsToApprove.length} steps in ${key}`, stepsToApprove);
             break;
           }
         }
@@ -431,8 +426,6 @@ function ReviewPage() {
           setExpandedId(null);
           return;
         }
-
-        console.log("Adding steps to subunit", targetSubunitId);
 
         // For appended unit lessons, add steps directly to the target subunit in localStorage
         // Find the tempUnit entry containing the target subunit
@@ -448,8 +441,7 @@ function ReviewPage() {
           // Find if target subunit is in this unit
           const targetSubunit = lessons.find((l: any) => l.id === targetSubunitId);
           if (targetSubunit) {
-            console.log("Found target subunit in storage:", targetSubunit);
-            targetSubunitFound = true;
+
             
             // Add steps directly to the target subunit's steps array in this unit
             parsed.steps = Array.isArray(parsed.steps) ? parsed.steps : [];
@@ -465,7 +457,6 @@ function ReviewPage() {
             
             // Add all steps from the lesson being approved, but associate them with the target subunit
             for (const step of stepsToApprove) {
-              console.log("Original step properties:", Object.keys(step));
               const newStep = {
                 ...step,
                 // Add targetSubunitId to track where step was copied to
@@ -473,19 +464,10 @@ function ReviewPage() {
                 // Set proper sequential orderIndex to prevent deletion bug
                 orderIndex: nextOrderIndex++,
               };
-              console.log("NewStep properties:", Object.keys(newStep));
-              console.log("NewStep targetSubunitId explicitly:", newStep.targetSubunitId);
               parsed.steps.push(newStep);
-              console.log("Added step to target subunit:", newStep);
             }
             
-            console.log("Before saving to localStorage, parsed.steps has targetSubunitIds:", parsed.steps.map((s: any) => ({ id: s.id, targetSubunitId: s.targetSubunitId, orderIndex: s.orderIndex })));
             localStorage.setItem(key, JSON.stringify(parsed));
-            
-            // Verify what was saved
-            const verify = localStorage.getItem(key);
-            const verifyParsed = JSON.parse(verify);
-            console.log("Verification after parse: steps saved have targetSubunitIds:", verifyParsed.steps.map((s: any) => ({ id: s.id, targetSubunitId: s.targetSubunitId, orderIndex: s.orderIndex })));
             // Dispatch custom event to notify unit component that steps changed
             window.dispatchEvent(new CustomEvent('tempUnit-steps-added', { detail: { unitKey: key, targetSubunitId, stepsCount: stepsToApprove.length } }));
             break;
@@ -493,7 +475,6 @@ function ReviewPage() {
         }
         
         if (!targetSubunitFound) {
-          console.error("Target subunit not found in localStorage:", targetSubunitId);
           alert("Error: Could not find target subunit in storage. Steps not added.");
           throw new Error("Target subunit not found");
         }
@@ -515,9 +496,7 @@ function ReviewPage() {
             parsed.steps = (Array.isArray(parsed.steps) ? parsed.steps : []).filter((s: any) => 
               !(s.id === id && !s.targetSubunitId)
             );
-            console.log("After removal, parsed.steps:", parsed.steps.map((s: any) => ({ id: s.id, targetSubunitId: s.targetSubunitId })));
             localStorage.setItem(key, JSON.stringify(parsed));
-            console.log("Removed lesson from localStorage:", key);
             // Trigger storage event so listeners update
             window.dispatchEvent(new StorageEvent('storage', {
               key: key,
@@ -564,6 +543,29 @@ function ReviewPage() {
           queryClient.invalidateQueries({ queryKey: ['units'] });
           // Invalidate all lesson play queries to refresh with new steps
           queryClient.invalidateQueries({ queryKey: ['lessons', 'play'] });
+          
+          // Clear tempData for this lesson so it uses fresh API data
+          if (id < 0) {
+            for (let i = 0; i < localStorage.length; i++) {
+              const key = localStorage.key(i) || "";
+              if (!key.startsWith("tempUnit:")) continue;
+              try {
+                const raw = localStorage.getItem(key);
+                if (!raw) continue;
+                const parsed = JSON.parse(raw);
+                // Remove this lesson from the unit's lessons array
+                parsed.lessons = (parsed.lessons || []).filter((l: any) => l?.id !== id);
+                // Remove steps for this lesson
+                parsed.steps = (parsed.steps || []).filter((s: any) => s?.id !== id && s?.targetSubunitId !== id);
+                localStorage.setItem(key, JSON.stringify(parsed));
+              } catch (e) {
+                // ignore parse errors
+              }
+            }
+            // Dispatch event to notify lesson view to refresh
+            window.dispatchEvent(new CustomEvent("lesson-approved", { detail: { lessonId: id } }));
+          }
+          
           // Dispatch event for other listeners
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('lesson-approved', { detail: { lessonId: id } }));
@@ -1026,7 +1028,22 @@ function ReviewPage() {
                                 <div className="text-xs uppercase tracking-[0.15em] text-muted-foreground">{stepLabel}</div>
                                 <h3 className="mt-2 text-2xl font-semibold">{s.question.prompt}</h3>
 
-                                {Array.isArray(s.question.choices) && s.question.choices.length > 0 ? (
+                                {s.question.questionType === "MATCH" && Array.isArray(s.question.matchPairs) && s.question.matchPairs.length > 0 ? (
+                                  <div className="mt-4 space-y-2">
+                                    <div className="text-sm font-semibold text-muted-foreground">Match pairs:</div>
+                                    {s.question.matchPairs.map((pair: any, idx: number) => (
+                                      <div key={pair.id ?? idx} className="flex gap-4">
+                                        <div className="flex-1 rounded border px-3 py-2 bg-card/80 border-border">
+                                          <div className="text-sm">{pair.left}</div>
+                                        </div>
+                                        <div className="text-muted-foreground text-lg">→</div>
+                                        <div className="flex-1 rounded border px-3 py-2 bg-green-500/10 border-green-500/30">
+                                          <div className="text-sm text-green-600">{pair.right}</div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : Array.isArray(s.question.choices) && s.question.choices.length > 0 ? (
                                   <div className="mt-4 space-y-3">
                                     {s.question.choices.map((c: any, idx: number) => (
                                       <div

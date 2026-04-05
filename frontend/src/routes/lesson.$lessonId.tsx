@@ -112,10 +112,17 @@ function LessonPage() {
     };
     window.addEventListener("tempUnit-step-deleted", handleStepDeleted);
     
+    // Listen for lesson approval so we use fresh API data with shuffledRights
+    const handleLessonApproved = () => {
+      setTempRefresh((v) => v + 1);
+    };
+    window.addEventListener("lesson-approved", handleLessonApproved);
+    
     return () => {
       window.removeEventListener("appended-lessons-changed", handleAppendedLessonsChanged);
       window.removeEventListener("tempUnit-steps-added", handleStepsAdded);
       window.removeEventListener("tempUnit-step-deleted", handleStepDeleted);
+      window.removeEventListener("lesson-approved", handleLessonApproved);
     };
   }, []);
 
@@ -149,7 +156,6 @@ function LessonPage() {
 
       // Case 2: negative numeric ID — search all tempUnit:* entries for a lesson with this ID
       if (numericLessonId < 0 && typeof window !== "undefined") {
-        console.log("[tempData lookup] Searching for lesson with ID:", numericLessonId);
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i) || "";
           if (!key.startsWith("tempUnit:")) continue;
@@ -161,30 +167,24 @@ function LessonPage() {
             const lessonsArray = Array.isArray(parsed.lessons) ? parsed.lessons : [];
             const foundLesson = lessonsArray.find((l: any) => l?.id === numericLessonId);
             if (foundLesson) {
-              console.log("[tempData lookup] Found lesson:", foundLesson.title, "in", key);
+
               // Steps can be stored either:
               // 1. On the lesson object itself (foundLesson.steps)
               // 2. In the unit's steps array with step.id matching the lesson ID
               // 3. In the unit's steps array with step.targetSubunitId matching the lesson ID (after approval)
               let stepsArray = Array.isArray(foundLesson.steps) ? foundLesson.steps : [];
-              console.log("[tempData lookup] Steps on lesson object:", stepsArray.length);
               
               // If no steps on lesson, look in unit's steps array by matching lesson ID or targetSubunitId
               if (stepsArray.length === 0) {
                 const unitSteps = Array.isArray(parsed.steps) ? parsed.steps : [];
-                console.log("[tempData lookup] Unit has", unitSteps.length, "total steps with:", unitSteps.map((s: any) => ({ id: s?.id, targetSubunitId: s?.targetSubunitId, orderIndex: s?.orderIndex })));
-                console.log("[tempData lookup] Looking for steps with id===", numericLessonId, 'or targetSubunitId===', numericLessonId);
                 stepsArray = unitSteps.filter((s: any) => {
                   const matchesId = s?.id === numericLessonId;
                   const matchesTargetSubunitId = s?.targetSubunitId === numericLessonId;
                   const matches = matchesId || matchesTargetSubunitId;
-                  console.log("[tempData lookup]   Step id:", s?.id, "targetSubunitId:", s?.targetSubunitId, "matchesId:", matchesId, "matchesTargetSubunitId:", matchesTargetSubunitId, "→", matches ? "MATCH" : "no match");
                   return matches;
                 });
-                console.log("[tempData lookup] Found", stepsArray.length, "matching steps");
               }
               
-              console.log("[tempData lookup] Returning tempData with", stepsArray.length, "steps");
               return {
                 lesson: foundLesson,
                 steps: stepsArray,
@@ -202,7 +202,14 @@ function LessonPage() {
     return null;
   }, [lessonId, numericLessonId, isTempLesson, tempRefresh]);
 
-  const effectiveData: any = tempData ?? data;
+  const effectiveData: any = (() => {
+    // If lesson is APPROVED, always use API data (not tempData) to get fresh shuffledRights
+    if (data?.lesson?.status === "APPROVED" && tempData && !isTempLesson) {
+      return data;
+    }
+    // Otherwise prefer tempData for lessons still in appended units
+    return tempData ?? data;
+  })();
   const effectiveSteps = effectiveData?.steps ?? [];
   
   // Auto-navigate to first subunit when opening appended unit
@@ -304,8 +311,7 @@ function LessonPage() {
   // Debug: log displayUnit vs currentUnit
   useEffect(() => {
     if (currentUnit?.id && currentUnit.id < 0) {
-      console.log("DEBUG displayUnit lessons:", displayUnit?.lessons?.map((l: any) => ({ id: l.id, title: l.title, status: l.status })));
-      console.log("DEBUG currentUnit lessons:", currentUnit?.lessons?.map((l: any) => ({ id: l.id, title: l.title, status: l.status })));
+      // appended unit loaded
     }
   }, [displayUnit, currentUnit]);
   
@@ -317,9 +323,9 @@ function LessonPage() {
   // Debug effect: log whenever displayUnit or currentUnit changes
   useEffect(() => {
     if (currentUnit?.id && currentUnit.id < 0) {
-      console.log("DEBUG: Viewing temp/appended unit with ID:", currentUnit.id, "lessons:", currentUnit.lessons?.length);
+      // appended unit viewed
     }
-  }, [currentUnit]);
+  }, [displayUnit, currentUnit]);
 
   const nextLesson = useMemo(() => {
     if (!unitRoadmap) {
@@ -970,13 +976,7 @@ function LessonPage() {
                                 <Button
                                   onClick={async () => {
                                     try {
-                                      console.log("DEBUG: Add subunit clicked (handler 2)");
-                                      console.log("DEBUG: isTempLesson=", isTempLesson);
-                                      console.log("DEBUG: currentUnit=", currentUnit);
-                                      console.log("DEBUG: currentUnit?.id=", currentUnit?.id);
-                                      
                                       if (isTempLesson) {
-                                        console.log("DEBUG: Handling temp lesson (handler 2)");
                                         const key = String(lessonId).slice(5);
                                         const raw = localStorage.getItem(`tempUnit:${key}`);
                                         const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
@@ -1538,12 +1538,19 @@ function AdminEditStepButton({
   const [example, setExample] = useState(stepForEditing.vocab?.exampleSentence ?? "");
   const [dialogueText, setDialogueText] = useState(stepForEditing.dialogueText ?? "");
   const [qPrompt, setQPrompt] = useState(stepForEditing.question?.prompt ?? "");
-  const [questionType, setQuestionType] = useState<"MCQ" | "SHORT_ANSWER">(
+  const [questionType, setQuestionType] = useState<"MCQ" | "MATCH" | "SHORT_ANSWER">(
     (stepForEditing.question?.questionType as any) || "SHORT_ANSWER"
   );
   const [qChoices, setQChoices] = useState(
     stepForEditing.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
       { id: Date.now(), text: "", isCorrect: false },
+    ]
+  );
+  
+  // Match pairs state
+  const [qMatchPairs, setQMatchPairs] = useState<Array<{ left: string; right: string; id?: string }>>(
+    stepForEditing.question?.matchPairs?.map((p) => ({ left: p.left, right: p.right ?? "", id: String(p.left) })) ?? [
+      { left: "", right: "", id: String(Date.now()) },
     ]
   );
   
@@ -1595,6 +1602,11 @@ function AdminEditStepButton({
     setQChoices(
       stepForEditing.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
         { id: Date.now(), text: "", isCorrect: false },
+      ]
+    );
+    setQMatchPairs(
+      stepForEditing.question?.matchPairs?.map((p) => ({ left: p.left, right: p.right ?? "", id: String(p.left) })) ?? [
+        { left: "", right: "", id: String(Date.now()) },
       ]
     );
     // Explicitly load accepted answers - check both question and payload fields
@@ -1650,6 +1662,11 @@ function AdminEditStepButton({
         const correctOptionIndex = questionType === "MCQ"
           ? qChoices.findIndex((c) => c.isCorrect)
           : null;
+
+        // Build matchPairs for MATCH type
+        const matchPairsArray = questionType === "MATCH"
+          ? qMatchPairs.filter((p) => p.left.trim() && p.right.trim()).map((p) => ({ left: p.left, right: p.right }))
+          : null;
         
         body = {
           ...body,
@@ -1660,7 +1677,7 @@ function AdminEditStepButton({
           options: optionsArray,
           correctOptionIndex: correctOptionIndex,
           acceptedAnswers: acceptedAnswersArray,
-          matchPairs: null,
+          matchPairs: matchPairsArray,
         };
       } else if (stepForEditing.stepType === "RECAP") {
         const takeawaysArray = recapTakeaways
@@ -1715,6 +1732,9 @@ function AdminEditStepButton({
                         isCorrect: c.isCorrect,
                       }))
                     : [],
+                  matchPairs: questionType === "MATCH"
+                    ? qMatchPairs.filter((p) => p.left.trim() && p.right.trim()).map((p) => ({ left: p.left, right: p.right, id: p.id }))
+                    : [],
                   acceptedAnswers: body.acceptedAnswers,
                   explanation: body.explanation,
                 };
@@ -1741,15 +1761,12 @@ function AdminEditStepButton({
           throw new Error("Could not find step in localStorage");
         }
       } else {
-        console.log("🚀 Sending PATCH request with body:", JSON.stringify(body, null, 2));
         await patchStep.mutateAsync({ lessonId, stepId: stepForEditing.id, body });
-        console.log("✅ PATCH succeeded, refetching queries...");
         // Wait for queries to refetch after mutation
         await Promise.all([
           queryClient.refetchQueries({ queryKey: ["lessons", "play", lessonId] }),
           queryClient.refetchQueries({ queryKey: ["lessons", "edit", lessonId] }),
         ]);
-        console.log("✅ Queries refetched");
       }
       
       setOpen(false);
@@ -1827,7 +1844,7 @@ function AdminEditStepButton({
                   <div>
                     <label className="block text-sm font-medium mb-1">Question type</label>
                     <div className="w-full rounded-md border bg-muted/30 px-3 py-2">
-                      <p className="text-sm">{questionType === "MCQ" ? "Multiple Choice" : "Short Answer"}</p>
+                      <p className="text-sm">{questionType === "MCQ" ? "Multiple Choice" : questionType === "MATCH" ? "Matching" : "Short Answer"}</p>
                     </div>
                   </div>
 
@@ -1886,6 +1903,61 @@ function AdminEditStepButton({
                           className="text-sm text-blue-500 hover:underline"
                         >
                           + Add choice
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {questionType === "MATCH" && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Match pairs (Left → Right)</label>
+                      <div className="space-y-2">
+                        {qMatchPairs.map((pair, idx) => (
+                          <div key={pair.id} className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <input
+                                type="text"
+                                className="w-full rounded-md border bg-background px-3 py-2"
+                                value={pair.left}
+                                onChange={(e) => {
+                                  const updated = [...qMatchPairs];
+                                  updated[idx] = { ...pair, left: e.target.value };
+                                  setQMatchPairs(updated);
+                                }}
+                                placeholder={`Term ${idx + 1}`}
+                              />
+                            </div>
+                            <span className="text-muted-foreground">→</span>
+                            <div className="flex-1">
+                              <input
+                                type="text"
+                                className="w-full rounded-md border bg-background px-3 py-2"
+                                value={pair.right}
+                                onChange={(e) => {
+                                  const updated = [...qMatchPairs];
+                                  updated[idx] = { ...pair, right: e.target.value };
+                                  setQMatchPairs(updated);
+                                }}
+                                placeholder={`Definition ${idx + 1}`}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setQMatchPairs(qMatchPairs.filter((_, i) => i !== idx))}
+                              className="text-sm text-red-500 hover:underline whitespace-nowrap"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQMatchPairs([...qMatchPairs, { left: "", right: "", id: String(Date.now()) }])
+                          }
+                          className="text-sm text-blue-500 hover:underline"
+                        >
+                          + Add pair
                         </button>
                       </div>
                     </div>
@@ -1978,12 +2050,19 @@ function TempEditStepButton({
   const [example, setExample] = useState(step.vocab?.exampleSentence ?? "");
   const [dialogueText, setDialogueText] = useState(step.dialogueText ?? "");
   const [qPrompt, setQPrompt] = useState(step.question?.prompt ?? "");
-  const [questionType, setQuestionType] = useState<"MCQ" | "SHORT_ANSWER">(
+  const [questionType, setQuestionType] = useState<"MCQ" | "MATCH" | "SHORT_ANSWER">(
     (step.question?.questionType as any) || "SHORT_ANSWER"
   );
   const [qChoices, setQChoices] = useState(
     step.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
       { id: Date.now(), text: "", isCorrect: false },
+    ]
+  );
+  
+  // Match pairs state
+  const [qMatchPairs, setQMatchPairs] = useState<Array<{ left: string; right: string; id?: string }>>(
+    step.question?.matchPairs?.map((p) => ({ left: p.left, right: p.right ?? "", id: String(Date.now()) })) ?? [
+      { left: "", right: "", id: String(Date.now()) },
     ]
   );
   
@@ -2088,12 +2167,17 @@ function TempEditStepButton({
           ? qAcceptedAnswers.split(",").map((s) => s.trim()).filter(Boolean)
           : [];
         
+        const matchPairsArray = questionType === "MATCH"
+          ? qMatchPairs.filter((p) => p.left.trim() && p.right.trim()).map((p) => ({ left: p.left, right: p.right }))
+          : [];
+        
         updatedStep.question = {
           ...updatedStep.question,
           questionType,
           prompt: qPrompt.trim(),
           choices: questionType === "MCQ" ? qChoices : [],
           acceptedAnswers: acceptedAnswersArray,
+          matchPairs: questionType === "MATCH" ? matchPairsArray : [],
         } as any;
       } else if (step.stepType === "RECAP") {
         const takeawaysArray = recapTakeaways
@@ -2188,7 +2272,7 @@ function TempEditStepButton({
                   <div>
                     <label className="block text-sm font-medium mb-1">Question type</label>
                     <div className="w-full rounded-md border bg-muted/30 px-3 py-2">
-                      <p className="text-sm">{questionType === "MCQ" ? "Multiple Choice" : "Short Answer"}</p>
+                      <p className="text-sm">{questionType === "MCQ" ? "Multiple Choice" : questionType === "MATCH" ? "Matching" : "Short Answer"}</p>
                     </div>
                   </div>
 
@@ -2247,6 +2331,61 @@ function TempEditStepButton({
                           className="text-sm text-blue-500 hover:underline"
                         >
                           + Add choice
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {questionType === "MATCH" && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Match pairs (Left → Right)</label>
+                      <div className="space-y-2">
+                        {qMatchPairs.map((pair, idx) => (
+                          <div key={pair.id} className="flex gap-2 items-end">
+                            <div className="flex-1">
+                              <input
+                                type="text"
+                                className="w-full rounded-md border bg-background px-3 py-2"
+                                value={pair.left}
+                                onChange={(e) => {
+                                  const updated = [...qMatchPairs];
+                                  updated[idx] = { ...pair, left: e.target.value };
+                                  setQMatchPairs(updated);
+                                }}
+                                placeholder={`Term ${idx + 1}`}
+                              />
+                            </div>
+                            <span className="text-muted-foreground">→</span>
+                            <div className="flex-1">
+                              <input
+                                type="text"
+                                className="w-full rounded-md border bg-background px-3 py-2"
+                                value={pair.right}
+                                onChange={(e) => {
+                                  const updated = [...qMatchPairs];
+                                  updated[idx] = { ...pair, right: e.target.value };
+                                  setQMatchPairs(updated);
+                                }}
+                                placeholder={`Definition ${idx + 1}`}
+                              />
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setQMatchPairs(qMatchPairs.filter((_, i) => i !== idx))}
+                              className="text-sm text-red-500 hover:underline whitespace-nowrap"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setQMatchPairs([...qMatchPairs, { left: "", right: "", id: String(Date.now()) }])
+                          }
+                          className="text-sm text-blue-500 hover:underline"
+                        >
+                          + Add pair
                         </button>
                       </div>
                     </div>

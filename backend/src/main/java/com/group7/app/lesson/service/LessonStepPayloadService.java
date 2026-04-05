@@ -157,12 +157,11 @@ public class LessonStepPayloadService {
     if (pairsNode != null && pairsNode.isArray()) {
       for (int i = 0; i < pairsNode.size(); i++) {
         JsonNode pair = pairsNode.get(i);
+        String left = readRequiredText(pair, "left");
+        String right = readOptionalText(pair, "right");
         matchPairs.add(
             new MatchPairOption(
-                pair.path("id").asLong(i + 1L),
-                readRequiredText(pair, "left"),
-                readOptionalText(pair, "right"),
-                pair.path("orderIndex").asInt(i + 1)));
+                pair.path("id").asLong(i + 1L), left, right, pair.path("orderIndex").asInt(i + 1)));
       }
     }
 
@@ -247,10 +246,14 @@ public class LessonStepPayloadService {
   }
 
   public List<String> shuffledRights(QuestionContent questionContent) {
+    if (questionContent == null || questionContent.matchPairs() == null || questionContent.matchPairs().isEmpty()) {
+      return List.of();
+    }
+
     List<String> rights =
         questionContent.matchPairs().stream()
+            .filter(pair -> pair != null && pair.right() != null && !pair.right().isBlank())
             .map(MatchPairOption::right)
-            .filter(value -> value != null && !value.isBlank())
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     Collections.shuffle(rights);
     return rights;
