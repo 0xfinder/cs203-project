@@ -600,10 +600,11 @@ function LessonPage() {
                                 <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
                               </DialogContent>
                             </Dialog>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="default">Add Subunit</Button>
-                              </DialogTrigger>
+                            {isAdmin && (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="default">Add Subunit</Button>
+                                </DialogTrigger>
                               <DialogContent title="Add Subunit" description="Create a lesson under this section">
                               <div className="space-y-3">
                                 <div>
@@ -714,6 +715,7 @@ function LessonPage() {
                               </div>
                             </DialogContent>
                             </Dialog>
+                            )}
                           </div>
                         ) : null
                       }
@@ -734,16 +736,18 @@ function LessonPage() {
                       <CardContent className="pt-6 text-center">
                         <h2 className="text-xl font-semibold">This section has no published steps</h2>
                         <p className="mt-2 text-sm text-muted-foreground">Add lessons or quizzes to populate this section.</p>
-                        <div className="mt-6">
-                          <Dialog>
-                            <DialogTrigger asChild>
-                              <Button size="lg">Add Content</Button>
-                            </DialogTrigger>
-                            <DialogContent title="Add Content" description="Create a lesson or quiz for this section">
-                                  <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
-                            </DialogContent>
-                          </Dialog>
-                        </div>
+                        {(isContributor || isAdmin) && (
+                          <div className="mt-6">
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button size="lg">Add Content</Button>
+                              </DialogTrigger>
+                              <DialogContent title="Add Content" description="Create a lesson or quiz for this section">
+                                    <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
+                              </DialogContent>
+                            </Dialog>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   </div>
@@ -954,10 +958,11 @@ function LessonPage() {
                             <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
                           </DialogContent>
                         </Dialog>
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button variant="default">Add Subunit</Button>
-                          </DialogTrigger>
+                        {isAdmin && (
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="default">Add Subunit</Button>
+                            </DialogTrigger>
                           <DialogContent title="Add Subunit" description={`Create a lesson under ${currentUnit?.title ?? "this section"}`}>
                           <div className="space-y-3">
                             <div>
@@ -1066,6 +1071,7 @@ function LessonPage() {
                           </div>
                         </DialogContent>
                         </Dialog>
+                        )}
                       </div>
                     ) : null
                   }
@@ -1086,16 +1092,18 @@ function LessonPage() {
                     <CardContent className="pt-6 text-center">
                       <h2 className="text-xl font-semibold">This section has no published steps</h2>
                       <p className="mt-2 text-sm text-muted-foreground">Add lessons or quizzes to populate this section.</p>
-                      <div className="mt-6">
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button size="lg">Add Content</Button>
-                          </DialogTrigger>
-                          <DialogContent title="Add Content" description="Create a lesson for this section">
-                            <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
-                          </DialogContent>
-                        </Dialog>
-                      </div>
+                      {(isContributor || isAdmin) && (
+                        <div className="mt-6">
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button size="lg">Add Content</Button>
+                            </DialogTrigger>
+                            <DialogContent title="Add Content" description="Create a lesson for this section">
+                              <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 ) : (

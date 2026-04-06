@@ -204,6 +204,7 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
         }
       };
       const me = await getMe();
+      const isAdmin = me.role === "ADMIN" || me.role === "MODERATOR";
       let stepsPayload: any[] = [];
       if (format === "definition") {
         stepsPayload = [
@@ -553,7 +554,7 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
       }
 
       if (subunitId) {
-        // Create a new lesson wrapper for review with targetSubunitId set
+        // Create a new lesson wrapper with targetSubunitId set
         const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, targetSubunitId: subunitId } }).json<any>();
         const newLessonId = created.id;
         // create step(s) on the new lesson
@@ -561,11 +562,17 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
           const apiStep = mapStepForApi(st);
           await api.post(`lessons/${newLessonId}/steps`, { json: apiStep }).json();
         }
-        // submit the new lesson for review
-        await api.patch(`lessons/${newLessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
-        
-        // add the created lesson to the pending cache so Review shows it immediately
-        try {
+        if (isAdmin) {
+          // For admins, auto-approve so content is attached immediately
+          await api.patch(`lessons/${newLessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
+          await api.patch(`lessons/${newLessonId}`, { json: { status: "APPROVED" } }).json();
+          void queryClient.invalidateQueries({ queryKey: ["units"] });
+        } else {
+          // submit the new lesson for review
+          await api.patch(`lessons/${newLessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
+
+          // add the created lesson to the pending cache so Review shows it immediately
+          try {
             const selectedSubunitTitle = subunitId
               ? (allUnits?.find((u: any) => u.id === unitId)?.lessons ?? []).find((l: any) => l.id === subunitId)?.title
               : undefined;
@@ -592,7 +599,19 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
               const key = "pendingLessonMeta";
               const raw = localStorage.getItem(key);
               const map = raw ? JSON.parse(raw) : {};
-              map[created.id] = { subunitTitle: selectedSubunitTitle, subunitId: subunitId ?? null, firstStepType: summary.firstStepType, firstQuestionType: summary.firstQuestionType, firstStepPrompt: (stepsPayload && stepsPayload.length > 0 && stepsPayload[0].question && stepsPayload[0].question.prompt) ? stepsPayload[0].question.prompt : null };
+              map[created.id] = {
+                subunitTitle: selectedSubunitTitle,
+                subunitId: subunitId ?? null,
+                firstStepType: summary.firstStepType,
+                firstQuestionType: summary.firstQuestionType,
+                firstStepPrompt:
+                  stepsPayload &&
+                  stepsPayload.length > 0 &&
+                  stepsPayload[0].question &&
+                  stepsPayload[0].question.prompt
+                    ? stepsPayload[0].question.prompt
+                    : null,
+              };
               localStorage.setItem(key, JSON.stringify(map));
             } catch (e) {
               // ignore storage failures
@@ -600,6 +619,7 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
           } catch (e) {
             // ignore cache failures
           }
+        }
       } else {
         // create a new lesson draft and attach steps
         const created = await api.post("lessons", { json: { unitId, title: titleVal, description: descriptionVal, learningObjective: null, estimatedMinutes: null, targetSubunitId: subunitId } }).json<any>();
@@ -608,9 +628,15 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
           const apiStep = mapStepForApi(st);
           await api.post(`lessons/${lessonId}/steps`, { json: apiStep }).json();
         }
-        // submit the lesson for review
-        await api.patch(`lessons/${lessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
-        // add to pending cache so Review shows it
+        if (isAdmin) {
+          // For admins, auto-approve so the lesson is live immediately
+          await api.patch(`lessons/${lessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
+          await api.patch(`lessons/${lessonId}`, { json: { status: "APPROVED" } }).json();
+          void queryClient.invalidateQueries({ queryKey: ["units"] });
+        } else {
+          // submit the lesson for review
+          await api.patch(`lessons/${lessonId}`, { json: { status: "PENDING_REVIEW" } }).json();
+          // add to pending cache so Review shows it
           try {
             const selectedSubunitTitle = subunitId
               ? (allUnits?.find((u: any) => u.id === unitId)?.lessons ?? []).find((l: any) => l.id === subunitId)?.title
@@ -628,29 +654,52 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
               subunitTitle: selectedSubunitTitle,
               subunitId: subunitId ?? null,
             };
-          queryClient.setQueryData(["lessons", "pending"], (old: any) => {
-            if (!old) return [summary];
-            return [summary, ...old];
-          });
-          try {
-            const key = "pendingLessonMeta";
-            const raw = localStorage.getItem(key);
-            const map = raw ? JSON.parse(raw) : {};
-            map[created.id] = { subunitTitle: selectedSubunitTitle, subunitId: subunitId ?? null, firstStepType: stepsPayload && stepsPayload.length > 0 ? stepsPayload[0].stepType : null, firstQuestionType: stepsPayload && stepsPayload.length > 0 ? (stepsPayload[0].questionType ?? null) : null, firstStepPrompt: (stepsPayload && stepsPayload.length > 0 && stepsPayload[0].question && stepsPayload[0].question.prompt) ? stepsPayload[0].question.prompt : null };
-            localStorage.setItem(key, JSON.stringify(map));
+            queryClient.setQueryData(["lessons", "pending"], (old: any) => {
+              if (!old) return [summary];
+              return [summary, ...old];
+            });
+            try {
+              const key = "pendingLessonMeta";
+              const raw = localStorage.getItem(key);
+              const map = raw ? JSON.parse(raw) : {};
+              map[created.id] = {
+                subunitTitle: selectedSubunitTitle,
+                subunitId: subunitId ?? null,
+                firstStepType:
+                  stepsPayload && stepsPayload.length > 0 ? stepsPayload[0].stepType : null,
+                firstQuestionType:
+                  stepsPayload && stepsPayload.length > 0
+                    ? stepsPayload[0].questionType ?? null
+                    : null,
+                firstStepPrompt:
+                  stepsPayload &&
+                  stepsPayload.length > 0 &&
+                  stepsPayload[0].question &&
+                  stepsPayload[0].question.prompt
+                    ? stepsPayload[0].question.prompt
+                    : null,
+              };
+              localStorage.setItem(key, JSON.stringify(map));
+            } catch (e) {
+              // ignore
+            }
           } catch (e) {
             // ignore
           }
-        } catch (e) {
-          // ignore
         }
       }
-      setSuccess("Lesson submitted — it will appear after review.");
-      // navigate to Review to let the user see the pending item (delay so success message is visible)
+      if (isAdmin) {
+        setSuccess("Lesson published — it's live immediately.");
+      } else {
+        setSuccess("Lesson submitted — it will appear after review.");
+        // navigate to Review to let the user see the pending item (delay so success message is visible)
         setTimeout(() => {
-          try { sessionStorage.setItem("reviewActiveSub", "lesson"); } catch (e) {}
+          try {
+            sessionStorage.setItem("reviewActiveSub", "lesson");
+          } catch (e) {}
           navigate("/review");
         }, 800);
+      }
       setTerm("");
       setDefText("");
       setExample("");

@@ -210,7 +210,42 @@ export function useDeleteContent() {
 
   return useMutation({
     mutationFn: ({ id }: { id: number }) => api.delete(`contents/${id}`).json<void>(),
-    onSuccess: () => {
+    // Optimistically remove content from local caches so dictionary updates instantly.
+    onMutate: async ({ id }) => {
+      await queryClient.cancelQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+      await queryClient.cancelQueries({ queryKey: CONTENTS_KEY });
+
+      const previousWithVotes = queryClient.getQueryData<ContentWithVotesResponse[]>(
+        CONTENTS_WITH_VOTES_KEY,
+      );
+      const previousApproved = queryClient.getQueryData<ContentItem[]>(CONTENTS_KEY);
+
+      if (previousWithVotes) {
+        queryClient.setQueryData<ContentWithVotesResponse[]>(
+          CONTENTS_WITH_VOTES_KEY,
+          previousWithVotes.filter((item) => item.content.id !== id),
+        );
+      }
+
+      if (previousApproved) {
+        queryClient.setQueryData<ContentItem[]>(
+          CONTENTS_KEY,
+          previousApproved.filter((item) => item.id !== id),
+        );
+      }
+
+      return { previousWithVotes, previousApproved };
+    },
+    onError: (_error, _vars, context) => {
+      if (!context) return;
+      if (context.previousWithVotes) {
+        queryClient.setQueryData(CONTENTS_WITH_VOTES_KEY, context.previousWithVotes);
+      }
+      if (context.previousApproved) {
+        queryClient.setQueryData(CONTENTS_KEY, context.previousApproved);
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
       void queryClient.invalidateQueries({ queryKey: CONTENTS_KEY });
     },

@@ -44,6 +44,7 @@ function LearnPage() {
   const role = profile?.role;
   const isContributor =
     role === "CONTRIBUTOR" || role === "ADMIN" || role === "MODERATOR";
+  const isAdmin = role === "ADMIN" || role === "MODERATOR";
   const [appendedUnits, setAppendedUnits] = useState<UnitData[]>([]);
   const [newUnitTitle, setNewUnitTitle] = useState("");
   const [newUnitDesc, setNewUnitDesc] = useState("");
@@ -304,7 +305,7 @@ function LearnPage() {
                   <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow sm:size-7 sm:text-sm">✓</span>
                 )}
 
-                {isContributor && (
+                {isAdmin && (
                   <button
                     type="button"
                     onClick={(e) => {
@@ -452,7 +453,7 @@ function LearnPage() {
         })}
 
         {/* single add button at end of units */}
-        {isContributor && (
+        {isAdmin && (
           <div className="mt-6 mb-6 flex items-center justify-center">
               <div>
                 <Dialog>

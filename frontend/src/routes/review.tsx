@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { getMe } from "@/lib/me";
 import { usePendingLessons, useUnits, useApproveLesson, useRejectLesson } from "@/features/lessons/useLessonsApi";
@@ -659,6 +660,11 @@ function ReviewPage() {
     setExpandedId(null);
   };
 
+  const termCount = termItems.length;
+  const lessonCount = lessonItems.length;
+  const contentCount = termCount + lessonCount;
+  const appealsCount = appeals.length;
+
   if (isLoading || hasAccess === null) {
     return <div className="p-8 text-center">Loading pending items...</div>;
   }
@@ -677,19 +683,35 @@ function ReviewPage() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6 gap-4">
-            <TabsTrigger value="content" className="px-8 py-2">
-              Content
+            <TabsTrigger value="content" className="px-8 py-2 flex items-center gap-2">
+              <span>Content</span>
+              {contentCount > 0 && (
+                <Badge variant="secondary" className="bg-primary text-primary-foreground">{contentCount}</Badge>
+              )}
             </TabsTrigger>
-            <TabsTrigger value="appeals" className="px-8 py-2">
-              Appeals
+            <TabsTrigger value="appeals" className="px-8 py-2 flex items-center gap-2">
+              <span>Appeals</span>
+              {appealsCount > 0 && (
+                <Badge variant="secondary" className="bg-primary text-primary-foreground">{appealsCount}</Badge>
+              )}
             </TabsTrigger>
           </TabsList>
 
           <TabsContent value="content" className="space-y-4">
             <Tabs value={contentSubTab} onValueChange={setContentSubTab}>
               <TabsList className="mb-6 grid w-full grid-cols-2">
-                <TabsTrigger value="term">Term</TabsTrigger>
-                <TabsTrigger value="lesson">Lesson</TabsTrigger>
+                <TabsTrigger value="term" className="flex items-center justify-center gap-2">
+                  <span>Term</span>
+                  {termCount > 0 && (
+                    <Badge variant="outline" className="border-primary/50 text-primary">{termCount}</Badge>
+                  )}
+                </TabsTrigger>
+                <TabsTrigger value="lesson" className="flex items-center justify-center gap-2">
+                  <span>Lesson</span>
+                  {lessonCount > 0 && (
+                    <Badge variant="outline" className="border-primary/50 text-primary">{lessonCount}</Badge>
+                  )}
+                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="term">
