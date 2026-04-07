@@ -367,30 +367,26 @@ function ProfilePage() {
           <CardContent className="p-0">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-center">
               <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="h-20 w-20 overflow-hidden rounded-full bg-muted text-sm font-semibold text-white shadow">
-                    {avatarPreview ? (
-                      <img
-                        src={avatarPreview}
-                        alt="avatar preview"
-                        className="h-full w-full object-cover"
-                      />
-                    ) : (
-                      <span
-                        style={{ backgroundColor: avatarColor }}
-                        className="flex h-full w-full items-center justify-center text-lg"
-                      >
-                        {initials}
-                      </span>
-                    )}
-                  </div>
-                  <div className="absolute -bottom-1 -right-1 rounded-full bg-card/80 p-0.5 shadow-inner">
-                    <RoleBadge role={userRole} />
-                  </div>
+                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-muted text-sm font-semibold text-white shadow">
+                  {avatarPreview ? (
+                    <img
+                      src={avatarPreview}
+                      alt="avatar preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span
+                      style={{ backgroundColor: avatarColor }}
+                      className="flex h-full w-full items-center justify-center text-lg"
+                    >
+                      {initials}
+                    </span>
+                  )}
                 </div>
-                <div>
+                <div className="flex h-20 min-w-0 flex-col justify-center gap-1">
                   <p className="text-lg font-semibold">{displayName}</p>
                   <p className="text-sm text-muted-foreground">{user?.email ?? "unknown user"}</p>
+                  <RoleBadge role={userRole} className="w-fit" />
                 </div>
               </div>
 
