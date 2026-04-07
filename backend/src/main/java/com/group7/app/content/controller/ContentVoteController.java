@@ -72,6 +72,15 @@ public class ContentVoteController {
     return contentVoteService.getApprovedContentsWithVotes(userId);
   }
 
+  @GetMapping("/me")
+  @Operation(summary = "Get current user's approved content with vote totals")
+  public List<ContentWithVotesResponse> getMyContentsWithVotes(@AuthenticationPrincipal Jwt jwt) {
+    UUID userId = parseUserId(jwt);
+    String email = getEmail(jwt);
+    userService.findById(userId).orElseGet(() -> userService.createFromAuth(userId, email));
+    return contentVoteService.getApprovedContentsWithVotesForSubmitter(userId, email);
+  }
+
   private static UUID parseUserId(Jwt jwt) {
     String subject = jwt.getSubject();
     if (subject == null || subject.isBlank()) {

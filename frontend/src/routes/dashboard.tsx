@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { useQuery } from "@tanstack/react-query";
 import { requireOnboardingCompleted } from "@/lib/auth";
-import { getMe } from "@/lib/me";
 import { useMyApprovedContentsWithVotes } from "@/features/content/useContentData";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ThumbsUp, ThumbsDown } from "lucide-react";
+import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: requireOnboardingCompleted,
@@ -12,30 +12,23 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function DashboardPage() {
-  const [userEmail, setUserEmail] = useState<string | null>(null);
-  const { data: myContents, isLoading, error } = useMyApprovedContentsWithVotes(userEmail);
+  const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
+  const userEmail = currentUserViewQuery.data?.profile?.email ?? null;
+  const { data: myContents, isLoading, error } = useMyApprovedContentsWithVotes();
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const me = await getMe();
-        setUserEmail(me.email ?? null);
-      } catch (e) {
-        console.error("failed to fetch user data:", e);
-        setUserEmail(null);
-      }
-    };
-    void fetchUser();
-  }, []);
-
-  if (isLoading || userEmail === null) {
+  if (currentUserViewQuery.isLoading || isLoading || userEmail === null) {
     return <div className="p-8 text-center">Loading your dashboard...</div>;
   }
 
-  if (error) {
+  if (currentUserViewQuery.error || error) {
     return (
       <div className="p-8 text-center text-destructive">
-        Error loading your content: {error instanceof Error ? error.message : "Unknown error"}
+        Error loading your content:{" "}
+        {currentUserViewQuery.error instanceof Error
+          ? currentUserViewQuery.error.message
+          : error instanceof Error
+            ? error.message
+            : "Unknown error"}
       </div>
     );
   }
