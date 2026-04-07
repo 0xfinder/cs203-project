@@ -92,7 +92,7 @@ public class LessonService {
   }
 
   public Lesson createLesson(User actor, LessonDraftInput input) {
-    requireRole(actor, Role.CONTRIBUTOR, Role.ADMIN);
+    requireRole(actor, Role.CONTRIBUTOR, Role.MODERATOR, Role.ADMIN);
     Unit unit =
         unitRepository
             .findById(input.unitId())

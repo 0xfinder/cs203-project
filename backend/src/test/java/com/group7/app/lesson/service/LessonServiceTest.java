@@ -130,6 +130,23 @@ class LessonServiceTest {
   }
 
   @Test
+  void createLessonAllowsModerator() {
+    User moderator = user(Role.MODERATOR);
+    Unit unit = new Unit("Core", "core", "desc", 1);
+    when(unitRepository.findById(10L)).thenReturn(Optional.of(unit));
+    when(lessonRepository.existsBySlug("mod-lesson")).thenReturn(false);
+    when(lessonRepository.save(any(Lesson.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    Lesson lesson =
+        lessonService.createLesson(
+            moderator, new LessonService.LessonDraftInput(10L, "Mod Lesson", "Desc", null, 5, 1));
+
+    assertThat(lesson.getCreatedBy()).isEqualTo(moderator.getId());
+    assertThat(lesson.getStatus()).isEqualTo(LessonStatus.DRAFT);
+  }
+
+  @Test
   void createLessonRejectsInsufficientRole() {
     assertThatThrownBy(
             () ->
