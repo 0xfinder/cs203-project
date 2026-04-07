@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
 import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash, Plus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -74,6 +75,7 @@ function groupByLetter(groups: TermGroup[]): Record<string, TermGroup[]> {
 }
 
 function DictionaryPage() {
+  const queryClient = useQueryClient();
   const { data: contents, isLoading, error } = useApprovedContentsWithVotes();
   const castVote = useCastContentVote();
   const clearVote = useClearContentVote();
@@ -127,6 +129,8 @@ function DictionaryPage() {
         submittedBy: me.email ?? "",
       };
       await api.post("contents", { json: payload }).json();
+      await queryClient.invalidateQueries({ queryKey: ["contents", "approved-with-votes"] });
+      await queryClient.invalidateQueries({ queryKey: ["contents"] });
       setSubmitSuccess(
         me.role === "ADMIN" || me.role === "MODERATOR"
           ? "Added and live."
