@@ -32,6 +32,7 @@ import { queryClient } from "@/lib/query-client";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
+import { AppPageShell } from "@/components/app-page-shell";
 // duplicate imports removed
 
 export const Route = createFileRoute("/forum")({
@@ -634,7 +635,7 @@ function ForumPage() {
 
   /* -- render ------------------------------------------------------------- */
   return (
-    <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
+    <AppPageShell contentClassName="max-w-3xl">
       {/* debug banner removed (undefined `debugMessage` caused runtime error) */}
       {/* page header */}
       <div className="mb-6 flex items-center justify-between gap-4">
@@ -973,6 +974,6 @@ function ForumPage() {
           })}
         </div>
       )}
-    </div>
+    </AppPageShell>
   );
 }

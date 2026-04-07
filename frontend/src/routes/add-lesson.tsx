@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUnits } from "@/features/lessons/useLessonsApi";
+import { AppPageShell } from "@/components/app-page-shell";
 
 export const Route = createFileRoute("/add-lesson")({
   beforeLoad: requireContributorOrOnboarded,
@@ -90,7 +91,7 @@ function AddLessonPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:px-6">
+    <AppPageShell contentClassName="max-w-2xl">
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Add New Lesson or Quiz</CardTitle>
@@ -187,6 +188,6 @@ function AddLessonPage() {
           </Tabs>
         </CardContent>
       </Card>
-    </div>
+    </AppPageShell>
   );
 }

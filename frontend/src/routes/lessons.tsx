@@ -15,6 +15,7 @@ import { getUnitRoadmap, getVisibleUnits, progressMap } from "@/features/lessons
 import { useQuery } from "@tanstack/react-query";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import { useLessonProgress, useUnits } from "@/features/lessons/useLessonsApi";
+import { AppPageShell } from "@/components/app-page-shell";
 
 export const Route = createFileRoute("/lessons")({
   beforeLoad: async () => {
@@ -47,16 +48,14 @@ function LearnPage() {
   });
 
   if (unitsLoading || progressLoading) {
-    return (
-      <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:px-6">Loading units...</div>
-    );
+    return <AppPageShell contentClassName="max-w-2xl">Loading units...</AppPageShell>;
   }
 
   if (unitsError || progressError || !units) {
     return (
-      <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 text-destructive sm:px-6">
+      <AppPageShell contentClassName="max-w-2xl text-destructive">
         Failed to load units.
-      </div>
+      </AppPageShell>
     );
   }
 
@@ -259,7 +258,7 @@ function LearnPage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-8 sm:px-6">
+    <AppPageShell contentClassName="max-w-2xl">
       {isAdmin ? (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 rounded-2xl bg-muted/70 p-1">
@@ -300,6 +299,6 @@ function LearnPage() {
           </Dialog>
         </div>
       ) : null}
-    </div>
+    </AppPageShell>
   );
 }

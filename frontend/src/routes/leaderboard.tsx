@@ -8,6 +8,7 @@ import { Trophy, Star, Flame, Zap, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useState } from "react";
+import { AppPageShell } from "@/components/app-page-shell";
 
 export const Route = createFileRoute("/leaderboard")({
   beforeLoad: async () => {
@@ -82,96 +83,94 @@ function LeaderboardPage() {
   };
 
   return (
-    <div className="flex-1 p-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-6">
-          <Trophy className="size-12 text-yellow-500 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold mb-2">Global Leaderboard</h1>
-          <p className="text-muted-foreground">Top learners in the community</p>
-        </div>
-
-        <div className="flex justify-center mb-8">
-          <Tabs value={sortBy} onValueChange={setSortBy} className="w-full max-w-md">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="points">
-                <Star className="size-4 mr-2" />
-                Points
-              </TabsTrigger>
-              <TabsTrigger value="streak">
-                <Flame className="size-4 mr-2" />
-                Streak
-              </TabsTrigger>
-              <TabsTrigger value="speed">
-                <Zap className="size-4 mr-2" />
-                Speed
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
-        </div>
-
-        <Card>
-          <CardHeader className="border-b bg-muted/30">
-            <div className="grid grid-cols-[3rem_1fr_8rem] items-center text-sm font-semibold text-muted-foreground">
-              <span>Rank</span>
-              <span>User</span>
-              <span className="text-right">{getMetricLabel()}</span>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            {leaderboard?.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                No rankings available yet. Be the first to complete a lesson!
-              </div>
-            ) : (
-              <div className="divide-y">
-                {leaderboard?.map((entry, index) => {
-                  const isTopThree = index < 3;
-                  const rankIcon =
-                    index === 0 ? (
-                      <span className="text-xl">🥇</span>
-                    ) : index === 1 ? (
-                      <span className="text-xl">🥈</span>
-                    ) : index === 2 ? (
-                      <span className="text-xl">🥉</span>
-                    ) : (
-                      <span className="text-sm font-medium text-muted-foreground">{index + 1}</span>
-                    );
-
-                  return (
-                    <div
-                      key={entry.userId}
-                      className={cn(
-                        "grid grid-cols-[3rem_1fr_8rem] items-center p-4 transition-colors",
-                        isTopThree ? "bg-primary/5" : "hover:bg-muted/30",
-                      )}
-                    >
-                      <div className="flex justify-center">{rankIcon}</div>
-                      <div className="flex items-center gap-3 overflow-hidden">
-                        <UserAvatar
-                          name={entry.displayName || "Anonymous Learner"}
-                          avatarPath={entry.avatarPath}
-                          avatarColor={entry.avatarColor}
-                        />
-                        <span className="font-semibold truncate">
-                          {entry.displayName || "Anonymous Learner"}
-                        </span>
-                      </div>
-                      <div className="text-right flex items-center justify-end gap-1.5">
-                        {getMetricIcon()}
-                        <span className="font-bold text-primary">{getMetricValue(entry)}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <div className="mt-8 text-center text-xs text-muted-foreground">
-          <p>Rankings are updated in real-time based on your activity.</p>
-        </div>
+    <AppPageShell contentClassName="max-w-2xl">
+      <div className="text-center mb-6">
+        <Trophy className="size-12 text-yellow-500 mx-auto mb-4" />
+        <h1 className="text-3xl font-bold mb-2">Global Leaderboard</h1>
+        <p className="text-muted-foreground">Top learners in the community</p>
       </div>
-    </div>
+
+      <div className="flex justify-center mb-8">
+        <Tabs value={sortBy} onValueChange={setSortBy} className="w-full max-w-md">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="points">
+              <Star className="size-4 mr-2" />
+              Points
+            </TabsTrigger>
+            <TabsTrigger value="streak">
+              <Flame className="size-4 mr-2" />
+              Streak
+            </TabsTrigger>
+            <TabsTrigger value="speed">
+              <Zap className="size-4 mr-2" />
+              Speed
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      <Card className="gap-0 overflow-hidden py-0">
+        <CardHeader className="grid-rows-1 items-center gap-0 border-b bg-muted/30 px-4 py-4 [.border-b]:pb-4">
+          <div className="grid grid-cols-[3rem_1fr_8rem] items-center text-sm font-semibold text-muted-foreground">
+            <span className="flex items-center justify-center">Rank</span>
+            <span className="flex items-center">User</span>
+            <span className="flex items-center justify-end">{getMetricLabel()}</span>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {leaderboard?.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              No rankings available yet. Be the first to complete a lesson!
+            </div>
+          ) : (
+            <div className="divide-y">
+              {leaderboard?.map((entry, index) => {
+                const isTopThree = index < 3;
+                const rankIcon =
+                  index === 0 ? (
+                    <span className="text-xl">🥇</span>
+                  ) : index === 1 ? (
+                    <span className="text-xl">🥈</span>
+                  ) : index === 2 ? (
+                    <span className="text-xl">🥉</span>
+                  ) : (
+                    <span className="text-sm font-medium text-muted-foreground">{index + 1}</span>
+                  );
+
+                return (
+                  <div
+                    key={entry.userId}
+                    className={cn(
+                      "grid grid-cols-[3rem_1fr_8rem] items-center px-4 py-3 transition-colors",
+                      isTopThree ? "bg-primary/5" : "hover:bg-muted/30",
+                    )}
+                  >
+                    <div className="flex justify-center">{rankIcon}</div>
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <UserAvatar
+                        name={entry.displayName || "Anonymous Learner"}
+                        avatarPath={entry.avatarPath}
+                        avatarColor={entry.avatarColor}
+                      />
+                      <span className="font-semibold truncate">
+                        {entry.displayName || "Anonymous Learner"}
+                      </span>
+                    </div>
+                    <div className="text-right flex items-center justify-end gap-1.5">
+                      {getMetricIcon()}
+                      <span className="font-bold text-primary">{getMetricValue(entry)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <div className="mt-8 text-center text-xs text-muted-foreground">
+        <p>Rankings are updated in real-time based on your activity.</p>
+      </div>
+    </AppPageShell>
   );
 }

@@ -18,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { api } from "@/lib/api";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
+import { AppPageShell } from "@/components/app-page-shell";
 
 const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 const MAX_AVATAR_MB = 5;
@@ -315,7 +316,7 @@ function ProfilePage() {
   const avatarColor = profile.avatarColor || "#475569";
 
   return (
-    <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+    <AppPageShell contentClassName="max-w-4xl">
       <div className="space-y-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -605,6 +606,6 @@ function ProfilePage() {
           </CardFooter>
         </Card>
       </div>
-    </div>
+    </AppPageShell>
   );
 }

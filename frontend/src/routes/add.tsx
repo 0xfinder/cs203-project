@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LessonForm } from "@/components/lesson-quiz-forms";
+import { AppPageShell } from "@/components/app-page-shell";
 
 const addFieldClass =
   "mt-1.5 rounded-xl border-border bg-background focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20";
@@ -60,7 +61,7 @@ function SubmitContentPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+    <AppPageShell contentClassName="max-w-4xl">
       <div className="space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Add Content</h1>
@@ -184,6 +185,6 @@ function SubmitContentPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
+    </AppPageShell>
   );
 }
