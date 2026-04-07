@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronUp,
@@ -8,18 +8,17 @@ import {
   MessageSquareMore,
   Pencil,
   Plus,
-  Sparkles,
   Trash2,
 } from "lucide-react";
-import { api } from "@/lib/api";
-import { getMe } from "@/lib/me";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import { useUnits } from "@/features/lessons/useLessonsApi";
+import { api } from "@/lib/api";
+import { getMe } from "@/lib/me";
+import { cn } from "@/lib/utils";
 
 type DraftStepType = "TEACH" | "DIALOGUE" | "QUESTION" | "RECAP";
 type DraftQuestionType = "SHORT_ANSWER" | "MCQ" | "MATCH";
@@ -59,27 +58,30 @@ function createStepId() {
 }
 
 function createChoice() {
-  return { id: Date.now(), text: "", isCorrect: false };
+  return { id: Date.now() + Math.random(), text: "", isCorrect: false };
 }
 
 function createPair() {
-  return { id: Date.now(), left: "", right: "" };
+  return { id: Date.now() + Math.random(), left: "", right: "" };
 }
 
 function summarizeStep(step: DraftStep) {
   switch (step.stepType) {
     case "TEACH":
       return {
+        label: "Learn",
         title: step.title || "Learn step",
         detail: step.body || "No teaching copy yet.",
       };
     case "DIALOGUE":
       return {
+        label: "Dialogue",
         title: "Dialogue",
         detail: step.dialogueText.split("\n")[0] || "No dialogue yet.",
       };
     case "QUESTION":
       return {
+        label: "Question",
         title:
           step.questionType === "MCQ"
             ? "Multiple choice"
@@ -90,11 +92,15 @@ function summarizeStep(step: DraftStep) {
       };
     case "RECAP":
       return {
+        label: "Recap",
         title: step.headline || "Recap",
         detail: step.summary || "No summary yet.",
       };
   }
 }
+
+const fieldClass =
+  "mt-2 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20";
 
 export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
   const { data: units } = useUnits();
@@ -125,10 +131,10 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
   const [qAcceptedAnswers, setQAcceptedAnswers] = useState("");
   const [qChoices, setQChoices] = useState<
     Array<{ id: number; text: string; isCorrect?: boolean }>
-  >([createChoice()]);
+  >([createChoice(), createChoice()]);
   const [qMatchPairs, setQMatchPairs] = useState<
     Array<{ id: number | string; left: string; right: string }>
-  >([createPair()]);
+  >([createPair(), createPair()]);
   const [recapHeadline, setRecapHeadline] = useState("Quick recap");
   const [recapSummary, setRecapSummary] = useState("");
   const [recapTakeaways, setRecapTakeaways] = useState("");
@@ -166,7 +172,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
 
   if (allUnits.length === 0) {
     return (
-      <Card className="border-dashed border-border/70 bg-background/70">
+      <Card className="border-0 bg-muted/30 shadow-none">
         <CardContent className="p-6 text-sm text-muted-foreground">
           No units exist yet. An admin needs to create a unit before lessons can be authored.
         </CardContent>
@@ -183,8 +189,8 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
     setQuestionType("SHORT_ANSWER");
     setQPrompt("");
     setQAcceptedAnswers("");
-    setQChoices([createChoice()]);
-    setQMatchPairs([createPair()]);
+    setQChoices([createChoice(), createChoice()]);
+    setQMatchPairs([createPair(), createPair()]);
     setRecapHeadline("Quick recap");
     setRecapSummary("");
     setRecapTakeaways("");
@@ -210,8 +216,8 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       setQuestionType(step.questionType);
       setQPrompt(step.prompt);
       setQAcceptedAnswers(step.acceptedAnswers.join(", "));
-      setQChoices(step.choices.length > 0 ? step.choices : [createChoice()]);
-      setQMatchPairs(step.matchPairs.length > 0 ? step.matchPairs : [createPair()]);
+      setQChoices(step.choices.length > 0 ? step.choices : [createChoice(), createChoice()]);
+      setQMatchPairs(step.matchPairs.length > 0 ? step.matchPairs : [createPair(), createPair()]);
       return;
     }
 
@@ -226,6 +232,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
         setError("Learn steps need a title and body.");
         return null;
       }
+
       return {
         id: editingStepId ?? createStepId(),
         stepType: "TEACH",
@@ -240,6 +247,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
         setError("Dialogue steps need dialogue text.");
         return null;
       }
+
       return {
         id: editingStepId ?? createStepId(),
         stepType: "DIALOGUE",
@@ -258,10 +266,12 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
           .split(",")
           .map((value) => value.trim())
           .filter(Boolean);
+
         if (answers.length === 0) {
           setError("Short answer questions need at least one accepted answer.");
           return null;
         }
+
         return {
           id: editingStepId ?? createStepId(),
           stepType: "QUESTION",
@@ -277,14 +287,17 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
         const choices = qChoices.map((choice) => ({ ...choice, text: choice.text.trim() }));
         const validChoices = choices.filter((choice) => choice.text.length > 0);
         const correctCount = validChoices.filter((choice) => !!choice.isCorrect).length;
+
         if (validChoices.length < 2) {
           setError("Multiple choice questions need at least two choices.");
           return null;
         }
+
         if (correctCount !== 1) {
           setError("Multiple choice questions need exactly one correct answer.");
           return null;
         }
+
         return {
           id: editingStepId ?? createStepId(),
           stepType: "QUESTION",
@@ -299,10 +312,12 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       const pairs = qMatchPairs
         .map((pair) => ({ ...pair, left: pair.left.trim(), right: pair.right.trim() }))
         .filter((pair) => pair.left && pair.right);
+
       if (pairs.length < 2) {
         setError("Matching questions need at least two pairs.");
         return null;
       }
+
       return {
         id: editingStepId ?? createStepId(),
         stepType: "QUESTION",
@@ -318,10 +333,12 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       .split("\n")
       .map((value) => value.trim())
       .filter(Boolean);
+
     if (!recapHeadline.trim() || !recapSummary.trim()) {
       setError("Recap steps need a headline and summary.");
       return null;
     }
+
     return {
       id: editingStepId ?? createStepId(),
       stepType: "RECAP",
@@ -342,12 +359,14 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       }
       return [...current, step];
     });
+
     resetStepEditor();
   };
 
   const moveStep = (index: number, direction: -1 | 1) => {
     const nextIndex = index + direction;
     if (nextIndex < 0 || nextIndex >= steps.length) return;
+
     setSteps((current) => {
       const copy = current.slice();
       const [step] = copy.splice(index, 1);
@@ -457,14 +476,17 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       setError("Pick a unit before creating a lesson.");
       return;
     }
+
     if (!lessonTitle.trim()) {
       setError("Lesson title is required.");
       return;
     }
+
     if (!lessonDescription.trim()) {
       setError("Lesson summary is required.");
       return;
     }
+
     if (steps.length === 0) {
       setError("Add at least one step before submitting the lesson.");
       return;
@@ -508,6 +530,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
         await api
           .patch(`lessons/${createdLessonId}`, { json: { status: "PENDING_REVIEW" } })
           .json();
+
         const summary = {
           id: created.id,
           unitId: created.unitId ?? unitId,
@@ -556,6 +579,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       resetLessonForm();
     } catch (err: any) {
       console.error(err);
+
       if (createdLessonId != null) {
         try {
           await api.delete(`lessons/${createdLessonId}`);
@@ -565,15 +589,18 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       }
 
       let message = "Failed to create lesson. Try again.";
+
       try {
         if (err?.response) {
           const res = err.response;
           let body: any = null;
+
           try {
             body = await res.json();
           } catch {
             body = await res.text().catch(() => null);
           }
+
           const status = res.status;
           const bodyMsg =
             body && typeof body === "object"
@@ -586,43 +613,20 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
       } catch (formatError) {
         console.error("failed to format lesson creation error:", formatError);
       }
+
       setError(message);
     } finally {
       setLoading(false);
     }
   };
 
-  const typeButtonClass = (stepType: DraftStepType) =>
-    cn(
-      "rounded-full border px-4 py-2 text-sm font-semibold transition-colors",
-      activeStepType === stepType
-        ? "border-primary bg-primary text-primary-foreground"
-        : "border-border bg-background text-foreground hover:bg-accent",
-    );
-
   return (
     <form onSubmit={handleSubmitLesson} className="space-y-6">
-      <Card className="border-chart-1/20 bg-gradient-to-br from-chart-1/10 via-background to-chart-2/10">
-        <CardHeader className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                lesson builder
-              </p>
-              <CardTitle className="mt-2 text-2xl">
-                Build the lesson before it goes to review
-              </CardTitle>
-            </div>
-            <Badge variant="outline" className="border-chart-1/30 bg-background/80 px-3 py-1">
-              {steps.length} step{steps.length === 1 ? "" : "s"}
-            </Badge>
-          </div>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Contributors submit complete lessons for review. Admins can publish the lesson
-            immediately.
-          </p>
+      <Card className="border-border/60 shadow-sm">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-lg">Add Lesson</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
+        <CardContent className="grid gap-4 md:grid-cols-2">
           <div>
             <Label htmlFor="lesson-unit">Unit</Label>
             <select
@@ -630,9 +634,9 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
               name="unitId"
               value={unitId ?? ""}
               onChange={(e) => setUnitId(Number(e.target.value))}
-              className="mt-1 w-full rounded-md border bg-card px-3 py-2"
+              className={fieldClass}
             >
-              {allUnits?.map((unit: any) => (
+              {allUnits.map((unit: any) => (
                 <option key={unit.id} value={unit.id}>
                   {unit.title}
                 </option>
@@ -648,88 +652,77 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
               value={estimatedMinutes}
               onChange={(e) => setEstimatedMinutes(e.target.value)}
               placeholder="8"
+              className={fieldClass}
             />
           </div>
-          <div className="sm:col-span-2">
+          <div className="md:col-span-2">
             <Label htmlFor="lesson-title">Lesson title</Label>
             <Input
               id="lesson-title"
               value={lessonTitle}
               onChange={(e) => setLessonTitle(e.target.value)}
               placeholder="Why “mid” became a drag"
+              className={fieldClass}
             />
           </div>
-          <div className="sm:col-span-2">
+          <div className="md:col-span-2">
             <Label htmlFor="lesson-description">Lesson summary</Label>
             <textarea
               id="lesson-description"
               value={lessonDescription}
               onChange={(e) => setLessonDescription(e.target.value)}
               rows={3}
-              className="mt-1 w-full rounded-md border bg-card px-3 py-2"
+              className={fieldClass}
               placeholder="Describe what this lesson teaches and why it matters."
             />
           </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor="lesson-objective">Learning objective (optional)</Label>
+          <div className="md:col-span-2">
+            <Label htmlFor="lesson-objective">Learning objective</Label>
             <Input
               id="lesson-objective"
               value={learningObjective}
               onChange={(e) => setLearningObjective(e.target.value)}
-              placeholder="Learners can explain how the term is used and when not to use it."
+              placeholder="Optional"
+              className={fieldClass}
             />
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(18rem,0.8fr)]">
-        <Card className="border-border/80">
-          <CardHeader className="space-y-4">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <Card className="border-border/60 shadow-sm">
+          <CardHeader className="space-y-4 pb-4">
             <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  current step
-                </p>
-                <CardTitle className="mt-2 text-xl">
-                  {editingStepId ? "Edit step" : "Add a step"}
-                </CardTitle>
-              </div>
+              <CardTitle className="text-lg">{editingStepId ? "Edit Step" : "Add Step"}</CardTitle>
               {editingStepId ? (
                 <Button type="button" variant="ghost" onClick={resetStepEditor}>
-                  Cancel edit
+                  Cancel
                 </Button>
               ) : null}
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                className={typeButtonClass("TEACH")}
-                onClick={() => setActiveStepType("TEACH")}
-              >
-                Learn
-              </button>
-              <button
-                type="button"
-                className={typeButtonClass("QUESTION")}
-                onClick={() => setActiveStepType("QUESTION")}
-              >
-                Question
-              </button>
-              <button
-                type="button"
-                className={typeButtonClass("DIALOGUE")}
-                onClick={() => setActiveStepType("DIALOGUE")}
-              >
-                Dialogue
-              </button>
-              <button
-                type="button"
-                className={typeButtonClass("RECAP")}
-                onClick={() => setActiveStepType("RECAP")}
-              >
-                Recap
-              </button>
+              {(["TEACH", "QUESTION", "DIALOGUE", "RECAP"] as const).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  className={cn(
+                    "rounded-full border px-4 py-2 text-sm font-medium transition-colors",
+                    activeStepType === type
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-foreground hover:bg-accent",
+                  )}
+                  onClick={() => setActiveStepType(type)}
+                >
+                  {type === "TEACH"
+                    ? "Learn"
+                    : type === "QUESTION"
+                      ? "Question"
+                      : type === "DIALOGUE"
+                        ? "Dialogue"
+                        : "Recap"}
+                </button>
+              ))}
             </div>
           </CardHeader>
 
@@ -743,6 +736,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                     value={teachTitle}
                     onChange={(e) => setTeachTitle(e.target.value)}
                     placeholder="What “ate” means online"
+                    className={fieldClass}
                   />
                 </div>
                 <div>
@@ -752,17 +746,18 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                     value={teachBody}
                     onChange={(e) => setTeachBody(e.target.value)}
                     rows={5}
-                    className="mt-1 w-full rounded-md border bg-card px-3 py-2"
+                    className={fieldClass}
                     placeholder="Explain the meaning, tone, and context."
                   />
                 </div>
                 <div>
-                  <Label htmlFor="teach-example">Example (optional)</Label>
+                  <Label htmlFor="teach-example">Example</Label>
                   <Input
                     id="teach-example"
                     value={teachExample}
                     onChange={(e) => setTeachExample(e.target.value)}
                     placeholder="She ate that presentation up."
+                    className={fieldClass}
                   />
                 </div>
               </>
@@ -776,7 +771,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                   value={dialogueText}
                   onChange={(e) => setDialogueText(e.target.value)}
                   rows={7}
-                  className="mt-1 w-full rounded-md border bg-card px-3 py-2"
+                  className={fieldClass}
                   placeholder={"A: that fit ate\nB: exactly"}
                 />
               </div>
@@ -784,30 +779,28 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
 
             {activeStepType === "QUESTION" ? (
               <div className="space-y-4">
-                <div>
-                  <Label>Question type</Label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {(["SHORT_ANSWER", "MCQ", "MATCH"] as const).map((type) => (
-                      <button
-                        key={type}
-                        type="button"
-                        className={cn(
-                          "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
-                          questionType === type
-                            ? "border-primary bg-primary text-primary-foreground"
-                            : "border-border bg-background hover:bg-accent",
-                        )}
-                        onClick={() => setQuestionType(type)}
-                      >
-                        {type === "SHORT_ANSWER"
-                          ? "Short answer"
-                          : type === "MCQ"
-                            ? "Multiple choice"
-                            : "Matching"}
-                      </button>
-                    ))}
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {(["SHORT_ANSWER", "MCQ", "MATCH"] as const).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className={cn(
+                        "rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+                        questionType === type
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-background text-foreground hover:bg-accent",
+                      )}
+                      onClick={() => setQuestionType(type)}
+                    >
+                      {type === "SHORT_ANSWER"
+                        ? "Short answer"
+                        : type === "MCQ"
+                          ? "Multiple choice"
+                          : "Matching"}
+                    </button>
+                  ))}
                 </div>
+
                 <div>
                   <Label htmlFor="question-prompt">Prompt</Label>
                   <textarea
@@ -815,7 +808,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                     value={qPrompt}
                     onChange={(e) => setQPrompt(e.target.value)}
                     rows={3}
-                    className="mt-1 w-full rounded-md border bg-card px-3 py-2"
+                    className={fieldClass}
                     placeholder="Which sentence uses this phrase correctly?"
                   />
                 </div>
@@ -828,13 +821,24 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                       value={qAcceptedAnswers}
                       onChange={(e) => setQAcceptedAnswers(e.target.value)}
                       placeholder="answer one, answer two"
+                      className={fieldClass}
                     />
                   </div>
                 ) : null}
 
                 {questionType === "MCQ" ? (
-                  <div className="space-y-2">
-                    <Label>Choices</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label>Choices</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setQChoices((current) => [...current, createChoice()])}
+                      >
+                        <Plus />
+                        Add choice
+                      </Button>
+                    </div>
                     {qChoices.map((choice) => (
                       <div key={choice.id} className="flex items-center gap-2">
                         <input
@@ -860,6 +864,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                             )
                           }
                           placeholder="Choice text"
+                          className="flex-1"
                         />
                         <Button
                           type="button"
@@ -876,20 +881,22 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                         </Button>
                       </div>
                     ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setQChoices((current) => [...current, createChoice()])}
-                    >
-                      <Plus />
-                      Add choice
-                    </Button>
                   </div>
                 ) : null}
 
                 {questionType === "MATCH" ? (
-                  <div className="space-y-2">
-                    <Label>Match pairs</Label>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <Label>Match pairs</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setQMatchPairs((current) => [...current, createPair()])}
+                      >
+                        <Plus />
+                        Add pair
+                      </Button>
+                    </div>
                     {qMatchPairs.map((pair, index) => (
                       <div
                         key={pair.id}
@@ -933,14 +940,6 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                         </Button>
                       </div>
                     ))}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setQMatchPairs((current) => [...current, createPair()])}
-                    >
-                      <Plus />
-                      Add pair
-                    </Button>
                   </div>
                 ) : null}
               </div>
@@ -955,6 +954,7 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                     value={recapHeadline}
                     onChange={(e) => setRecapHeadline(e.target.value)}
                     placeholder="What to remember"
+                    className={fieldClass}
                   />
                 </div>
                 <div>
@@ -964,18 +964,18 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                     value={recapSummary}
                     onChange={(e) => setRecapSummary(e.target.value)}
                     rows={4}
-                    className="mt-1 w-full rounded-md border bg-card px-3 py-2"
+                    className={fieldClass}
                     placeholder="Wrap up the idea before the learner moves on."
                   />
                 </div>
                 <div>
-                  <Label htmlFor="recap-takeaways">Takeaways (one per line)</Label>
+                  <Label htmlFor="recap-takeaways">Takeaways</Label>
                   <textarea
                     id="recap-takeaways"
                     value={recapTakeaways}
                     onChange={(e) => setRecapTakeaways(e.target.value)}
                     rows={4}
-                    className="mt-1 w-full rounded-md border bg-card px-3 py-2"
+                    className={fieldClass}
                     placeholder={"Use with praise\nMostly positive\nVery online tone"}
                   />
                 </div>
@@ -1000,45 +1000,29 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
           </CardContent>
         </Card>
 
-        <Card className="border-border/80 bg-card/80">
-          <CardHeader>
-            <div className="flex items-center gap-3">
+        <Card className="border-border/60 shadow-sm">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-2">
               <ClipboardList className="size-5 text-chart-4" />
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  lesson sequence
-                </p>
-                <CardTitle className="mt-2 text-xl">Ordered steps</CardTitle>
-              </div>
+              <CardTitle className="text-lg">Steps</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {steps.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-border/70 bg-background/60 p-5 text-sm text-muted-foreground">
-                Add steps on the left. This builder creates one lesson with a real step sequence
-                instead of one-step wrapper lessons.
+              <div className="rounded-2xl border border-border bg-background/70 p-4 text-sm text-muted-foreground">
+                No steps yet.
               </div>
             ) : (
               steps.map((step, index) => {
                 const summary = summarizeStep(step);
+
                 return (
-                  <div
-                    key={step.id}
-                    className="rounded-2xl border border-border/70 bg-background/80 p-4 shadow-sm"
-                  >
+                  <div key={step.id} className="rounded-2xl bg-background/85 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <Badge variant="secondary">Step {index + 1}</Badge>
-                          <Badge variant="outline">
-                            {step.stepType === "TEACH"
-                              ? "Learn"
-                              : step.stepType === "DIALOGUE"
-                                ? "Dialogue"
-                                : step.stepType === "QUESTION"
-                                  ? "Question"
-                                  : "Recap"}
-                          </Badge>
+                          <Badge variant="outline">{summary.label}</Badge>
                         </div>
                         <p className="mt-3 font-semibold">{summary.title}</p>
                         <p className="mt-1 text-sm text-muted-foreground">{summary.detail}</p>
@@ -1085,17 +1069,6 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
                 );
               })
             )}
-
-            <div className="rounded-2xl border border-chart-2/20 bg-chart-2/10 p-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2 font-semibold text-foreground">
-                <Sparkles className="size-4 text-chart-2" />
-                review model
-              </div>
-              <p className="mt-2">
-                The full lesson gets reviewed as one unit. Steps do not carry their own approval
-                status.
-              </p>
-            </div>
           </CardContent>
         </Card>
       </div>
@@ -1116,209 +1089,6 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
           )}
         </Button>
       </div>
-    </form>
-  );
-}
-
-export function QuizForm() {
-  const { data: units } = useUnits();
-  const [unitId, setUnitId] = useState<number | null>(null);
-  const [quizTitle, setQuizTitle] = useState("");
-  const [quizDescription, setQuizDescription] = useState("");
-  const [questions, setQuestions] = useState<
-    Array<{
-      prompt: string;
-      questionType: string;
-      choices: Array<{ text: string; isCorrect?: boolean }>;
-    }>
-  >([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (units && units.length > 0 && unitId === null) setUnitId(units[0].id);
-  }, [units, unitId]);
-
-  const addQuestion = () =>
-    setQuestions((q) => [
-      ...q,
-      { prompt: "", questionType: "MCQ", choices: [{ text: "", isCorrect: false }] },
-    ]);
-  const removeQuestion = (idx: number) => setQuestions((q) => q.filter((_, i) => i !== idx));
-  const updateQuestion = (idx: number, patch: Partial<any>) =>
-    setQuestions((q) => q.map((qq, i) => (i === idx ? { ...qq, ...patch } : qq)));
-
-  const handleSubmitQuiz = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    setLoading(true);
-    try {
-      const me = await getMe();
-      const payload = {
-        unitId,
-        title: quizTitle.trim(),
-        description: quizDescription.trim() || undefined,
-        questions: questions.map((q, i) => ({
-          orderIndex: i,
-          prompt: q.prompt,
-          questionType: q.questionType,
-          choices: q.choices.map((c, idx) => ({
-            orderIndex: idx,
-            text: c.text,
-            isCorrect: !!c.isCorrect,
-          })),
-        })),
-        submittedBy: me.email ?? null,
-      };
-
-      await api.post("quizzes", { json: payload }).json();
-      setSuccess("Quiz submitted — it will appear after review.");
-      setQuizTitle("");
-      setQuizDescription("");
-      setQuestions([]);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to submit quiz. Try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <form onSubmit={handleSubmitQuiz} className="space-y-4">
-      <div>
-        <Label htmlFor="quiz-unit">Unit</Label>
-        <select
-          id="quiz-unit"
-          name="unitId"
-          value={unitId ?? ""}
-          onChange={(e) => setUnitId(Number(e.target.value))}
-          className="mt-1 w-full rounded-md border bg-card px-3 py-2"
-        >
-          {units?.map((u: any) => (
-            <option key={u.id} value={u.id}>
-              {u.title}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <Label htmlFor="quiz-title">Quiz Title</Label>
-        <Input
-          id="quiz-title"
-          name="quizTitle"
-          value={quizTitle}
-          onChange={(e) => setQuizTitle(e.target.value)}
-        />
-      </div>
-
-      <div>
-        <Label htmlFor="quiz-description">Description</Label>
-        <textarea
-          id="quiz-description"
-          name="quizDescription"
-          value={quizDescription}
-          onChange={(e) => setQuizDescription(e.target.value)}
-          className="mt-1 w-full rounded-md border bg-card px-3 py-2"
-          rows={3}
-        />
-      </div>
-
-      <div>
-        <Label>Questions</Label>
-        <div className="space-y-3 mt-2">
-          {questions.map((q, qi) => (
-            <div key={qi} className="border p-3 rounded-md bg-background">
-              <div className="flex justify-between items-center">
-                <strong>Question {qi + 1}</strong>
-                <div className="flex gap-2">
-                  <select
-                    value={q.questionType}
-                    onChange={(e) => updateQuestion(qi, { questionType: e.target.value })}
-                    className="rounded-md border bg-card px-2"
-                  >
-                    <option value="MCQ">Multiple Choice</option>
-                    <option value="SHORT_ANSWER">Short Answer</option>
-                    <option value="MATCH">Matching</option>
-                  </select>
-                  <Button type="button" variant="destructive" onClick={() => removeQuestion(qi)}>
-                    Remove
-                  </Button>
-                </div>
-              </div>
-
-              <div className="mt-2">
-                <Input
-                  id={`quiz-${qi}-prompt`}
-                  name={`questions[${qi}].prompt`}
-                  value={q.prompt}
-                  onChange={(e) => updateQuestion(qi, { prompt: e.target.value })}
-                  placeholder="Question prompt"
-                />
-              </div>
-
-              {q.questionType === "MCQ" && (
-                <div className="mt-2 space-y-2">
-                  {q.choices.map((c, ci) => (
-                    <div key={ci} className="flex gap-2 items-center">
-                      <input
-                        id={`quiz-${qi}-choice-${ci}-isCorrect`}
-                        name={`questions[${qi}].choices[${ci}].isCorrect`}
-                        type="checkbox"
-                        checked={!!c.isCorrect}
-                        onChange={(e) =>
-                          updateQuestion(qi, {
-                            choices: q.choices.map((cc, idx) =>
-                              idx === ci ? { ...cc, isCorrect: e.target.checked } : cc,
-                            ),
-                          })
-                        }
-                      />
-                      <Input
-                        id={`quiz-${qi}-choice-${ci}-text`}
-                        name={`questions[${qi}].choices[${ci}].text`}
-                        value={c.text}
-                        onChange={(e) =>
-                          updateQuestion(qi, {
-                            choices: q.choices.map((cc, idx) =>
-                              idx === ci ? { ...cc, text: e.target.value } : cc,
-                            ),
-                          })
-                        }
-                      />
-                    </div>
-                  ))}
-                  <Button
-                    type="button"
-                    onClick={() =>
-                      updateQuestion(qi, {
-                        choices: [...q.choices, { text: "", isCorrect: false }],
-                      })
-                    }
-                  >
-                    Add Choice
-                  </Button>
-                </div>
-              )}
-            </div>
-          ))}
-
-          <Button type="button" onClick={addQuestion}>
-            Add Question
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <Button type="submit" disabled={loading}>
-          {loading ? "Submitting…" : "Submit Quiz"}
-        </Button>
-      </div>
-      {success && <p className="text-sm text-green-600">{success}</p>}
-      {error && <p className="text-sm text-destructive">{error}</p>}
     </form>
   );
 }

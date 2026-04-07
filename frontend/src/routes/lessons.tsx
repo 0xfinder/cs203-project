@@ -282,9 +282,9 @@ function LearnPage() {
               </Button>
             </DialogTrigger>
             <DialogContent
-              title="Build a Lesson"
-              description="Pick a unit, assemble the step sequence, then submit the lesson."
-              className="max-w-5xl max-h-[92vh] overflow-y-auto"
+              title="Add Lesson"
+              description="Build the lesson and submit it for review."
+              className="max-h-[92vh] max-w-5xl overflow-y-auto"
             >
               <LessonForm />
             </DialogContent>
