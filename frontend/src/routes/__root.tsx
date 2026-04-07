@@ -89,10 +89,10 @@ function RootComponent() {
                   key={item.to}
                   to={item.to}
                   className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                    "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors",
                     active
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                      ? "border-primary/25 bg-primary/14 text-foreground shadow-sm"
+                      : "border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
                   )}
                 >
                   <Icon className="h-5 w-5 shrink-0" />
@@ -133,8 +133,10 @@ function RootComponent() {
                 to={item.to}
                 aria-label={item.label}
                 className={cn(
-                  "flex items-center justify-center transition-colors",
-                  active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                  "mx-1 my-2 flex items-center justify-center rounded-2xl border transition-colors",
+                  active
+                    ? "border-primary/25 bg-primary/14 text-foreground shadow-sm"
+                    : "border-transparent text-muted-foreground hover:bg-accent/70 hover:text-foreground",
                 )}
               >
                 <Icon className="h-6 w-6" />
