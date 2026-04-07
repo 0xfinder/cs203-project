@@ -73,7 +73,26 @@ public class ContentVoteService {
 
   @Transactional(readOnly = true)
   public List<ContentWithVotesResponse> getApprovedContentsWithVotes(UUID userId) {
-    return contentRepository.findByStatus(Content.Status.APPROVED).stream()
+    return mapContentWithVotes(contentRepository.findByStatus(Content.Status.APPROVED), userId);
+  }
+
+  @Transactional(readOnly = true)
+  public List<ContentWithVotesResponse> getApprovedContentsWithVotesForSubmitter(
+      UUID userId, String submittedBy) {
+    return mapContentWithVotes(
+        contentRepository.findByStatusAndSubmittedByIgnoreCase(
+            Content.Status.APPROVED, submittedBy),
+        userId);
+  }
+
+  private void ensureContentExists(Long contentId) {
+    if (!contentRepository.existsById(contentId)) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
+    }
+  }
+
+  private List<ContentWithVotesResponse> mapContentWithVotes(List<Content> contents, UUID userId) {
+    return contents.stream()
         .map(
             content -> {
               ContentVoteSummaryResponse summary = buildSummary(content.getId(), userId);
@@ -94,12 +113,6 @@ public class ContentVoteService {
                   displayName);
             })
         .toList();
-  }
-
-  private void ensureContentExists(Long contentId) {
-    if (!contentRepository.existsById(contentId)) {
-      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found");
-    }
   }
 
   private ContentVoteSummaryResponse buildSummary(Long contentId, UUID userId) {

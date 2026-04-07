@@ -135,13 +135,13 @@ class LessonAttemptServiceTest {
     assertThat(result.passed()).isTrue();
     assertThat(result.results())
         .singleElement()
-            .satisfies(
-                item -> {
-                  assertThat(item.stepId()).isEqualTo(101L);
-                  assertThat(item.correct()).isTrue();
-                  assertThat(item.submittedAnswer().asText()).isEqualTo("Charisma");
-                  assertThat(item.correctAnswer()).isEqualTo("Charisma");
-                });
+        .satisfies(
+            item -> {
+              assertThat(item.stepId()).isEqualTo(101L);
+              assertThat(item.correct()).isTrue();
+              assertThat(item.submittedAnswer().asText()).isEqualTo("Charisma");
+              assertThat(item.correctAnswer()).isEqualTo("Charisma");
+            });
 
     ArgumentCaptor<UserLessonProgress> progressCaptor =
         ArgumentCaptor.forClass(UserLessonProgress.class);

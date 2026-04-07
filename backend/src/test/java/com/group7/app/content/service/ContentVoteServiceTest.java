@@ -119,4 +119,34 @@ class ContentVoteServiceTest {
     assertThat(responses.get(0).userVote()).isEqualTo(ContentVote.VoteType.THUMBS_UP);
     assertThat(responses.get(1).submittedByDisplayName()).isEqualTo("legacy@example.com");
   }
+
+  @Test
+  void getApprovedContentsWithVotesForSubmitterFiltersInRepository() {
+    UUID userId = UUID.randomUUID();
+    Content approved = new Content("rizz", "charisma", "example", "creator@example.com");
+    User creator = new User(UUID.randomUUID(), "creator@example.com");
+    creator.setDisplayName("Kai");
+
+    org.springframework.test.util.ReflectionTestUtils.setField(approved, "id", 9L);
+    approved.setStatus(Content.Status.APPROVED);
+
+    when(contentRepository.findByStatusAndSubmittedByIgnoreCase(
+            Content.Status.APPROVED, "creator@example.com"))
+        .thenReturn(List.of(approved));
+    when(contentVoteRepository.countByContentIdAndVoteType(9L, ContentVote.VoteType.THUMBS_UP))
+        .thenReturn(4L);
+    when(contentVoteRepository.countByContentIdAndVoteType(9L, ContentVote.VoteType.THUMBS_DOWN))
+        .thenReturn(1L);
+    when(contentVoteRepository.findByContentIdAndUserId(9L, userId)).thenReturn(Optional.empty());
+    when(userRepository.findByEmailIgnoreCase("creator@example.com"))
+        .thenReturn(Optional.of(creator));
+
+    var responses =
+        contentVoteService.getApprovedContentsWithVotesForSubmitter(userId, "creator@example.com");
+
+    assertThat(responses).hasSize(1);
+    assertThat(responses.getFirst().content().getSubmittedBy()).isEqualTo("creator@example.com");
+    assertThat(responses.getFirst().thumbsUp()).isEqualTo(4L);
+    assertThat(responses.getFirst().submittedByDisplayName()).isEqualTo("Kai");
+  }
 }

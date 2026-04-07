@@ -56,16 +56,10 @@ export function useApprovedContentsWithVotes() {
   });
 }
 
-export function useMyApprovedContentsWithVotes(userEmail: string | null) {
+export function useMyApprovedContentsWithVotes() {
   return useQuery({
-    queryKey: [...CONTENTS_WITH_VOTES_KEY, "my", userEmail],
-    queryFn: async () => {
-      const allContents = await api
-        .get("contents/approved-with-votes")
-        .json<ContentWithVotesResponse[]>();
-      return allContents.filter((item) => item.content.submittedBy === userEmail);
-    },
-    enabled: !!userEmail,
+    queryKey: [...CONTENTS_WITH_VOTES_KEY, "my"],
+    queryFn: () => api.get("contents/me").json<ContentWithVotesResponse[]>(),
   });
 }
 

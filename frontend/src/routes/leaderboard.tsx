@@ -86,9 +86,7 @@ function LeaderboardPage() {
         <div className="text-center mb-6">
           <Trophy className="size-12 text-yellow-500 mx-auto mb-4" />
           <h1 className="text-3xl font-bold mb-2">Global Leaderboard</h1>
-          <p className="text-muted-foreground">
-            Top learners in the community
-          </p>
+          <p className="text-muted-foreground">Top learners in the community</p>
         </div>
 
         <div className="flex justify-center mb-8">
@@ -135,9 +133,7 @@ function LeaderboardPage() {
                     ) : index === 2 ? (
                       <span className="text-xl">🥉</span>
                     ) : (
-                      <span className="text-sm font-medium text-muted-foreground">
-                        {index + 1}
-                      </span>
+                      <span className="text-sm font-medium text-muted-foreground">{index + 1}</span>
                     );
 
                   return (
@@ -145,7 +141,7 @@ function LeaderboardPage() {
                       key={entry.userId}
                       className={cn(
                         "grid grid-cols-[3rem_1fr_8rem] items-center p-4 transition-colors",
-                        isTopThree ? "bg-primary/5" : "hover:bg-muted/30"
+                        isTopThree ? "bg-primary/5" : "hover:bg-muted/30",
                       )}
                     >
                       <div className="flex justify-center">{rankIcon}</div>
@@ -162,9 +158,7 @@ function LeaderboardPage() {
                       </div>
                       <div className="text-right flex items-center justify-end gap-1.5">
                         {getMetricIcon()}
-                        <span className="font-bold text-primary">
-                          {getMetricValue(entry)}
-                        </span>
+                        <span className="font-bold text-primary">{getMetricValue(entry)}</span>
                       </div>
                     </div>
                   );
