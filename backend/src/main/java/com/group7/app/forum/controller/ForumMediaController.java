@@ -1,9 +1,12 @@
 package com.group7.app.forum.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.group7.app.user.User;
+import com.group7.app.user.UserService;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.UUID;
 import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
@@ -27,16 +30,19 @@ public class ForumMediaController {
 
   private final RestClient restClient;
   private final ObjectMapper mapper;
+  private final UserService userService;
   private final String supabaseUrl;
   private final String serviceRole;
 
   public ForumMediaController(
       ObjectMapper mapper,
+      UserService userService,
       RestClient.Builder restClientBuilder,
       @Value("${SUPABASE_URL:}") String configuredSupabaseUrl,
       @Value("${SUPABASE_JWK_SET_URI:}") String jwkSetUri,
       @Value("${SUPABASE_SERVICE_ROLE:}") String serviceRole) {
     this.mapper = mapper;
+    this.userService = userService;
     this.restClient = restClientBuilder.build();
     this.supabaseUrl = resolveSupabaseUrl(configuredSupabaseUrl, jwkSetUri);
     this.serviceRole = trimToNull(serviceRole);
@@ -46,6 +52,8 @@ public class ForumMediaController {
   public ResponseEntity<?> signedUrl(
       @AuthenticationPrincipal Jwt jwt, @RequestBody Map<String, Object> body)
       throws IOException, InterruptedException {
+    User user = resolveUser(jwt);
+    requireOnboardingCompleted(user);
     String bucket = (String) body.getOrDefault("bucket", "forum-media");
     String path = (String) body.get("path");
     Integer expires = (Integer) body.getOrDefault("expires", 60 * 60 * 24);
@@ -140,6 +148,39 @@ public class ForumMediaController {
     }
 
     return trimToNull(jwt.getTokenValue());
+  }
+
+  private User resolveUser(Jwt jwt) {
+    UUID userId = parseUserId(jwt);
+    String email = getEmail(jwt);
+    return userService.findById(userId).orElseGet(() -> userService.createFromAuth(userId, email));
+  }
+
+  private void requireOnboardingCompleted(User user) {
+    if (!userService.isOnboardingCompleted(user)) {
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "complete onboarding before posting in the forum");
+    }
+  }
+
+  private static UUID parseUserId(Jwt jwt) {
+    String subject = jwt.getSubject();
+    if (subject == null || subject.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "missing token subject");
+    }
+    try {
+      return UUID.fromString(subject);
+    } catch (IllegalArgumentException ex) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "invalid token subject");
+    }
+  }
+
+  private static String getEmail(Jwt jwt) {
+    String email = jwt.getClaimAsString("email");
+    if (email == null || email.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "missing email claim");
+    }
+    return email;
   }
 
   private static String stripTrailingSlash(String value) {

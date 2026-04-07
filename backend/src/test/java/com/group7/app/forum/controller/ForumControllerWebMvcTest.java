@@ -131,6 +131,7 @@ class ForumControllerWebMvcTest {
             new VoteSummary(0, 0, null));
 
     when(userService.findById(userId)).thenReturn(Optional.of(user));
+    when(userService.isOnboardingCompleted(user)).thenReturn(true);
     when(questionService.createQuestion(any(Question.class))).thenReturn(created);
     when(forumMappingService.toQuestionResponse(created, userId)).thenReturn(response);
 
@@ -168,6 +169,39 @@ class ForumControllerWebMvcTest {
     org.assertj.core.api.Assertions.assertThat(submittedQuestion.getAuthor()).isEqualTo("Kai");
     org.assertj.core.api.Assertions.assertThat(submittedQuestion.getAuthorId()).isEqualTo(userId);
     verify(forumMappingService).toQuestionResponse(created, userId);
+  }
+
+  @Test
+  void postQuestionRejectsUserWithIncompleteOnboarding() throws Exception {
+    UUID userId = UUID.randomUUID();
+    User user = new User(userId, "user@example.com");
+    user.setRole(Role.LEARNER);
+    user.setDisplayName(null);
+
+    when(userService.findById(userId)).thenReturn(Optional.of(user));
+
+    mockMvc
+        .perform(
+            post("/api/forum/questions")
+                .with(csrf())
+                .with(
+                    jwt()
+                        .jwt(
+                            token ->
+                                token
+                                    .subject(userId.toString())
+                                    .claim("email", "user@example.com")))
+                .contentType("application/json")
+                .content(
+                    """
+                                {
+                                  "title": "What is rizz?",
+                                  "content": "Explain it"
+                                }
+                                """))
+        .andExpect(status().isForbidden());
+
+    verifyNoInteractions(questionService, forumMappingService);
   }
 
   @Test
@@ -227,6 +261,7 @@ class ForumControllerWebMvcTest {
     user.setRole(Role.LEARNER);
 
     when(userService.findById(userId)).thenReturn(Optional.of(user));
+    when(userService.isOnboardingCompleted(user)).thenReturn(true);
     when(forumVoteService.castQuestionVote(7L, userId, QuestionVote.VoteType.THUMBS_UP))
         .thenReturn(new VoteSummary(5, 1, "THUMBS_UP"));
 
@@ -253,5 +288,37 @@ class ForumControllerWebMvcTest {
         .andExpect(jsonPath("$.userVote").value("THUMBS_UP"));
 
     verify(forumVoteService).castQuestionVote(7L, userId, QuestionVote.VoteType.THUMBS_UP);
+  }
+
+  @Test
+  void voteQuestionRejectsUserWithIncompleteOnboarding() throws Exception {
+    UUID userId = UUID.randomUUID();
+    User user = new User(userId, "user@example.com");
+    user.setRole(Role.LEARNER);
+    user.setDisplayName("   ");
+
+    when(userService.findById(userId)).thenReturn(Optional.of(user));
+
+    mockMvc
+        .perform(
+            post("/api/forum/questions/7/votes")
+                .with(csrf())
+                .with(
+                    jwt()
+                        .jwt(
+                            token ->
+                                token
+                                    .subject(userId.toString())
+                                    .claim("email", "user@example.com")))
+                .contentType("application/json")
+                .content(
+                    """
+                                {
+                                  "voteType": "THUMBS_UP"
+                                }
+                                """))
+        .andExpect(status().isForbidden());
+
+    verifyNoInteractions(forumVoteService);
   }
 }

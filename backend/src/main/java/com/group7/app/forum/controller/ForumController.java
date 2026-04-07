@@ -74,6 +74,7 @@ public class ForumController {
   public ResponseEntity<QuestionResponse> postQuestion(
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody PostQuestionRequest request) {
     User user = resolveUser(jwt);
+    requireOnboardingCompleted(user);
     Question q = new Question();
     q.setTitle(request.title().trim());
     q.setContent(request.content().trim());
@@ -122,6 +123,7 @@ public class ForumController {
       @AuthenticationPrincipal Jwt jwt,
       @Valid @RequestBody PostAnswerRequest request) {
     User user = resolveUser(jwt);
+    requireOnboardingCompleted(user);
     Answer a = new Answer();
     a.setContent(request.content().trim());
     a.setAuthor(
@@ -156,6 +158,7 @@ public class ForumController {
       @AuthenticationPrincipal Jwt jwt,
       @Valid @RequestBody ForumVoteRequest request) {
     User user = resolveUser(jwt);
+    requireOnboardingCompleted(user);
     QuestionVote.VoteType vt = QuestionVote.VoteType.valueOf(request.voteType());
     return voteService.castQuestionVote(id, user.getId(), vt);
   }
@@ -164,6 +167,7 @@ public class ForumController {
   @Operation(summary = "Remove vote on a question")
   public VoteSummary clearQuestionVote(@PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
     User user = resolveUser(jwt);
+    requireOnboardingCompleted(user);
     return voteService.clearQuestionVote(id, user.getId());
   }
 
@@ -174,6 +178,7 @@ public class ForumController {
       @AuthenticationPrincipal Jwt jwt,
       @Valid @RequestBody ForumVoteRequest request) {
     User user = resolveUser(jwt);
+    requireOnboardingCompleted(user);
     AnswerVote.VoteType vt = AnswerVote.VoteType.valueOf(request.voteType());
     return voteService.castAnswerVote(answerId, user.getId(), vt);
   }
@@ -183,6 +188,7 @@ public class ForumController {
   public VoteSummary clearAnswerVote(
       @PathVariable Long answerId, @AuthenticationPrincipal Jwt jwt) {
     User user = resolveUser(jwt);
+    requireOnboardingCompleted(user);
     return voteService.clearAnswerVote(answerId, user.getId());
   }
 
@@ -192,6 +198,13 @@ public class ForumController {
     UUID userId = parseUserId(jwt);
     String email = getEmail(jwt);
     return userService.findById(userId).orElseGet(() -> userService.createFromAuth(userId, email));
+  }
+
+  private void requireOnboardingCompleted(User user) {
+    if (!userService.isOnboardingCompleted(user)) {
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "complete onboarding before posting or voting in the forum");
+    }
   }
 
   private static UUID parseUserId(Jwt jwt) {
