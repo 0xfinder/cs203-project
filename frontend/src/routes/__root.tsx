@@ -1,6 +1,5 @@
 import { Link, Outlet, createRootRoute, useRouterState } from "@tanstack/react-router";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { useAuth } from "@/lib/auth";
 import { type AppNavPath, APP_NAV_ITEMS, isAppShellPath, isNavItemActive } from "@/lib/app-nav";
 import { cn } from "@/lib/utils";
 import { queryClient } from "@/lib/query-client";
@@ -30,7 +29,6 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   const { profile } = Route.useLoaderData();
-  const { user } = useAuth();
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -101,15 +99,6 @@ function RootComponent() {
               );
             })}
           </nav>
-
-          <div className="rounded-lg border bg-background/60 p-3">
-            <p className="truncate text-xs text-muted-foreground" title={user?.email ?? undefined}>
-              {user?.email ?? "signed in"}
-            </p>
-            {profile?.role && profile.role !== "LEARNER" && (
-              <p className="text-[10px] font-bold uppercase text-primary">{profile.role}</p>
-            )}
-          </div>
         </div>
       </aside>
 

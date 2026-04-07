@@ -66,7 +66,6 @@ function LearnPage() {
     const roadmap = getUnitRoadmap(unit, progressByLessonId, undefined, isContributor);
     return roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
   }).length;
-
   const currentLeaderboardEntry =
     leaderboardQuery.data?.find((entry) => entry.userId === profile?.id) ?? null;
   const streak = currentLeaderboardEntry?.maxCorrectStreak ?? 0;
@@ -94,20 +93,9 @@ function LearnPage() {
 
   const learnContent = (
     <>
-      <div className="mb-6 flex items-center justify-center gap-3">
-        <div className="flex items-center gap-2 rounded-full bg-orange-500/10 px-4 py-2 text-sm font-bold text-orange-600 dark:bg-orange-500/20 dark:text-orange-400">
-          <Flame className="size-5" />
-          <span>{streak}</span>
-        </div>
-        <div className="flex items-center gap-2 rounded-full bg-yellow-500/10 px-4 py-2 text-sm font-bold text-yellow-600 dark:bg-yellow-500/20 dark:text-yellow-400">
-          <Star className="size-5" />
-          <span>{totalXP} XP</span>
-        </div>
-      </div>
-
       <Card className="mb-10">
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <Trophy className="size-5 text-chart-1" />
               <CardTitle className="text-lg">Your Progress</CardTitle>
@@ -115,6 +103,16 @@ function LearnPage() {
             <span className="text-sm font-semibold text-muted-foreground">
               {completedCount} / {visibleUnits.length} Units
             </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 rounded-full bg-orange-500/10 px-3 py-1.5 text-sm font-bold text-orange-600 dark:bg-orange-500/20 dark:text-orange-400">
+              <Flame className="size-4" />
+              <span>{streak}</span>
+            </div>
+            <div className="flex items-center gap-2 rounded-full bg-yellow-500/10 px-3 py-1.5 text-sm font-bold text-yellow-600 dark:bg-yellow-500/20 dark:text-yellow-400">
+              <Star className="size-4" />
+              <span>{totalXP} XP</span>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -185,25 +183,26 @@ function LearnPage() {
               </div>
 
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h3
-                    className={cn(
-                      "text-sm font-bold leading-tight sm:text-base",
-                      !unlocked && "text-muted-foreground",
-                    )}
-                  >
-                    {unit.title}
-                  </h3>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                      #{unit.orderIndex}
+                    </span>
+                    <h3
+                      className={cn(
+                        "line-clamp-2 text-sm font-bold leading-tight sm:line-clamp-1 sm:text-base",
+                        !unlocked && "text-muted-foreground",
+                      )}
+                    >
+                      {unit.title}
+                    </h3>
+                  </div>
                   <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
-                    #{unit.orderIndex}
+                    {roadmap.completedCount}/{roadmap.totalLessons}
                   </span>
                 </div>
                 <p className="mt-0.5 text-xs leading-5 text-muted-foreground sm:text-sm">
                   {unit.description}
-                </p>
-                <p className="mt-1 text-[11px] leading-4 text-muted-foreground/70 sm:text-xs">
-                  {roadmap.completedCount}/{roadmap.totalLessons} lessons
-                  {roadmap.nextLesson ? ` · Next: ${roadmap.nextLesson.title}` : ""}
                 </p>
               </div>
 
