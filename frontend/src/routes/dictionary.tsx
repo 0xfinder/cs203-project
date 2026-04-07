@@ -89,7 +89,7 @@ function DictionaryPage() {
 
   useEffect(() => {
     let mounted = true;
-    import("@/lib/me").then(({ getMe }) => {
+    void import("@/lib/me").then(({ getMe }) => {
       void getMe()
         .then((me) => {
           if (!mounted) return;

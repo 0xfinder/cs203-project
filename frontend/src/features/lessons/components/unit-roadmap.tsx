@@ -55,6 +55,7 @@ export function UnitRoadmap({
             }
           }
         } catch (e) {
+          console.error("failed to parse temp placeholder unit:", e);
           // ignore malformed
         }
       }
@@ -65,6 +66,7 @@ export function UnitRoadmap({
         } as typeof unit;
       }
     } catch (e) {
+      console.error("failed to access local storage for unit placeholders:", e);
       // ignore storage access
     }
   }

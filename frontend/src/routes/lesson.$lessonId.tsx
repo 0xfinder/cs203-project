@@ -190,11 +190,13 @@ function LessonPage() {
               };
             }
           } catch (e) {
+            console.error("failed to parse temp placeholder unit during deletion:", e);
             // ignore parse errors
           }
         }
       }
     } catch (e) {
+      console.error("failed to load lesson data from local storage:", e);
       // ignore
     }
     return null;
@@ -219,7 +221,7 @@ function LessonPage() {
         const firstSubunit = lessons[0];
         if (firstSubunit?.id) {
           // Navigate to first subunit
-          navigate({ to: `/lesson/${firstSubunit.id}` });
+          void navigate({ to: `/lesson/${firstSubunit.id}` });
         }
       }
     }
@@ -370,11 +372,11 @@ function LessonPage() {
 
       // If lessonIdToDelete is positive, it's a server-side lesson - delete via API
       if (lessonIdToDelete > 0) {
-        deleteLesson.mutateAsync(lessonIdToDelete).then(() => {
+        void deleteLesson.mutateAsync(lessonIdToDelete).then(() => {
           // Refetch to update the UI
           void refetchUnits();
           if (lessonIdToDelete === numericLessonId) {
-            navigate({ to: "/lessons" });
+            void navigate({ to: "/lessons" });
           }
         });
         return;
@@ -394,7 +396,7 @@ function LessonPage() {
         localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
         setTempRefresh((v) => v + 1);
         if (lessonIdToDelete === numericLessonId) {
-          navigate({ to: "/lessons" });
+          void navigate({ to: "/lessons" });
         }
         return;
       }
@@ -420,6 +422,7 @@ function LessonPage() {
             return;
           }
         } catch (e) {
+          console.error("failed to process operation:", e);
           // ignore parse errors
         }
       }
@@ -438,10 +441,12 @@ function LessonPage() {
             return;
           }
         } catch (e) {
+          console.error("failed to process operation:", e);
           // ignore parse errors
         }
       }
     } catch (e) {
+      console.error("failed to delete lesson:", e);
       // ignore
     }
   };

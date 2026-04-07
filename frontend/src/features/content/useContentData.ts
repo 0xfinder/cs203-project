@@ -109,7 +109,7 @@ export function useSubmitContent() {
         try {
           const text = await err?.response?.text();
           console.error("response body:", text);
-        } catch (e) {
+        } catch {
           // ignore
         }
         throw err;

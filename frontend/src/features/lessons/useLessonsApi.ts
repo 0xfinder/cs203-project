@@ -158,7 +158,7 @@ export function usePendingLessons() {
         const raw = (() => {
           try {
             return localStorage.getItem("pendingLessonMeta");
-          } catch (e) {
+          } catch {
             return null;
           }
         })();
@@ -191,7 +191,7 @@ export function usePendingLessons() {
           }
           return item;
         });
-      } catch (e) {
+      } catch {
         return data;
       }
     },

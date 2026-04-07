@@ -20,7 +20,8 @@ function DashboardPage() {
       try {
         const me = await getMe();
         setUserEmail(me.email ?? null);
-      } catch {
+      } catch (e) {
+        console.error("failed to fetch user data:", e);
         setUserEmail(null);
       }
     };

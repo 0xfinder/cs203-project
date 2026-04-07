@@ -81,7 +81,8 @@ function OnboardingPage() {
         try {
           const body = await requestError.response.json<{ message?: string }>();
           setError(body.message ?? "Could not save profile.");
-        } catch {
+        } catch (e) {
+          console.error("failed to parse error response:", e);
           setError("Could not save profile.");
         }
       } else if (requestError instanceof Error) {

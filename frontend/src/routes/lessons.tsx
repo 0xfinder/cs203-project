@@ -68,6 +68,7 @@ function LearnPage() {
             tempKey,
           } as any);
         } catch (e) {
+          console.error("failed to parse appended unit from local storage:", e);
           // ignore parse error for this key
         }
       }
@@ -76,6 +77,7 @@ function LearnPage() {
         setAppendedUnits(items as UnitData[]);
       }
     } catch (e) {
+      console.error("failed to process operation:", e);
       // ignore
     }
   }, []);
@@ -85,6 +87,7 @@ function LearnPage() {
       if (typeof window === "undefined") return;
       localStorage.setItem("appendedUnits", JSON.stringify(appendedUnits));
     } catch (e) {
+      console.error("failed to process operation:", e);
       // ignore
     }
   }, [appendedUnits]);
@@ -140,6 +143,7 @@ function LearnPage() {
       await api.delete(`units/${id}`);
       await queryClient.invalidateQueries({ queryKey: ["units"] });
     } catch (e) {
+      console.error("failed to delete unit:", e);
       // eslint-disable-next-line no-restricted-globals
       alert("Failed to delete unit. Ensure you have permission and try again.");
     }
@@ -154,6 +158,7 @@ function LearnPage() {
         const key = (toRemove as any)?.tempKey;
         if (key) localStorage.removeItem(`tempUnit:${key}`);
       } catch (e) {
+        console.error("failed to remove temp unit from local storage:", e);
         // ignore
       }
       return s.filter((u) => u.id !== id);
@@ -259,7 +264,7 @@ function LearnPage() {
                     onClick={(e) => {
                       e.stopPropagation();
                       e.preventDefault();
-                      deleteUnit(unit.id);
+                      void deleteUnit(unit.id);
                     }}
                     aria-label={`Delete unit ${unit.title}`}
                     title="Delete unit"
@@ -524,6 +529,7 @@ function LearnPage() {
                               };
                               localStorage.setItem(`tempUnit:${tempKey}`, JSON.stringify(payload));
                             } catch (e) {
+                              console.error("failed to save new unit to local storage:", e);
                               // ignore localStorage failures
                             }
 

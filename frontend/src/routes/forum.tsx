@@ -85,7 +85,8 @@ async function extractErrorMessage(e: unknown, fallback: string): Promise<string
     try {
       const body = await (e as { response: Response }).response.json();
       if (body?.message) return body.message;
-    } catch {
+    } catch (e) {
+      console.error("failed to parse error response:", e);
       /* ignore parse errors */
     }
   }
@@ -382,7 +383,7 @@ async function uploadForumImage(file: File, userId: string): Promise<string | nu
 
   // Try to get the public URL first
   try {
-    const pubResp = await supabase.storage.from(FORUM_MEDIA_BUCKET).getPublicUrl(path as string);
+    const pubResp = supabase.storage.from(FORUM_MEDIA_BUCKET).getPublicUrl(path as string);
     console.log("forum upload: getPublicUrl response:", pubResp);
     const publicUrl = (pubResp as any)?.data?.publicUrl ?? (pubResp as any)?.publicUrl ?? null;
     if (publicUrl) {
@@ -392,6 +393,7 @@ async function uploadForumImage(file: File, userId: string): Promise<string | nu
         console.log("forum upload: publicUrl HEAD status", head.status);
         if (head.ok) return publicUrl;
       } catch (e) {
+        console.error("failed to check public url accessibility:", e);
         // network/fetch errors fallthrough to signed-url fallback
       }
     }
@@ -612,7 +614,8 @@ function ForumPage() {
     try {
       await api.delete(`forum/questions/${qId}`);
       await fetchQuestions();
-    } catch {
+    } catch (e) {
+      console.error("failed to delete question:", e);
       setError("Failed to delete question");
     }
   };
@@ -621,7 +624,8 @@ function ForumPage() {
     try {
       await api.delete(`forum/answers/${aId}`);
       await fetchQuestions();
-    } catch {
+    } catch (e) {
+      console.error("failed to delete answer:", e);
       setError("Failed to delete answer");
     }
   };
@@ -636,7 +640,8 @@ function ForumPage() {
         })
         .json<VoteSummary>();
       setQuestions((prev) => prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)));
-    } catch {
+    } catch (e) {
+      console.error("failed to vote on question:", e);
       setError("Failed to vote");
     }
   };
@@ -646,7 +651,8 @@ function ForumPage() {
     try {
       const updated = await api.delete(`forum/questions/${qId}/votes`).json<VoteSummary>();
       setQuestions((prev) => prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)));
-    } catch {
+    } catch (e) {
+      console.error("failed to clear question vote:", e);
       setError("Failed to clear vote");
     }
   };
@@ -669,7 +675,8 @@ function ForumPage() {
             : q,
         ),
       );
-    } catch {
+    } catch (e) {
+      console.error("failed to vote on answer:", e);
       setError("Failed to vote");
     }
   };
@@ -688,7 +695,8 @@ function ForumPage() {
             : q,
         ),
       );
-    } catch {
+    } catch (e) {
+      console.error("failed to clear answer vote:", e);
       setError("Failed to clear vote");
     }
   };

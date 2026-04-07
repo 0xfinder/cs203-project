@@ -39,7 +39,7 @@ export function LessonForm({
               placeholdersByParentId[parentUnitId].push(parsed);
             }
           } catch (e) {
-            // ignore malformed
+            console.error("failed to parse temp placeholder unit:", e);
           }
         }
 
@@ -91,10 +91,12 @@ export function LessonForm({
               tempKey: tempKey,
             });
           } catch (e) {
+            console.error("failed to parse temp unit data:", e);
             // ignore malformed
           }
         }
       } catch (e) {
+        console.error("failed to access local storage for temp units:", e);
         // ignore storage access
       }
       setTempUnits(items);
@@ -163,6 +165,7 @@ export function LessonForm({
           sessionStorage.removeItem("contentFormUnitId");
         }
       } catch (e) {
+        console.error("failed to read unit id from session storage:", e);
         // ignore storage access errors
       }
 
@@ -556,9 +559,11 @@ export function LessonForm({
               try {
                 body = await res.json();
               } catch (e) {
+                console.error("failed to parse error response as json:", e);
                 try {
                   body = await res.text();
-                } catch (e2) {
+                } catch (e) {
+                  console.error("failed to read error response as text:", e);
                   body = null;
                 }
               }
@@ -575,6 +580,7 @@ export function LessonForm({
               message = err.message;
             }
           } catch (e) {
+            console.error("failed to format vocab creation error:", e);
             console.error("[LessonForm] error while formatting vocab creation error:", e);
           }
           setError(message);
@@ -670,9 +676,11 @@ export function LessonForm({
               };
               localStorage.setItem(key, JSON.stringify(map));
             } catch (e) {
+              console.error("failed to save step titles to local storage:", e);
               // ignore storage failures
             }
           } catch (e) {
+            console.error("failed to fetch step titles from backend:", e);
             // ignore cache failures
           }
         }
@@ -750,9 +758,11 @@ export function LessonForm({
               };
               localStorage.setItem(key, JSON.stringify(map));
             } catch (e) {
+              console.error("failed to save question prompt to local storage:", e);
               // ignore
             }
           } catch (e) {
+            console.error("failed to fetch question prompt from backend:", e);
             // ignore
           }
         }
@@ -765,7 +775,9 @@ export function LessonForm({
         setTimeout(() => {
           try {
             sessionStorage.setItem("reviewActiveSub", "lesson");
-          } catch (e) {}
+          } catch (e) {
+            console.error("failed to set review active sub in session storage:", e);
+          }
           void navigate({ to: "/review" });
         }, 800);
       }
@@ -790,9 +802,11 @@ export function LessonForm({
           try {
             body = await res.json();
           } catch (e) {
+            console.error("failed to parse error response as json:", e);
             try {
               body = await res.text();
-            } catch (e2) {
+            } catch (e) {
+              console.error("failed to read error response as text:", e);
               body = null;
             }
           }
@@ -817,6 +831,7 @@ export function LessonForm({
           message = err.message;
         }
       } catch (e) {
+        console.error("failed to format lesson creation error:", e);
         // ignore
       }
       setError(message);
@@ -962,6 +977,7 @@ export function LessonForm({
                           }
                         }
                       } catch (e) {
+                        console.error("failed to parse temp placeholder unit:", e);
                         // ignore storage errors
                       }
                     }

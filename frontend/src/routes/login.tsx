@@ -47,7 +47,9 @@ function LoginPage() {
         if (hash === "#signup") return "signup";
         if (params.get("tab") === "signup") return "signup";
       }
-    } catch {}
+    } catch (e) {
+      console.error("failed to read url params for initial tab:", e);
+    }
     return "login";
   });
 

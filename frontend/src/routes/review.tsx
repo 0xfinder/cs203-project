@@ -35,6 +35,7 @@ function ReviewPage() {
         sessionStorage.removeItem("reviewActiveSub");
       }
     } catch (e) {
+      console.error("failed to read review active sub from session storage:", e);
       // ignore storage errors
     }
   }, []);
@@ -72,7 +73,7 @@ function ReviewPage() {
     serverPendingCount?: number;
     serverAllCount?: number;
   } | null>(null);
-  const [modalLesson, setModalLesson] = useState<any | null>(null);
+  const [modalLesson, setModalLesson] = useState<any>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const openLessonModal = async (id: number) => {
     setModalLoading(true);
@@ -97,6 +98,7 @@ function ReviewPage() {
               return;
             }
           } catch (e) {
+            console.error("failed to parse temp unit from local storage:", e);
             // ignore
           }
         }
@@ -109,6 +111,7 @@ function ReviewPage() {
         setModalLesson({ detail, steps });
       }
     } catch (e) {
+      console.error("failed to open lesson modal:", e);
       setModalLesson({ error: String(e) });
     } finally {
       setModalLoading(false);
@@ -160,7 +163,7 @@ function ReviewPage() {
     }
 
     let mounted = true;
-    (async () => {
+    void (async () => {
       try {
         const serverPending = await api
           .get("lessons", { searchParams: { status: "PENDING_REVIEW" } })
@@ -172,6 +175,7 @@ function ReviewPage() {
           serverAllCount: Array.isArray(serverAll) ? serverAll.length : undefined,
         });
       } catch (e) {
+        console.error("failed to fetch debug info for lessons:", e);
         if (!mounted) return;
         setDebugInfo({});
       }
@@ -188,6 +192,7 @@ function ReviewPage() {
       const raw = localStorage.getItem("pendingLessonMeta");
       setPendingMetaMap(raw ? JSON.parse(raw) : {});
     } catch (e) {
+      console.error("failed to load pending lesson metadata:", e);
       setPendingMetaMap({});
     }
     const onStorage = (ev: StorageEvent) => {
@@ -196,6 +201,7 @@ function ReviewPage() {
         try {
           setPendingMetaMap(ev.newValue ? JSON.parse(ev.newValue) : {});
         } catch (e) {
+          console.error("failed to parse pending lesson metadata from storage event:", e);
           setPendingMetaMap({});
         }
       }
@@ -243,12 +249,13 @@ function ReviewPage() {
             }
           });
         } catch (e) {
+          console.error("failed to process storage event:", e);
           // ignore malformed entries
         }
       }
       setAppendedUnitLessons(collected);
     } catch (e) {
-      setAppendedUnitLessons([]);
+      console.error("failed to update appended unit lessons from storage event:", e);
     }
 
     // Listen for storage changes to refresh appended unit lessons
@@ -289,10 +296,15 @@ function ReviewPage() {
                   });
                 }
               });
-            } catch (ignore) {}
+            } catch (e) {
+              console.error("failed to parse temp unit entry from storage event:", e);
+            }
           }
           setAppendedUnitLessons(collected);
-        } catch (ignore) {}
+        } catch (e) {
+          console.error("failed to load appended unit lessons:", e);
+          setAppendedUnitLessons([]);
+        }
       }
     };
     window.addEventListener("storage", onStorage);
@@ -314,12 +326,14 @@ function ReviewPage() {
             collected.push(parsed);
           }
         } catch (e) {
+          console.error("failed to process storage event:", e);
           // ignore malformed entries
         }
       }
       setAppendedUnitsCache(collected);
     } catch (e) {
-      setAppendedUnitsCache([]);
+      console.error("failed to parse temp unit for appended units cache:", e);
+      // ignore malformed entries
     }
 
     const onStorage = (ev: StorageEvent) => {
@@ -336,10 +350,15 @@ function ReviewPage() {
             if (p.id && p.id < 0) {
               collected.push(p);
             }
-          } catch (ignore) {}
+          } catch (e) {
+            console.error("failed to parse temp unit from storage event for cache:", e);
+          }
         }
         setAppendedUnitsCache(collected);
-      } catch (ignore) {}
+      } catch (e) {
+        console.error("failed to load appended units cache:", e);
+        setAppendedUnitsCache([]);
+      }
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
@@ -349,7 +368,7 @@ function ReviewPage() {
   // For appended unit lessons (negative IDs), read steps from localStorage instead
   useEffect(() => {
     let mounted = true;
-    (async () => {
+    void (async () => {
       try {
         const toFetch = lessonItems.filter(
           (l: any) => !(l.firstStepType || l.firstQuestionType) && !firstStepMap[l.id],
@@ -400,10 +419,12 @@ function ReviewPage() {
               }
             }
           } catch (e) {
+            console.error("failed to fetch first step for lesson:", e);
             // ignore per-lesson fetch failures
           }
         }
       } catch (e) {
+        console.error("failed to fetch first steps for lessons:", e);
         // ignore
       }
     })();
@@ -602,9 +623,9 @@ function ReviewPage() {
       {
         onSuccess: () => {
           // Invalidate units cache so wrappers with targetSubunitId are filtered out
-          queryClient.invalidateQueries({ queryKey: ["units"] });
+          void queryClient.invalidateQueries({ queryKey: ["units"] });
           // Invalidate all lesson play queries to refresh with new steps
-          queryClient.invalidateQueries({ queryKey: ["lessons", "play"] });
+          void queryClient.invalidateQueries({ queryKey: ["lessons", "play"] });
 
           // Clear tempData for this lesson so it uses fresh API data
           if (id < 0) {
@@ -623,6 +644,7 @@ function ReviewPage() {
                 );
                 localStorage.setItem(key, JSON.stringify(parsed));
               } catch (e) {
+                console.error("failed to parse lesson data from local storage during approval:", e);
                 // ignore parse errors
               }
             }
@@ -649,6 +671,7 @@ function ReviewPage() {
               errorMsg = error.message;
             }
           } catch (e) {
+            console.error("failed to parse error response from approve lesson:", e);
             // ignore parse error
           }
           alert("Error: " + errorMsg);
@@ -721,6 +744,7 @@ function ReviewPage() {
               errorMsg = error.message;
             }
           } catch (e) {
+            console.error("failed to parse error response from reject lesson:", e);
             // ignore parse error
           }
           alert("Error: " + errorMsg);
