@@ -55,10 +55,13 @@ function AddLessonPage() {
       const me = await getMe();
       // Ensure backend-required fields are present. If the user left title/description
       // blank, derive them from the first step so validation (@NotBlank) succeeds.
-      const firstStepContent = steps && steps.length > 0 ? (steps[0].content || "") : "";
-      const derivedTitle = title.trim() || (firstStepContent.trim().split("\n")[0] || "Untitled Lesson");
+      const firstStepContent = steps && steps.length > 0 ? steps[0].content || "" : "";
+      const derivedTitle =
+        title.trim() || firstStepContent.trim().split("\n")[0] || "Untitled Lesson";
       const derivedDescription =
-        description.trim() || (firstStepContent.trim().split("\n").slice(0, 2).join(" ") || derivedTitle);
+        description.trim() ||
+        firstStepContent.trim().split("\n").slice(0, 2).join(" ") ||
+        derivedTitle;
 
       const payload = {
         unitId,
@@ -91,7 +94,10 @@ function AddLessonPage() {
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Add New Lesson or Quiz</CardTitle>
-          <CardDescription>Create a lesson or quiz for the Learn tab. Submitted items are reviewed before publishing.</CardDescription>
+          <CardDescription>
+            Create a lesson or quiz for the Learn tab. Submitted items are reviewed before
+            publishing.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -108,16 +114,19 @@ function AddLessonPage() {
                     onChange={(e) => setUnitId(Number(e.target.value))}
                     className="mt-1 w-full rounded-md border bg-card px-3 py-2"
                   >
-                      {units?.map((u: any) => (
-                        <option key={u.id} value={u.id}>
-                          {u.title}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                    {units?.map((u: any) => (
+                      <option key={u.id} value={u.id}>
+                        {u.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div>
                   <Label>Learning Objective</Label>
-                  <Input value={learningObjective} onChange={(e) => setLearningObjective(e.target.value)} />
+                  <Input
+                    value={learningObjective}
+                    onChange={(e) => setLearningObjective(e.target.value)}
+                  />
                 </div>
 
                 <div>
@@ -125,7 +134,9 @@ function AddLessonPage() {
                   <Input
                     type="number"
                     value={estimatedMinutes ?? ""}
-                    onChange={(e) => setEstimatedMinutes(e.target.value ? Number(e.target.value) : undefined)}
+                    onChange={(e) =>
+                      setEstimatedMinutes(e.target.value ? Number(e.target.value) : undefined)
+                    }
                   />
                 </div>
 
@@ -146,7 +157,9 @@ function AddLessonPage() {
                           className="flex-1 rounded-md border bg-card px-3 py-2"
                           value={s.content}
                           onChange={(e) => updateStep(idx, { content: e.target.value })}
-                          placeholder={s.type === "QUESTION" ? "Question prompt or payload" : "Step content"}
+                          placeholder={
+                            s.type === "QUESTION" ? "Question prompt or payload" : "Step content"
+                          }
                         />
                         <Button type="button" variant="destructive" onClick={() => removeStep(idx)}>
                           Remove

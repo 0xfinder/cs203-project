@@ -92,7 +92,9 @@ function DictionaryPage() {
         .then((me) => {
           if (!mounted) return;
           setIsAdmin(me.role === "ADMIN" || me.role === "MODERATOR");
-          setIsContributor(me.role === "CONTRIBUTOR" || me.role === "ADMIN" || me.role === "MODERATOR");
+          setIsContributor(
+            me.role === "CONTRIBUTOR" || me.role === "ADMIN" || me.role === "MODERATOR",
+          );
         })
         .catch(() => {
           /* ignore */
@@ -125,7 +127,11 @@ function DictionaryPage() {
         submittedBy: me.email ?? "",
       };
       await api.post("contents", { json: payload }).json();
-      setSubmitSuccess(me.role === "ADMIN" || me.role === "MODERATOR" ? "Added and live." : "Submitted — pending review.");
+      setSubmitSuccess(
+        me.role === "ADMIN" || me.role === "MODERATOR"
+          ? "Added and live."
+          : "Submitted — pending review.",
+      );
       setTermInput("");
       setDefInput("");
       setExampleInput("");
@@ -197,27 +203,52 @@ function DictionaryPage() {
           {isContributor && (
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm" className="rounded-full px-3 shadow-sm flex items-center gap-2 text-primary border-primary/20">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full px-3 shadow-sm flex items-center gap-2 text-primary border-primary/20"
+                >
                   <Plus className="size-3" />
                   Add Lingo
                 </Button>
               </DialogTrigger>
-              <DialogContent title="Add Lingo" description="Submit a new dictionary term for review">
+              <DialogContent
+                title="Add Lingo"
+                description="Submit a new dictionary term for review"
+              >
                 <form onSubmit={handleLingoSubmit} className="space-y-3">
                   <div>
                     <Label htmlFor="dict-term">Term</Label>
-                    <Input id="dict-term" name="term" value={termInput} onChange={(e) => setTermInput(e.target.value)} />
+                    <Input
+                      id="dict-term"
+                      name="term"
+                      value={termInput}
+                      onChange={(e) => setTermInput(e.target.value)}
+                    />
                   </div>
                   <div>
                     <Label htmlFor="dict-definition">Definition</Label>
-                    <Input id="dict-definition" name="definition" value={defInput} onChange={(e) => setDefInput(e.target.value)} />
+                    <Input
+                      id="dict-definition"
+                      name="definition"
+                      value={defInput}
+                      onChange={(e) => setDefInput(e.target.value)}
+                    />
                   </div>
                   <div>
                     <Label htmlFor="dict-example">Example (optional)</Label>
-                    <Input id="dict-example" name="example" value={exampleInput} onChange={(e) => setExampleInput(e.target.value)} />
+                    <Input
+                      id="dict-example"
+                      name="example"
+                      value={exampleInput}
+                      onChange={(e) => setExampleInput(e.target.value)}
+                    />
                   </div>
                   <div className="flex justify-end">
-                    <Button type="submit" disabled={submitLoading || !termInput.trim() || !defInput.trim()}>
+                    <Button
+                      type="submit"
+                      disabled={submitLoading || !termInput.trim() || !defInput.trim()}
+                    >
                       {submitLoading ? "Submitting…" : "Submit"}
                     </Button>
                   </div>
@@ -392,11 +423,17 @@ function DictionaryPage() {
                                     variant="ghost"
                                     size="xs"
                                     onClick={async () => {
-                                      if (!confirm(`Delete "${entry.content.term}" definition by ${entry.submittedByDisplayName}?`)) return;
+                                      if (
+                                        !confirm(
+                                          `Delete "${entry.content.term}" definition by ${entry.submittedByDisplayName}?`,
+                                        )
+                                      )
+                                        return;
                                       try {
                                         await deleteMutation.mutateAsync({ id: entry.content.id });
                                       } catch (err) {
-                                        const msg = err instanceof Error ? err.message : String(err);
+                                        const msg =
+                                          err instanceof Error ? err.message : String(err);
                                         alert(`Failed to delete: ${msg}`);
                                       }
                                     }}

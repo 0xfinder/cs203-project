@@ -215,9 +215,8 @@ export function useDeleteContent() {
       await queryClient.cancelQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
       await queryClient.cancelQueries({ queryKey: CONTENTS_KEY });
 
-      const previousWithVotes = queryClient.getQueryData<ContentWithVotesResponse[]>(
-        CONTENTS_WITH_VOTES_KEY,
-      );
+      const previousWithVotes =
+        queryClient.getQueryData<ContentWithVotesResponse[]>(CONTENTS_WITH_VOTES_KEY);
       const previousApproved = queryClient.getQueryData<ContentItem[]>(CONTENTS_KEY);
 
       if (previousWithVotes) {

@@ -40,8 +40,7 @@ function LearnPage() {
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
   const profile = currentUserViewQuery.data?.profile ?? null;
   const role = profile?.role;
-  const isContributor =
-    role === "CONTRIBUTOR" || role === "ADMIN" || role === "MODERATOR";
+  const isContributor = role === "CONTRIBUTOR" || role === "ADMIN" || role === "MODERATOR";
   const isAdmin = role === "ADMIN" || role === "MODERATOR";
   const [appendedUnits, setAppendedUnits] = useState<UnitData[]>([]);
   const [newUnitTitle, setNewUnitTitle] = useState("");
@@ -60,7 +59,7 @@ function LearnPage() {
           const parsed = JSON.parse(raw);
           const tempKey = key.replace(/^tempUnit:/, "");
           items.push({
-            id: parsed.id ?? -(Date.now()),
+            id: parsed.id ?? -Date.now(),
             title: parsed.title ?? "New Section",
             slug: parsed.slug ?? `temp-${tempKey}`,
             description: parsed.description ?? "Coming soon",
@@ -212,7 +211,8 @@ function LearnPage() {
         {visibleUnits.map((unit, i) => {
           const unlocked = isUnlocked(i);
           const roadmap = getUnitRoadmap(unit, progressByLessonId, undefined, isContributor);
-          const completed = roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
+          const completed =
+            roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
           const isCurrent = unit.id === currentUnitId;
           const launchLesson = roadmap.nextLesson ?? null;
           const offset = PATH_OFFSETS[i % PATH_OFFSETS.length];
@@ -221,7 +221,8 @@ function LearnPage() {
             "--lesson-offset-desktop": `${offset}px`,
           } as CSSProperties;
 
-          const numericLessonId = launchLesson?.id ?? roadmap.orderedLessons[0]?.id ?? unit.lessons[0]?.id ?? null;
+          const numericLessonId =
+            launchLesson?.id ?? roadmap.orderedLessons[0]?.id ?? unit.lessons[0]?.id ?? null;
           const lessonIdParam = numericLessonId ? String(numericLessonId) : null;
 
           const wrapperClass = cn(
@@ -240,10 +241,16 @@ function LearnPage() {
                   isCurrent && "ring-4 ring-ring/50",
                 )}
               >
-                {unlocked ? <span className="drop-shadow">📘</span> : <Lock className="size-6 text-white/80 sm:size-8" />}
+                {unlocked ? (
+                  <span className="drop-shadow">📘</span>
+                ) : (
+                  <Lock className="size-6 text-white/80 sm:size-8" />
+                )}
 
                 {completed && (
-                  <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow sm:size-7 sm:text-sm">✓</span>
+                  <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow sm:size-7 sm:text-sm">
+                    ✓
+                  </span>
                 )}
 
                 {isAdmin && (
@@ -265,19 +272,30 @@ function LearnPage() {
 
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className={cn("text-sm font-bold leading-tight sm:text-base", !unlocked && "text-muted-foreground")}>
+                  <h3
+                    className={cn(
+                      "text-sm font-bold leading-tight sm:text-base",
+                      !unlocked && "text-muted-foreground",
+                    )}
+                  >
                     {unit.title}
                   </h3>
-                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">#{unit.orderIndex}</span>
+                  <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                    #{unit.orderIndex}
+                  </span>
                 </div>
-                <p className="mt-0.5 text-xs leading-5 text-muted-foreground sm:text-sm">{unit.description}</p>
+                <p className="mt-0.5 text-xs leading-5 text-muted-foreground sm:text-sm">
+                  {unit.description}
+                </p>
                 <p className="mt-1 text-[11px] leading-4 text-muted-foreground/70 sm:text-xs">
                   {roadmap.completedCount}/{roadmap.totalLessons} lessons
                   {roadmap.nextLesson ? ` · Next: ${roadmap.nextLesson.title}` : ""}
                 </p>
               </div>
 
-              {unlocked && lessonIdParam && <ChevronRight className="hidden size-5 shrink-0 text-muted-foreground/50 sm:block" />}
+              {unlocked && lessonIdParam && (
+                <ChevronRight className="hidden size-5 shrink-0 text-muted-foreground/50 sm:block" />
+              )}
             </>
           );
 
@@ -292,7 +310,13 @@ function LearnPage() {
               )}
 
               {lessonIdParam ? (
-                <Link to="/lesson/$lessonId" params={{ lessonId: lessonIdParam }} preload={false} className={wrapperClass} style={offsetStyle}>
+                <Link
+                  to="/lesson/$lessonId"
+                  params={{ lessonId: lessonIdParam }}
+                  preload={false}
+                  className={wrapperClass}
+                  style={offsetStyle}
+                >
                   {innerContent}
                 </Link>
               ) : (
@@ -313,18 +337,22 @@ function LearnPage() {
             "--lesson-offset-desktop": `${offset}px`,
           } as CSSProperties;
 
-          const filteredLessons = (Array.isArray(unit.lessons) ? unit.lessons : []).filter((l: any) => {
-            const t = String(l?.title ?? "");
-            const s = String(l?.slug ?? "");
-            // Exclude: placeholders, "coming soon", PENDING_REVIEW lessons, and lessons being added to hardcoded subunits
-            return !(
-              t.startsWith("Placeholder Lesson") || 
-              s.startsWith("placeholder-") || 
-              t === "Coming soon" ||
-              l?.status === "PENDING_REVIEW" ||  // Hide pending review lessons
-              l?.subunitId // Hide lessons that are being added to hardcoded subunits
-            );
-          });
+          const filteredLessons = (Array.isArray(unit.lessons) ? unit.lessons : []).filter(
+            (l: any) => {
+              const t = String(l?.title ?? "");
+              const s = String(l?.slug ?? "");
+              // Exclude: placeholders, "coming soon", PENDING_REVIEW lessons, and lessons being added to hardcoded subunits
+              return !(
+                (
+                  t.startsWith("Placeholder Lesson") ||
+                  s.startsWith("placeholder-") ||
+                  t === "Coming soon" ||
+                  l?.status === "PENDING_REVIEW" || // Hide pending review lessons
+                  l?.subunitId
+                ) // Hide lessons that are being added to hardcoded subunits
+              );
+            },
+          );
 
           // Skip appended units with no valid lessons
           if (filteredLessons.length === 0) {
@@ -332,13 +360,25 @@ function LearnPage() {
           }
 
           const unitForRoadmap = { ...unit, lessons: filteredLessons } as typeof unit;
-          const roadmap = getUnitRoadmap(unitForRoadmap, progressByLessonId, undefined, isContributor);
+          const roadmap = getUnitRoadmap(
+            unitForRoadmap,
+            progressByLessonId,
+            undefined,
+            isContributor,
+          );
           const launchLesson = roadmap.nextLesson ?? null;
           // Only use launchLesson.id if it's a positive integer (server-backed lesson), otherwise use temp- format
-          const lessonParam = launchLesson?.id && launchLesson.id > 0 ? String(launchLesson.id) : `temp-${(unit as any).tempKey}`;
+          const lessonParam =
+            launchLesson?.id && launchLesson.id > 0
+              ? String(launchLesson.id)
+              : `temp-${(unit as any).tempKey}`;
 
           return (
-            <div key={`app-${unit.id}`} data-appended-last={idx === appendedUnits.length - 1 ? "true" : undefined} className="flex flex-col items-center">
+            <div
+              key={`app-${unit.id}`}
+              data-appended-last={idx === appendedUnits.length - 1 ? "true" : undefined}
+              className="flex flex-col items-center"
+            >
               {/* add content buttons removed from Learn list; use unit page Add Content */}
               <div className="flex flex-col items-center gap-1.5 py-1">
                 <span className="block h-1.5 w-1.5 rounded-full bg-border" />
@@ -365,7 +405,11 @@ function LearnPage() {
                   <span className="drop-shadow">📘</span>
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); deleteAppendedUnitById(unit.id); }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      deleteAppendedUnitById(unit.id);
+                    }}
                     aria-label={`Delete added section ${unit.title}`}
                     title="Delete section"
                     className="absolute -right-2 -bottom-2 flex h-7 w-7 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow hover:scale-105 transition-transform"
@@ -377,14 +421,17 @@ function LearnPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <h3 className="text-sm font-bold leading-tight sm:text-base">{unit.title}</h3>
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">#{unit.orderIndex}</span>
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-xs font-semibold text-muted-foreground">
+                      #{unit.orderIndex}
+                    </span>
                   </div>
-                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground sm:text-sm">{unit.description}</p>
+                  <p className="mt-0.5 text-xs leading-5 text-muted-foreground sm:text-sm">
+                    {unit.description}
+                  </p>
                   <p className="mt-1 text-[11px] leading-4 text-muted-foreground/70 sm:text-xs">
                     {roadmap.completedCount}/{roadmap.totalLessons} lessons
                     {roadmap.nextLesson ? ` · Next: ${roadmap.nextLesson.title}` : " · Coming soon"}
                   </p>
-
                 </div>
 
                 <ChevronRight className="hidden size-5 shrink-0 text-muted-foreground/50 sm:block" />
@@ -396,102 +443,109 @@ function LearnPage() {
         {/* single add button at end of units */}
         {isAdmin && (
           <div className="mt-6 mb-6 flex items-center justify-center">
-              <div>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <button
-                      type="button"
-                      className="flex size-20 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform"
-                      aria-label="Add section"
-                      title="Add section"
-                    >
-                      <Plus className="size-5" />
-                    </button>
-                  </DialogTrigger>
+            <div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex size-20 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:scale-105 transition-transform"
+                    aria-label="Add section"
+                    title="Add section"
+                  >
+                    <Plus className="size-5" />
+                  </button>
+                </DialogTrigger>
 
-                  <DialogContent title="Add Section" description="Create a new section (no lessons added yet)">
-                    <form
-                      className="space-y-4"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                      }}
-                    >
-                      <div>
-                        <Label htmlFor="unit-title">Section title</Label>
-                        <Input
-                          id="unit-title"
-                          name="title"
-                          placeholder="e.g. Getting Started"
-                          value={newUnitTitle}
-                          onChange={(e) => setNewUnitTitle(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="unit-desc">Description</Label>
-                        <textarea
-                          id="unit-desc"
-                          name="description"
-                          className="w-full rounded-md border bg-transparent px-3 py-2 text-base shadow-xs"
-                          placeholder="Short description shown in the unit list"
-                          rows={3}
-                          value={newUnitDesc}
-                          onChange={(e) => setNewUnitDesc(e.target.value)}
-                        />
-                      </div>
-                      <div className="flex items-center justify-end gap-2">
-                        <DialogClose asChild>
-                          <Button variant="outline">Cancel</Button>
-                        </DialogClose>
-                        <DialogClose asChild>
-                          <Button
-                            onClick={() => {
-                              const maxIndex = Math.max(0, ...(visibleUnits.map((u) => u.orderIndex)), ...(appendedUnits.map((u) => u.orderIndex)));
-                              const nextIndex = maxIndex + 1;
-                              const tempKey = String(Date.now());
-                              const newUnit: UnitData & { tempKey?: string } = {
-                                id: -(Date.now()),
-                                title: newUnitTitle || `New Section`,
-                                slug: `new-section-${nextIndex}`,
-                                description: newUnitDesc || `Coming soon`,
-                                orderIndex: nextIndex,
+                <DialogContent
+                  title="Add Section"
+                  description="Create a new section (no lessons added yet)"
+                >
+                  <form
+                    className="space-y-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                    }}
+                  >
+                    <div>
+                      <Label htmlFor="unit-title">Section title</Label>
+                      <Input
+                        id="unit-title"
+                        name="title"
+                        placeholder="e.g. Getting Started"
+                        value={newUnitTitle}
+                        onChange={(e) => setNewUnitTitle(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="unit-desc">Description</Label>
+                      <textarea
+                        id="unit-desc"
+                        name="description"
+                        className="w-full rounded-md border bg-transparent px-3 py-2 text-base shadow-xs"
+                        placeholder="Short description shown in the unit list"
+                        rows={3}
+                        value={newUnitDesc}
+                        onChange={(e) => setNewUnitDesc(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DialogClose>
+                      <DialogClose asChild>
+                        <Button
+                          onClick={() => {
+                            const maxIndex = Math.max(
+                              0,
+                              ...visibleUnits.map((u) => u.orderIndex),
+                              ...appendedUnits.map((u) => u.orderIndex),
+                            );
+                            const nextIndex = maxIndex + 1;
+                            const tempKey = String(Date.now());
+                            const newUnit: UnitData & { tempKey?: string } = {
+                              id: -Date.now(),
+                              title: newUnitTitle || `New Section`,
+                              slug: `new-section-${nextIndex}`,
+                              description: newUnitDesc || `Coming soon`,
+                              orderIndex: nextIndex,
+                              lessons: [],
+                              tempKey,
+                            } as any;
+
+                            // store a minimal representation for the temp lesson route
+                            try {
+                              const payload = {
+                                id: newUnit.id,
+                                title: newUnit.title,
+                                description: newUnit.description,
+                                orderIndex: newUnit.orderIndex,
                                 lessons: [],
-                                tempKey,
-                              } as any;
+                                steps: [],
+                              };
+                              localStorage.setItem(`tempUnit:${tempKey}`, JSON.stringify(payload));
+                            } catch (e) {
+                              // ignore localStorage failures
+                            }
 
-                              // store a minimal representation for the temp lesson route
-                              try {
-                                const payload = {
-                                  id: newUnit.id,
-                                  title: newUnit.title,
-                                  description: newUnit.description,
-                                  orderIndex: newUnit.orderIndex,
-                                  lessons: [],
-                                  steps: [],
-                                };
-                                localStorage.setItem(`tempUnit:${tempKey}`, JSON.stringify(payload));
-                              } catch (e) {
-                                // ignore localStorage failures
-                              }
-
-                              setAppendedUnits((s) => [...s, newUnit]);
-                              // reset form
-                              setNewUnitTitle("");
-                              setNewUnitDesc("");
-                              // scroll to the newly added unit
-                              setTimeout(() => {
-                                const el = document.querySelector("[data-appended-last]");
-                                if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-                              }, 120);
-                            }}
-                          >
-                            Save
-                          </Button>
-                        </DialogClose>
-                      </div>
-                    </form>
-                  </DialogContent>
-                </Dialog>
-              </div>
+                            setAppendedUnits((s) => [...s, newUnit]);
+                            // reset form
+                            setNewUnitTitle("");
+                            setNewUnitDesc("");
+                            // scroll to the newly added unit
+                            setTimeout(() => {
+                              const el = document.querySelector("[data-appended-last]");
+                              if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                            }, 120);
+                          }}
+                        >
+                          Save
+                        </Button>
+                      </DialogClose>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         )}
       </div>

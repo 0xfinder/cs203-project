@@ -148,24 +148,46 @@ export function usePendingLessons() {
   const queryClient = useQueryClient();
   return useQuery({
     queryKey: [...LESSONS_KEY, "pending"],
-    queryFn: () => api.get("lessons", { searchParams: { status: "PENDING_REVIEW" } }).json<LessonSummary[]>(),
+    queryFn: () =>
+      api.get("lessons", { searchParams: { status: "PENDING_REVIEW" } }).json<LessonSummary[]>(),
     select: (data: LessonSummary[]) => {
       try {
-        const cached = queryClient.getQueryData<any>([...LESSONS_KEY, "pending"]) as any[] | undefined;
+        const cached = queryClient.getQueryData<any>([...LESSONS_KEY, "pending"]) as
+          | any[]
+          | undefined;
         const raw = (() => {
-          try { return localStorage.getItem("pendingLessonMeta"); } catch (e) { return null; }
+          try {
+            return localStorage.getItem("pendingLessonMeta");
+          } catch (e) {
+            return null;
+          }
         })();
         const storedMap = raw ? JSON.parse(raw) : {};
 
         return data.map((item) => {
           // prefer live client cache (recent submissions), then localStorage persisted metadata
-          const match = cached && Array.isArray(cached) ? cached.find((c) => c && c.id === item.id) : undefined;
+          const match =
+            cached && Array.isArray(cached) ? cached.find((c) => c && c.id === item.id) : undefined;
           if (match) {
-            return { ...item, ...(match.subunitTitle ? { subunitTitle: match.subunitTitle } : {}), ...(match.subunitId ? { subunitId: match.subunitId } : {}), ...(match.firstStepType ? { firstStepType: match.firstStepType } : {}), ...(match.firstQuestionType ? { firstQuestionType: match.firstQuestionType } : {}), ...(match.firstStepPrompt ? { firstStepPrompt: match.firstStepPrompt } : {}) };
+            return {
+              ...item,
+              ...(match.subunitTitle ? { subunitTitle: match.subunitTitle } : {}),
+              ...(match.subunitId ? { subunitId: match.subunitId } : {}),
+              ...(match.firstStepType ? { firstStepType: match.firstStepType } : {}),
+              ...(match.firstQuestionType ? { firstQuestionType: match.firstQuestionType } : {}),
+              ...(match.firstStepPrompt ? { firstStepPrompt: match.firstStepPrompt } : {}),
+            };
           }
           const stored = storedMap ? storedMap[item.id] : undefined;
           if (stored) {
-            return { ...item, ...(stored.subunitTitle ? { subunitTitle: stored.subunitTitle } : {}), ...(stored.subunitId ? { subunitId: stored.subunitId } : {}), ...(stored.firstStepType ? { firstStepType: stored.firstStepType } : {}), ...(stored.firstQuestionType ? { firstQuestionType: stored.firstQuestionType } : {}), ...(stored.firstStepPrompt ? { firstStepPrompt: stored.firstStepPrompt } : {}) };
+            return {
+              ...item,
+              ...(stored.subunitTitle ? { subunitTitle: stored.subunitTitle } : {}),
+              ...(stored.subunitId ? { subunitId: stored.subunitId } : {}),
+              ...(stored.firstStepType ? { firstStepType: stored.firstStepType } : {}),
+              ...(stored.firstQuestionType ? { firstQuestionType: stored.firstQuestionType } : {}),
+              ...(stored.firstStepPrompt ? { firstStepPrompt: stored.firstStepPrompt } : {}),
+            };
           }
           return item;
         });

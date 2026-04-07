@@ -64,7 +64,12 @@ export function getVisibleUnits(units: UnitData[]) {
   // in the Learn view. Return shallow-copies of units with their lessons
   // filtered to approved status.
   return sortUnits(units)
-    .map((unit) => ({ ...unit, lessons: (Array.isArray(unit.lessons) ? unit.lessons : []).filter((l: any) => l.status === "APPROVED") }))
+    .map((unit) => ({
+      ...unit,
+      lessons: (Array.isArray(unit.lessons) ? unit.lessons : []).filter(
+        (l: any) => l.status === "APPROVED",
+      ),
+    }))
     .filter((unit) => Array.isArray(unit.lessons) && unit.lessons.length > 0);
 }
 

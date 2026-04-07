@@ -30,7 +30,12 @@ export function UnitRoadmap({
   onDeleteLesson,
 }: UnitRoadmapProps) {
   const progressByLessonId = new Map(progressItems?.map((item) => [item.lessonId, item]) ?? []);
-  const roadmap = getUnitRoadmap(unit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
+  const roadmap = getUnitRoadmap(
+    unit,
+    progressByLessonId,
+    currentLessonId,
+    allowAllUnlocked ?? false,
+  );
 
   // Merge any client-side placeholder lessons created for this real unit
   let mergedUnit = unit;
@@ -54,7 +59,10 @@ export function UnitRoadmap({
         }
       }
       if (placeholders.length > 0) {
-        mergedUnit = { ...unit, lessons: [...(unit.lessons ?? []), ...placeholders] } as typeof unit;
+        mergedUnit = {
+          ...unit,
+          lessons: [...(unit.lessons ?? []), ...placeholders],
+        } as typeof unit;
       }
     } catch (e) {
       // ignore storage access
@@ -65,11 +73,18 @@ export function UnitRoadmap({
     if (!lesson) return false;
     const title = String(lesson.title ?? "");
     const slug = String(lesson.slug ?? "");
-    return title.startsWith("Placeholder Lesson") || slug.startsWith("placeholder-") || title === "Coming soon";
+    return (
+      title.startsWith("Placeholder Lesson") ||
+      slug.startsWith("placeholder-") ||
+      title === "Coming soon"
+    );
   };
 
   // Recompute roadmap using merged unit if placeholders exist
-  const effectiveRoadmap = mergedUnit === unit ? roadmap : getUnitRoadmap(mergedUnit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
+  const effectiveRoadmap =
+    mergedUnit === unit
+      ? roadmap
+      : getUnitRoadmap(mergedUnit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
   const displayItems = effectiveRoadmap.items.filter((item) => {
     if (!item.lesson) return false;
     // Filter out placeholder lessons
@@ -83,7 +98,12 @@ export function UnitRoadmap({
       const published = new Date(item.lesson.publishedAt);
       const ageSeconds = (now.getTime() - published.getTime()) / 1000;
       // If APPROVED less than 5 seconds ago and has a generic title, it's likely a wrapper
-      if (ageSeconds < 5 && (String(item.lesson.title ?? "").includes("Understand") || String(item.lesson.title ?? "").includes("Recognize") || String(item.lesson.title ?? "").includes("Identify"))) {
+      if (
+        ageSeconds < 5 &&
+        (String(item.lesson.title ?? "").includes("Understand") ||
+          String(item.lesson.title ?? "").includes("Recognize") ||
+          String(item.lesson.title ?? "").includes("Identify"))
+      ) {
         return false;
       }
     }
@@ -94,7 +114,8 @@ export function UnitRoadmap({
   // do not affect the displayed lesson counts or progress.
   const shownCompletedCount = displayItems.filter((item) => item.completed).length;
   const shownTotalLessons = displayItems.length;
-  const shownPercentComplete = shownTotalLessons === 0 ? 0 : Math.round((shownCompletedCount / shownTotalLessons) * 100);
+  const shownPercentComplete =
+    shownTotalLessons === 0 ? 0 : Math.round((shownCompletedCount / shownTotalLessons) * 100);
 
   return (
     <Card className="overflow-hidden border-border/70 bg-card shadow-sm">

@@ -12,7 +12,12 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { getMe } from "@/lib/me";
-import { usePendingLessons, useUnits, useApproveLesson, useRejectLesson } from "@/features/lessons/useLessonsApi";
+import {
+  usePendingLessons,
+  useUnits,
+  useApproveLesson,
+  useRejectLesson,
+} from "@/features/lessons/useLessonsApi";
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 
@@ -43,8 +48,12 @@ function ReviewPage() {
   const approveLessonMutation = useApproveLesson();
   const rejectLessonMutation = useRejectLesson();
   const pendingContents = response?.content || [];
-  const appeals = pendingContents.filter((c: any) => typeof c.term === "string" && c.term.startsWith("Appeal:"));
-  const newContents = pendingContents.filter((c: any) => !(typeof c.term === "string" && c.term.startsWith("Appeal:")));
+  const appeals = pendingContents.filter(
+    (c: any) => typeof c.term === "string" && c.term.startsWith("Appeal:"),
+  );
+  const newContents = pendingContents.filter(
+    (c: any) => !(typeof c.term === "string" && c.term.startsWith("Appeal:")),
+  );
   // pending contents endpoint currently returns submitted term/content items only
   const termItems = newContents;
   const { data: pendingLessons } = usePendingLessons();
@@ -59,7 +68,10 @@ function ReviewPage() {
     Record<number, { stepType?: string; questionType?: string | null; prompt?: string | null }>
   >({});
   const [pendingMetaMap, setPendingMetaMap] = useState<Record<number, any> | null>(null);
-  const [debugInfo, setDebugInfo] = useState<{ serverPendingCount?: number; serverAllCount?: number } | null>(null);
+  const [debugInfo, setDebugInfo] = useState<{
+    serverPendingCount?: number;
+    serverAllCount?: number;
+  } | null>(null);
   const [modalLesson, setModalLesson] = useState<any | null>(null);
   const [modalLoading, setModalLoading] = useState(false);
   const openLessonModal = async (id: number) => {
@@ -150,17 +162,24 @@ function ReviewPage() {
     let mounted = true;
     (async () => {
       try {
-        const serverPending = await api.get("lessons", { searchParams: { status: "PENDING_REVIEW" } }).json<any[]>();
+        const serverPending = await api
+          .get("lessons", { searchParams: { status: "PENDING_REVIEW" } })
+          .json<any[]>();
         const serverAll = await api.get("lessons").json<any[]>();
         if (!mounted) return;
-        setDebugInfo({ serverPendingCount: Array.isArray(serverPending) ? serverPending.length : undefined, serverAllCount: Array.isArray(serverAll) ? serverAll.length : undefined });
+        setDebugInfo({
+          serverPendingCount: Array.isArray(serverPending) ? serverPending.length : undefined,
+          serverAllCount: Array.isArray(serverAll) ? serverAll.length : undefined,
+        });
       } catch (e) {
         if (!mounted) return;
         setDebugInfo({});
       }
     })();
 
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [hasAccess, lessonItems]);
 
   // load client-side pending metadata (saved by the lesson form) so we can show selected subunit/title
@@ -201,7 +220,12 @@ function ReviewPage() {
           // Filter for PENDING_REVIEW status (newly submitted lessons waiting for review)
           // Exclude placeholder lessons (empty subunit containers)
           lessons.forEach((lesson: any) => {
-            if (lesson.status === "PENDING_REVIEW" && lesson.id && lesson.id < 0 && !isPlaceholderLesson(lesson)) {
+            if (
+              lesson.status === "PENDING_REVIEW" &&
+              lesson.id &&
+              lesson.id < 0 &&
+              !isPlaceholderLesson(lesson)
+            ) {
               collected.push({
                 id: lesson.id,
                 unitId: lesson.unitId,
@@ -243,7 +267,12 @@ function ReviewPage() {
               const p = JSON.parse(r);
               const l = Array.isArray(p.lessons) ? p.lessons : [];
               l.forEach((lesson: any) => {
-                if (lesson.status === "PENDING_REVIEW" && lesson.id && lesson.id < 0 && !isPlaceholderLesson(lesson)) {
+                if (
+                  lesson.status === "PENDING_REVIEW" &&
+                  lesson.id &&
+                  lesson.id < 0 &&
+                  !isPlaceholderLesson(lesson)
+                ) {
                   collected.push({
                     id: lesson.id,
                     unitId: lesson.unitId,
@@ -322,7 +351,9 @@ function ReviewPage() {
     let mounted = true;
     (async () => {
       try {
-        const toFetch = lessonItems.filter((l: any) => !(l.firstStepType || l.firstQuestionType) && !firstStepMap[l.id]);
+        const toFetch = lessonItems.filter(
+          (l: any) => !(l.firstStepType || l.firstQuestionType) && !firstStepMap[l.id],
+        );
         for (const l of toFetch) {
           try {
             // Check if this is an appended unit lesson (negative ID)
@@ -334,11 +365,20 @@ function ReviewPage() {
                 const raw = localStorage.getItem(key);
                 if (!raw) continue;
                 const parsed = JSON.parse(raw);
-                const steps = Array.isArray(parsed.steps) ? parsed.steps.filter((s: any) => s.id === l.id) : [];
+                const steps = Array.isArray(parsed.steps)
+                  ? parsed.steps.filter((s: any) => s.id === l.id)
+                  : [];
                 if (steps.length > 0) {
                   const first = steps[0];
                   if (!mounted) return;
-                  setFirstStepMap((prev) => ({ ...prev, [l.id]: { stepType: first.stepType, questionType: first?.question?.questionType ?? null, prompt: first?.question?.prompt ?? null } }));
+                  setFirstStepMap((prev) => ({
+                    ...prev,
+                    [l.id]: {
+                      stepType: first.stepType,
+                      questionType: first?.question?.questionType ?? null,
+                      prompt: first?.question?.prompt ?? null,
+                    },
+                  }));
                   break;
                 }
               }
@@ -349,7 +389,14 @@ function ReviewPage() {
               if (!mounted) return;
               if (Array.isArray(steps) && steps.length > 0) {
                 const first = steps[0];
-                setFirstStepMap((prev) => ({ ...prev, [l.id]: { stepType: first.stepType, questionType: first?.question?.questionType ?? null, prompt: first?.question?.prompt ?? null } }));
+                setFirstStepMap((prev) => ({
+                  ...prev,
+                  [l.id]: {
+                    stepType: first.stepType,
+                    questionType: first?.question?.questionType ?? null,
+                    prompt: first?.question?.prompt ?? null,
+                  },
+                }));
               }
             }
           } catch (e) {
@@ -360,7 +407,9 @@ function ReviewPage() {
         // ignore
       }
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [lessonItems, firstStepMap]);
 
   const handleApprove = async (id: number) => {
@@ -439,24 +488,23 @@ function ReviewPage() {
           if (!raw) continue;
           const parsed = JSON.parse(raw);
           const lessons = Array.isArray(parsed.lessons) ? parsed.lessons : [];
-          
+
           // Find if target subunit is in this unit
           const targetSubunit = lessons.find((l: any) => l.id === targetSubunitId);
           if (targetSubunit) {
-
-            
             // Add steps directly to the target subunit's steps array in this unit
             parsed.steps = Array.isArray(parsed.steps) ? parsed.steps : [];
-            
+
             // Calculate next orderIndex for target subunit (to prevent all steps having orderIndex 0)
-            const existingStepsForTarget = parsed.steps.filter((s: any) => 
-              s.id === targetSubunitId || s.targetSubunitId === targetSubunitId
+            const existingStepsForTarget = parsed.steps.filter(
+              (s: any) => s.id === targetSubunitId || s.targetSubunitId === targetSubunitId,
             );
             let nextOrderIndex = 0;
             if (existingStepsForTarget.length > 0) {
-              nextOrderIndex = Math.max(...existingStepsForTarget.map((s: any) => s.orderIndex ?? 0)) + 1;
+              nextOrderIndex =
+                Math.max(...existingStepsForTarget.map((s: any) => s.orderIndex ?? 0)) + 1;
             }
-            
+
             // Add all steps from the lesson being approved, but associate them with the target subunit
             for (const step of stepsToApprove) {
               const newStep = {
@@ -468,14 +516,18 @@ function ReviewPage() {
               };
               parsed.steps.push(newStep);
             }
-            
+
             localStorage.setItem(key, JSON.stringify(parsed));
             // Dispatch custom event to notify unit component that steps changed
-            window.dispatchEvent(new CustomEvent('tempUnit-steps-added', { detail: { unitKey: key, targetSubunitId, stepsCount: stepsToApprove.length } }));
+            window.dispatchEvent(
+              new CustomEvent("tempUnit-steps-added", {
+                detail: { unitKey: key, targetSubunitId, stepsCount: stepsToApprove.length },
+              }),
+            );
             break;
           }
         }
-        
+
         if (!targetSubunitFound) {
           alert("Error: Could not find target subunit in storage. Steps not added.");
           throw new Error("Target subunit not found");
@@ -495,33 +547,41 @@ function ReviewPage() {
             parsed.lessons = lessons.filter((l: any) => l.id !== id);
             // Only remove steps that DON'T have targetSubunitId (those are temporary session steps)
             // Keep steps with targetSubunitId because they were just added to the subunit
-            parsed.steps = (Array.isArray(parsed.steps) ? parsed.steps : []).filter((s: any) => 
-              !(s.id === id && !s.targetSubunitId)
+            parsed.steps = (Array.isArray(parsed.steps) ? parsed.steps : []).filter(
+              (s: any) => !(s.id === id && !s.targetSubunitId),
             );
             localStorage.setItem(key, JSON.stringify(parsed));
             // Trigger storage event so listeners update
-            window.dispatchEvent(new StorageEvent('storage', {
-              key: key,
-              newValue: JSON.stringify(parsed),
-              oldValue: null,
-              storageArea: localStorage,
-            }));
+            window.dispatchEvent(
+              new StorageEvent("storage", {
+                key: key,
+                newValue: JSON.stringify(parsed),
+                oldValue: null,
+                storageArea: localStorage,
+              }),
+            );
             break;
           }
         }
 
         // Update UI
         setAppendedUnitLessons((prev) => prev.filter((l: any) => l.id !== id));
-        window.dispatchEvent(new CustomEvent("appended-lessons-changed", { detail: { lessonId: id, action: "approved" } }));
-        
+        window.dispatchEvent(
+          new CustomEvent("appended-lessons-changed", {
+            detail: { lessonId: id, action: "approved" },
+          }),
+        );
+
         // Dispatch a generic storage event to trigger re-reads everywhere
-        window.dispatchEvent(new StorageEvent('storage', {
-          key: null,
-          newValue: null,
-          oldValue: null,
-          storageArea: localStorage,
-        }));
-        
+        window.dispatchEvent(
+          new StorageEvent("storage", {
+            key: null,
+            newValue: null,
+            oldValue: null,
+            storageArea: localStorage,
+          }),
+        );
+
         alert("Lesson approved and steps added to subunit!");
       } catch (e) {
         console.error("Error approving appended unit lesson:", e);
@@ -542,10 +602,10 @@ function ReviewPage() {
       {
         onSuccess: () => {
           // Invalidate units cache so wrappers with targetSubunitId are filtered out
-          queryClient.invalidateQueries({ queryKey: ['units'] });
+          queryClient.invalidateQueries({ queryKey: ["units"] });
           // Invalidate all lesson play queries to refresh with new steps
-          queryClient.invalidateQueries({ queryKey: ['lessons', 'play'] });
-          
+          queryClient.invalidateQueries({ queryKey: ["lessons", "play"] });
+
           // Clear tempData for this lesson so it uses fresh API data
           if (id < 0) {
             for (let i = 0; i < localStorage.length; i++) {
@@ -558,7 +618,9 @@ function ReviewPage() {
                 // Remove this lesson from the unit's lessons array
                 parsed.lessons = (parsed.lessons || []).filter((l: any) => l?.id !== id);
                 // Remove steps for this lesson
-                parsed.steps = (parsed.steps || []).filter((s: any) => s?.id !== id && s?.targetSubunitId !== id);
+                parsed.steps = (parsed.steps || []).filter(
+                  (s: any) => s?.id !== id && s?.targetSubunitId !== id,
+                );
                 localStorage.setItem(key, JSON.stringify(parsed));
               } catch (e) {
                 // ignore parse errors
@@ -567,10 +629,10 @@ function ReviewPage() {
             // Dispatch event to notify lesson view to refresh
             window.dispatchEvent(new CustomEvent("lesson-approved", { detail: { lessonId: id } }));
           }
-          
+
           // Dispatch event for other listeners
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('lesson-approved', { detail: { lessonId: id } }));
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("lesson-approved", { detail: { lessonId: id } }));
           }
         },
         onError: (error: any) => {
@@ -578,7 +640,10 @@ function ReviewPage() {
           let errorMsg = "Failed to approve lesson";
           try {
             if (error?.response?.body) {
-              const body = typeof error.response.body === 'object' ? error.response.body : JSON.parse(String(error.response.body));
+              const body =
+                typeof error.response.body === "object"
+                  ? error.response.body
+                  : JSON.parse(String(error.response.body));
               errorMsg = body.message || body.detail || String(error.response.body);
             } else if (error?.message) {
               errorMsg = error.message;
@@ -588,7 +653,7 @@ function ReviewPage() {
           }
           alert("Error: " + errorMsg);
         },
-      }
+      },
     );
     setReviewData((prev) => {
       const newData = { ...prev };
@@ -611,11 +676,17 @@ function ReviewPage() {
           const lessons = Array.isArray(parsed.lessons) ? parsed.lessons : [];
           if (lessons.some((l: any) => l.id === id)) {
             parsed.lessons = lessons.filter((l: any) => l.id !== id);
-            parsed.steps = (Array.isArray(parsed.steps) ? parsed.steps : []).filter((s: any) => s.id !== id);
+            parsed.steps = (Array.isArray(parsed.steps) ? parsed.steps : []).filter(
+              (s: any) => s.id !== id,
+            );
             localStorage.setItem(key, JSON.stringify(parsed));
             setAppendedUnitLessons((prev) => prev.filter((l: any) => l.id !== id));
             // Dispatch custom event to notify lesson page of deletion
-            window.dispatchEvent(new CustomEvent("appended-lessons-changed", { detail: { lessonId: id, action: "deleted" } }));
+            window.dispatchEvent(
+              new CustomEvent("appended-lessons-changed", {
+                detail: { lessonId: id, action: "deleted" },
+              }),
+            );
             break;
           }
         }
@@ -641,7 +712,10 @@ function ReviewPage() {
           let errorMsg = "Failed to reject lesson";
           try {
             if (error?.response?.body) {
-              const body = typeof error.response.body === 'object' ? error.response.body : JSON.parse(String(error.response.body));
+              const body =
+                typeof error.response.body === "object"
+                  ? error.response.body
+                  : JSON.parse(String(error.response.body));
               errorMsg = body.message || body.detail || String(error.response.body);
             } else if (error?.message) {
               errorMsg = error.message;
@@ -651,7 +725,7 @@ function ReviewPage() {
           }
           alert("Error: " + errorMsg);
         },
-      }
+      },
     );
     setReviewData((prev) => {
       const newData = { ...prev };
@@ -687,13 +761,17 @@ function ReviewPage() {
             <TabsTrigger value="content" className="px-8 py-2 flex items-center gap-2">
               <span>Content</span>
               {contentCount > 0 && (
-                <Badge variant="secondary" className="bg-primary text-primary-foreground">{contentCount}</Badge>
+                <Badge variant="secondary" className="bg-primary text-primary-foreground">
+                  {contentCount}
+                </Badge>
               )}
             </TabsTrigger>
             <TabsTrigger value="appeals" className="px-8 py-2 flex items-center gap-2">
               <span>Appeals</span>
               {appealsCount > 0 && (
-                <Badge variant="secondary" className="bg-primary text-primary-foreground">{appealsCount}</Badge>
+                <Badge variant="secondary" className="bg-primary text-primary-foreground">
+                  {appealsCount}
+                </Badge>
               )}
             </TabsTrigger>
           </TabsList>
@@ -704,13 +782,17 @@ function ReviewPage() {
                 <TabsTrigger value="term" className="flex items-center justify-center gap-2">
                   <span>Term</span>
                   {termCount > 0 && (
-                    <Badge variant="outline" className="border-primary/50 text-primary">{termCount}</Badge>
+                    <Badge variant="outline" className="border-primary/50 text-primary">
+                      {termCount}
+                    </Badge>
                   )}
                 </TabsTrigger>
                 <TabsTrigger value="lesson" className="flex items-center justify-center gap-2">
                   <span>Lesson</span>
                   {lessonCount > 0 && (
-                    <Badge variant="outline" className="border-primary/50 text-primary">{lessonCount}</Badge>
+                    <Badge variant="outline" className="border-primary/50 text-primary">
+                      {lessonCount}
+                    </Badge>
                   )}
                 </TabsTrigger>
               </TabsList>
@@ -722,13 +804,18 @@ function ReviewPage() {
                   </div>
                 ) : (
                   <>
-                    <p className="text-muted-foreground mb-6">Page {page + 1} of {totalPages} • Showing {termItems.length} of {totalElements} pending {totalElements === 1 ? "item" : "items"}</p>
+                    <p className="text-muted-foreground mb-6">
+                      Page {page + 1} of {totalPages} • Showing {termItems.length} of{" "}
+                      {totalElements} pending {totalElements === 1 ? "item" : "items"}
+                    </p>
                     <div className="grid gap-4">
                       {termItems.map((content: any) => (
                         <Card key={content.id} className="p-6">
                           <div className="mb-4">
                             <h2 className="text-2xl font-bold text-primary">{content.term}</h2>
-                            <p className="text-sm text-muted-foreground mt-1">Submitted by: {content.submittedBy}</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Submitted by: {content.submittedBy}
+                            </p>
                           </div>
 
                           <div className="space-y-3 mb-6">
@@ -744,24 +831,67 @@ function ReviewPage() {
                               </div>
                             )}
 
-                            <div className="text-xs text-muted-foreground">Created: {new Date(content.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" })}</div>
+                            <div className="text-xs text-muted-foreground">
+                              Created:{" "}
+                              {new Date(content.createdAt).toLocaleDateString("en-GB", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "2-digit",
+                              })}
+                            </div>
                           </div>
 
                           <div className="flex gap-3">
-                            <Button onClick={() => setExpandedId(expandedId === content.id ? null : content.id)} variant="success">Approve</Button>
-                            <Button onClick={() => setExpandedId(expandedId === -content.id ? null : -content.id)} variant="destructive">Reject</Button>
+                            <Button
+                              onClick={() =>
+                                setExpandedId(expandedId === content.id ? null : content.id)
+                              }
+                              variant="success"
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              onClick={() =>
+                                setExpandedId(expandedId === -content.id ? null : -content.id)
+                              }
+                              variant="destructive"
+                            >
+                              Reject
+                            </Button>
                           </div>
 
                           {expandedId === content.id && (
                             <div className="mt-4 space-y-4 border-t pt-4">
                               <h3 className="font-semibold">Approve "{content.term}"</h3>
                               <div>
-                                <Label htmlFor={`approve-comment-${content.id}`}>Comment (Optional)</Label>
-                                <textarea id={`approve-comment-${content.id}`} placeholder="Add any notes about this approval..." value={reviewData[content.id]?.comment || ""} onChange={(e) => setReviewData((prev) => ({ ...prev, [content.id]: { comment: e.target.value } }))} className="w-full px-3 py-2 border rounded-md mt-1 min-h-20" />
+                                <Label htmlFor={`approve-comment-${content.id}`}>
+                                  Comment (Optional)
+                                </Label>
+                                <textarea
+                                  id={`approve-comment-${content.id}`}
+                                  placeholder="Add any notes about this approval..."
+                                  value={reviewData[content.id]?.comment || ""}
+                                  onChange={(e) =>
+                                    setReviewData((prev) => ({
+                                      ...prev,
+                                      [content.id]: { comment: e.target.value },
+                                    }))
+                                  }
+                                  className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                                />
                               </div>
                               <div className="flex gap-2">
-                                <Button onClick={() => handleApprove(content.id)} variant="success" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0" disabled={approveMutation.isPending}>{approveMutation.isPending ? "Approving..." : "Confirm Approve"}</Button>
-                                <Button onClick={() => setExpandedId(null)} variant="outline">Cancel</Button>
+                                <Button
+                                  onClick={() => handleApprove(content.id)}
+                                  variant="success"
+                                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                                  disabled={approveMutation.isPending}
+                                >
+                                  {approveMutation.isPending ? "Approving..." : "Confirm Approve"}
+                                </Button>
+                                <Button onClick={() => setExpandedId(null)} variant="outline">
+                                  Cancel
+                                </Button>
                               </div>
                             </div>
                           )}
@@ -770,12 +900,34 @@ function ReviewPage() {
                             <div className="mt-4 space-y-4 border-t pt-4">
                               <h3 className="font-semibold">Reject "{content.term}"</h3>
                               <div>
-                                <Label htmlFor={`reject-comment-${content.id}`}>Reason for Rejection</Label>
-                                <textarea id={`reject-comment-${content.id}`} placeholder="Explain why this item is being rejected..." value={reviewData[content.id]?.comment || ""} onChange={(e) => setReviewData((prev) => ({ ...prev, [content.id]: { comment: e.target.value } }))} className="w-full px-3 py-2 border rounded-md mt-1 min-h-20" />
+                                <Label htmlFor={`reject-comment-${content.id}`}>
+                                  Reason for Rejection
+                                </Label>
+                                <textarea
+                                  id={`reject-comment-${content.id}`}
+                                  placeholder="Explain why this item is being rejected..."
+                                  value={reviewData[content.id]?.comment || ""}
+                                  onChange={(e) =>
+                                    setReviewData((prev) => ({
+                                      ...prev,
+                                      [content.id]: { comment: e.target.value },
+                                    }))
+                                  }
+                                  className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                                />
                               </div>
                               <div className="flex gap-2">
-                                <Button onClick={() => handleReject(content.id)} variant="destructive" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0" disabled={rejectMutation.isPending}>{rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}</Button>
-                                <Button onClick={() => setExpandedId(null)} variant="outline">Cancel</Button>
+                                <Button
+                                  onClick={() => handleReject(content.id)}
+                                  variant="destructive"
+                                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                                  disabled={rejectMutation.isPending}
+                                >
+                                  {rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}
+                                </Button>
+                                <Button onClick={() => setExpandedId(null)} variant="outline">
+                                  Cancel
+                                </Button>
                               </div>
                             </div>
                           )}
@@ -792,8 +944,18 @@ function ReviewPage() {
                     <h2 className="text-xl font-semibold mb-2">No lesson items to review</h2>
                     {debugInfo ? (
                       <div className="mt-4 text-sm text-muted-foreground">
-                        <div>Server pending count: {typeof debugInfo.serverPendingCount === "number" ? debugInfo.serverPendingCount : "?"}</div>
-                        <div>Server total lessons: {typeof debugInfo.serverAllCount === "number" ? debugInfo.serverAllCount : "?"}</div>
+                        <div>
+                          Server pending count:{" "}
+                          {typeof debugInfo.serverPendingCount === "number"
+                            ? debugInfo.serverPendingCount
+                            : "?"}
+                        </div>
+                        <div>
+                          Server total lessons:{" "}
+                          {typeof debugInfo.serverAllCount === "number"
+                            ? debugInfo.serverAllCount
+                            : "?"}
+                        </div>
                       </div>
                     ) : null}
                   </div>
@@ -808,28 +970,35 @@ function ReviewPage() {
                       // prefer server-provided metadata, fall back to client-cached firstStepMap
                       const firstMeta = {
                         stepType: lesson.firstStepType ?? firstStepMap[lesson.id]?.stepType,
-                        questionType: lesson.firstQuestionType ?? firstStepMap[lesson.id]?.questionType,
+                        questionType:
+                          lesson.firstQuestionType ?? firstStepMap[lesson.id]?.questionType,
                         prompt: lesson.firstStepPrompt ?? firstStepMap[lesson.id]?.prompt,
                       };
-                        const formatStepLabel = (stepType?: string, questionType?: string | null) => {
-                          if (!stepType) return null;
-                          switch (stepType) {
-                            case "TEACH":
-                              return "Learn";
-                            case "QUESTION":
-                              return `Question${questionType ? ` (${questionType})` : ""}`;
-                            case "DIALOGUE":
-                              return "Dialogue";
-                            case "RECAP":
-                              return "Recap";
-                            default:
-                              return stepType;
-                          }
-                        };
-                        const typeLabel = formatStepLabel(firstMeta.stepType, firstMeta.questionType);
+                      const formatStepLabel = (stepType?: string, questionType?: string | null) => {
+                        if (!stepType) return null;
+                        switch (stepType) {
+                          case "TEACH":
+                            return "Learn";
+                          case "QUESTION":
+                            return `Question${questionType ? ` (${questionType})` : ""}`;
+                          case "DIALOGUE":
+                            return "Dialogue";
+                          case "RECAP":
+                            return "Recap";
+                          default:
+                            return stepType;
+                        }
+                      };
+                      const typeLabel = formatStepLabel(firstMeta.stepType, firstMeta.questionType);
                       // Choose display title/summary for question lessons
-                      const displayTitle = firstMeta.stepType === "QUESTION" && firstMeta.prompt ? firstMeta.prompt : lesson.title;
-                      const displaySummary = firstMeta.stepType === "QUESTION" && firstMeta.prompt ? firstMeta.prompt : lesson.description;
+                      const displayTitle =
+                        firstMeta.stepType === "QUESTION" && firstMeta.prompt
+                          ? firstMeta.prompt
+                          : lesson.title;
+                      const displaySummary =
+                        firstMeta.stepType === "QUESTION" && firstMeta.prompt
+                          ? firstMeta.prompt
+                          : lesson.description;
                       const submittedBy = (lesson as any).submittedBy ?? null;
 
                       return (
@@ -837,23 +1006,37 @@ function ReviewPage() {
                           <div className="mb-4">
                             <h2 className="text-2xl font-bold text-primary">{displayTitle}</h2>
                             {submittedBy ? (
-                              <p className="text-sm text-muted-foreground mt-1">Submitted by: {submittedBy}</p>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Submitted by: {submittedBy}
+                              </p>
                             ) : null}
                             {(() => {
                               const summarySubunitTitle = (lesson as any).subunitTitle;
                               const summarySubunitId = (lesson as any).subunitId;
                               let resolvedSubunitTitle: string | null = null;
                               // prefer client-persisted pending metadata (works for newly submitted items in this browser)
-                              if (pendingMetaMap && pendingMetaMap[lesson.id] && pendingMetaMap[lesson.id].subunitTitle) {
+                              if (
+                                pendingMetaMap &&
+                                pendingMetaMap[lesson.id] &&
+                                pendingMetaMap[lesson.id].subunitTitle
+                              ) {
                                 resolvedSubunitTitle = pendingMetaMap[lesson.id].subunitTitle;
                               } else if (summarySubunitTitle) {
                                 resolvedSubunitTitle = summarySubunitTitle;
                               } else if (summarySubunitId && unit?.lessons) {
-                                const found = unit.lessons.find((l: any) => l.id === summarySubunitId);
+                                const found = unit.lessons.find(
+                                  (l: any) => l.id === summarySubunitId,
+                                );
                                 if (found && found.title) resolvedSubunitTitle = found.title;
                               }
                               return (
-                                <p className="text-sm text-muted-foreground mt-1">Unit: {unit?.title ?? lesson.unitId}{resolvedSubunitTitle ? ` • Subunit: ${resolvedSubunitTitle}` : ""}{typeLabel ? ` • Type: ${typeLabel}` : null}</p>
+                                <p className="text-sm text-muted-foreground mt-1">
+                                  Unit: {unit?.title ?? lesson.unitId}
+                                  {resolvedSubunitTitle
+                                    ? ` • Subunit: ${resolvedSubunitTitle}`
+                                    : ""}
+                                  {typeLabel ? ` • Type: ${typeLabel}` : null}
+                                </p>
                               );
                             })()}
                           </div>
@@ -866,20 +1049,60 @@ function ReviewPage() {
                           </div>
 
                           <div className="flex gap-3">
-                            <Button onClick={() => setExpandedId(expandedId === lesson.id ? null : lesson.id)} variant="success">Approve</Button>
-                            <Button onClick={() => setExpandedId(expandedId === -lesson.id ? null : -lesson.id)} variant="destructive">Reject</Button>
-                            <Button onClick={() => openLessonModal(lesson.id)} variant="secondary">View</Button>
+                            <Button
+                              onClick={() =>
+                                setExpandedId(expandedId === lesson.id ? null : lesson.id)
+                              }
+                              variant="success"
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              onClick={() =>
+                                setExpandedId(expandedId === -lesson.id ? null : -lesson.id)
+                              }
+                              variant="destructive"
+                            >
+                              Reject
+                            </Button>
+                            <Button onClick={() => openLessonModal(lesson.id)} variant="secondary">
+                              View
+                            </Button>
                           </div>
                           {expandedId === lesson.id && (
                             <div className="mt-4 space-y-4 border-t pt-4">
                               <h3 className="font-semibold">Approve "{lesson.title}"</h3>
                               <div>
-                                <Label htmlFor={`approve-comment-lesson-${lesson.id}`}>Comment (Optional)</Label>
-                                <textarea id={`approve-comment-lesson-${lesson.id}`} placeholder="Add any notes about this approval..." value={reviewData[lesson.id]?.comment || ""} onChange={(e) => setReviewData((prev) => ({ ...prev, [lesson.id]: { comment: e.target.value } }))} className="w-full px-3 py-2 border rounded-md mt-1 min-h-20" />
+                                <Label htmlFor={`approve-comment-lesson-${lesson.id}`}>
+                                  Comment (Optional)
+                                </Label>
+                                <textarea
+                                  id={`approve-comment-lesson-${lesson.id}`}
+                                  placeholder="Add any notes about this approval..."
+                                  value={reviewData[lesson.id]?.comment || ""}
+                                  onChange={(e) =>
+                                    setReviewData((prev) => ({
+                                      ...prev,
+                                      [lesson.id]: { comment: e.target.value },
+                                    }))
+                                  }
+                                  className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                                />
                               </div>
                               <div className="flex gap-2">
-                                <Button onClick={() => handleApproveLesson(lesson.id)} variant="success" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0" disabled={approveLessonMutation.isPending}>{approveLessonMutation.isPending ? "Approving..." : "Confirm Approve"}</Button>
-                                <Button onClick={() => setExpandedId(null)} variant="outline">Cancel</Button>
+                                <Button
+                                  onClick={() => handleApproveLesson(lesson.id)}
+                                  variant="success"
+                                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                                  disabled={approveLessonMutation.isPending}
+                                >
+                                  {approveLessonMutation.isPending
+                                    ? "Approving..."
+                                    : "Confirm Approve"}
+                                </Button>
+                                <Button onClick={() => setExpandedId(null)} variant="outline">
+                                  Cancel
+                                </Button>
                               </div>
                             </div>
                           )}
@@ -888,12 +1111,36 @@ function ReviewPage() {
                             <div className="mt-4 space-y-4 border-t pt-4">
                               <h3 className="font-semibold">Reject "{lesson.title}"</h3>
                               <div>
-                                <Label htmlFor={`reject-comment-lesson-${lesson.id}`}>Reason for Rejection</Label>
-                                <textarea id={`reject-comment-lesson-${lesson.id}`} placeholder="Explain why this item is being rejected..." value={reviewData[lesson.id]?.comment || ""} onChange={(e) => setReviewData((prev) => ({ ...prev, [lesson.id]: { comment: e.target.value } }))} className="w-full px-3 py-2 border rounded-md mt-1 min-h-20" />
+                                <Label htmlFor={`reject-comment-lesson-${lesson.id}`}>
+                                  Reason for Rejection
+                                </Label>
+                                <textarea
+                                  id={`reject-comment-lesson-${lesson.id}`}
+                                  placeholder="Explain why this item is being rejected..."
+                                  value={reviewData[lesson.id]?.comment || ""}
+                                  onChange={(e) =>
+                                    setReviewData((prev) => ({
+                                      ...prev,
+                                      [lesson.id]: { comment: e.target.value },
+                                    }))
+                                  }
+                                  className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                                />
                               </div>
                               <div className="flex gap-2">
-                                <Button onClick={() => handleRejectLesson(lesson.id)} variant="destructive" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0" disabled={rejectLessonMutation.isPending}>{rejectLessonMutation.isPending ? "Rejecting..." : "Confirm Reject"}</Button>
-                                <Button onClick={() => setExpandedId(null)} variant="outline">Cancel</Button>
+                                <Button
+                                  onClick={() => handleRejectLesson(lesson.id)}
+                                  variant="destructive"
+                                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                                  disabled={rejectLessonMutation.isPending}
+                                >
+                                  {rejectLessonMutation.isPending
+                                    ? "Rejecting..."
+                                    : "Confirm Reject"}
+                                </Button>
+                                <Button onClick={() => setExpandedId(null)} variant="outline">
+                                  Cancel
+                                </Button>
                               </div>
                             </div>
                           )}
@@ -914,14 +1161,19 @@ function ReviewPage() {
               </div>
             ) : (
               <>
-                <p className="text-muted-foreground mb-6">Page {page + 1} of {totalPages} • Showing {appeals.length} of {totalElements} pending {totalElements === 1 ? "item" : "items"}</p>
+                <p className="text-muted-foreground mb-6">
+                  Page {page + 1} of {totalPages} • Showing {appeals.length} of {totalElements}{" "}
+                  pending {totalElements === 1 ? "item" : "items"}
+                </p>
 
                 <div className="grid gap-4">
                   {appeals.map((content: any) => (
                     <Card key={content.id} className="p-6">
                       <div className="mb-4">
                         <h2 className="text-2xl font-bold text-primary">{content.term}</h2>
-                        <p className="text-sm text-muted-foreground mt-1">Submitted by: {content.submittedBy}</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Submitted by: {content.submittedBy}
+                        </p>
                       </div>
 
                       <div className="space-y-3 mb-6">
@@ -930,24 +1182,69 @@ function ReviewPage() {
                           <p className="text-foreground mt-2">{content.definition}</p>
                         </div>
 
-                        <div className="text-xs text-muted-foreground">Created: {new Date(content.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "2-digit" })}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Created:{" "}
+                          {new Date(content.createdAt).toLocaleDateString("en-GB", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "2-digit",
+                          })}
+                        </div>
                       </div>
 
-                        <div className="flex gap-3">
-                          <Button onClick={() => setExpandedId(expandedId === content.id ? null : content.id)} variant="success" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0">Resolve</Button>
-                          <Button onClick={() => setExpandedId(expandedId === -content.id ? null : -content.id)} variant="destructive" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0">Reject</Button>
-                        </div>
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() =>
+                            setExpandedId(expandedId === content.id ? null : content.id)
+                          }
+                          variant="success"
+                          className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                        >
+                          Resolve
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            setExpandedId(expandedId === -content.id ? null : -content.id)
+                          }
+                          variant="destructive"
+                          className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                        >
+                          Reject
+                        </Button>
+                      </div>
 
                       {expandedId === content.id && (
                         <div className="mt-4 space-y-4 border-t pt-4">
                           <h3 className="font-semibold">Resolve "{content.term}"</h3>
                           <div>
-                            <Label htmlFor={`approve-comment-${content.id}`}>Comment (Optional)</Label>
-                            <textarea id={`approve-comment-${content.id}`} placeholder="Add any notes about this resolution..." value={reviewData[content.id]?.comment || ""} onChange={(e) => setReviewData((prev) => ({ ...prev, [content.id]: { comment: e.target.value } }))} className="w-full px-3 py-2 border rounded-md mt-1 min-h-20" />
+                            <Label htmlFor={`approve-comment-${content.id}`}>
+                              Comment (Optional)
+                            </Label>
+                            <textarea
+                              id={`approve-comment-${content.id}`}
+                              placeholder="Add any notes about this resolution..."
+                              value={reviewData[content.id]?.comment || ""}
+                              onChange={(e) =>
+                                setReviewData((prev) => ({
+                                  ...prev,
+                                  [content.id]: { comment: e.target.value },
+                                }))
+                              }
+                              className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                            />
                           </div>
                           <div className="flex gap-2">
-                            <Button onClick={() => handleApprove(content.id)} variant="success" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0" disabled={approveMutation.isPending}>{approveMutation.isPending ? "Resolving..." : "Confirm Resolve"}</Button>
-                            <Button onClick={() => setExpandedId(null)} variant="outline">Cancel</Button>
+                            <Button
+                              onClick={() => handleApprove(content.id)}
+                              variant="success"
+                              className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                              disabled={approveMutation.isPending}
+                            >
+                              {approveMutation.isPending ? "Resolving..." : "Confirm Resolve"}
+                            </Button>
+                            <Button onClick={() => setExpandedId(null)} variant="outline">
+                              Cancel
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -956,12 +1253,34 @@ function ReviewPage() {
                         <div className="mt-4 space-y-4 border-t pt-4">
                           <h3 className="font-semibold">Reject "{content.term}"</h3>
                           <div>
-                            <Label htmlFor={`reject-comment-${content.id}`}>Reason for Rejection</Label>
-                            <textarea id={`reject-comment-${content.id}`} placeholder="Explain why this item is being rejected..." value={reviewData[content.id]?.comment || ""} onChange={(e) => setReviewData((prev) => ({ ...prev, [content.id]: { comment: e.target.value } }))} className="w-full px-3 py-2 border rounded-md mt-1 min-h-20" />
+                            <Label htmlFor={`reject-comment-${content.id}`}>
+                              Reason for Rejection
+                            </Label>
+                            <textarea
+                              id={`reject-comment-${content.id}`}
+                              placeholder="Explain why this item is being rejected..."
+                              value={reviewData[content.id]?.comment || ""}
+                              onChange={(e) =>
+                                setReviewData((prev) => ({
+                                  ...prev,
+                                  [content.id]: { comment: e.target.value },
+                                }))
+                              }
+                              className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                            />
                           </div>
                           <div className="flex gap-2">
-                            <Button onClick={() => handleReject(content.id)} variant="destructive" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0" disabled={rejectMutation.isPending}>{rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}</Button>
-                            <Button onClick={() => setExpandedId(null)} variant="outline">Cancel</Button>
+                            <Button
+                              onClick={() => handleReject(content.id)}
+                              variant="destructive"
+                              className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                              disabled={rejectMutation.isPending}
+                            >
+                              {rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}
+                            </Button>
+                            <Button onClick={() => setExpandedId(null)} variant="outline">
+                              Cancel
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -970,12 +1289,34 @@ function ReviewPage() {
                         <div className="mt-4 space-y-4 border-t pt-4">
                           <h3 className="font-semibold">Resolve "{content.term}"</h3>
                           <div>
-                            <Label htmlFor={`approve-comment-${content.id}`}>Comment (Optional)</Label>
-                            <textarea id={`approve-comment-${content.id}`} placeholder="Add any notes about this resolution..." value={reviewData[content.id]?.comment || ""} onChange={(e) => setReviewData((prev) => ({ ...prev, [content.id]: { comment: e.target.value } }))} className="w-full px-3 py-2 border rounded-md mt-1 min-h-20" />
+                            <Label htmlFor={`approve-comment-${content.id}`}>
+                              Comment (Optional)
+                            </Label>
+                            <textarea
+                              id={`approve-comment-${content.id}`}
+                              placeholder="Add any notes about this resolution..."
+                              value={reviewData[content.id]?.comment || ""}
+                              onChange={(e) =>
+                                setReviewData((prev) => ({
+                                  ...prev,
+                                  [content.id]: { comment: e.target.value },
+                                }))
+                              }
+                              className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                            />
                           </div>
                           <div className="flex gap-2">
-                            <Button onClick={() => handleApprove(content.id)} variant="success" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0" disabled={approveMutation.isPending}>{approveMutation.isPending ? "Resolving..." : "Confirm Resolve"}</Button>
-                            <Button onClick={() => setExpandedId(null)} variant="outline">Cancel</Button>
+                            <Button
+                              onClick={() => handleApprove(content.id)}
+                              variant="success"
+                              className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                              disabled={approveMutation.isPending}
+                            >
+                              {approveMutation.isPending ? "Resolving..." : "Confirm Resolve"}
+                            </Button>
+                            <Button onClick={() => setExpandedId(null)} variant="outline">
+                              Cancel
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -984,12 +1325,34 @@ function ReviewPage() {
                         <div className="mt-4 space-y-4 border-t pt-4">
                           <h3 className="font-semibold">Reject "{content.term}"</h3>
                           <div>
-                            <Label htmlFor={`reject-comment-${content.id}`}>Reason for Rejection</Label>
-                            <textarea id={`reject-comment-${content.id}`} placeholder="Explain why this item is being rejected..." value={reviewData[content.id]?.comment || ""} onChange={(e) => setReviewData((prev) => ({ ...prev, [content.id]: { comment: e.target.value } }))} className="w-full px-3 py-2 border rounded-md mt-1 min-h-20" />
+                            <Label htmlFor={`reject-comment-${content.id}`}>
+                              Reason for Rejection
+                            </Label>
+                            <textarea
+                              id={`reject-comment-${content.id}`}
+                              placeholder="Explain why this item is being rejected..."
+                              value={reviewData[content.id]?.comment || ""}
+                              onChange={(e) =>
+                                setReviewData((prev) => ({
+                                  ...prev,
+                                  [content.id]: { comment: e.target.value },
+                                }))
+                              }
+                              className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                            />
                           </div>
                           <div className="flex gap-2">
-                            <Button onClick={() => handleReject(content.id)} variant="destructive" className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0" disabled={rejectMutation.isPending}>{rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}</Button>
-                            <Button onClick={() => setExpandedId(null)} variant="outline">Cancel</Button>
+                            <Button
+                              onClick={() => handleReject(content.id)}
+                              variant="destructive"
+                              className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                              disabled={rejectMutation.isPending}
+                            >
+                              {rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}
+                            </Button>
+                            <Button onClick={() => setExpandedId(null)} variant="outline">
+                              Cancel
+                            </Button>
                           </div>
                         </div>
                       )}
@@ -999,14 +1362,14 @@ function ReviewPage() {
               </>
             )}
           </TabsContent>
-
-          
         </Tabs>
         {modalLesson && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
             <div className="bg-card rounded-lg w-11/12 max-w-2xl p-6">
               <div className="flex justify-end items-center mb-4">
-                <Button variant="ghost" onClick={closeLessonModal}>Close</Button>
+                <Button variant="ghost" onClick={closeLessonModal}>
+                  Close
+                </Button>
               </div>
               {modalLoading ? (
                 <div>Loading...</div>
@@ -1037,23 +1400,33 @@ function ReviewPage() {
                           {s.stepType === "TEACH" && s.vocab ? (
                             <Card className="border-chart-1/30 bg-chart-1/5">
                               <CardContent className="pt-6">
-                                <div className="text-xs uppercase tracking-[0.15em] text-muted-foreground">{stepLabel}</div>
+                                <div className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
+                                  {stepLabel}
+                                </div>
                                 <h2 className="mt-2 text-3xl font-bold">{s.vocab.term}</h2>
                                 <p className="mt-4 text-lg">{s.vocab.definition}</p>
                                 {s.vocab.exampleSentence && (
-                                  <p className="mt-3 text-sm italic text-muted-foreground">"{s.vocab.exampleSentence}"</p>
+                                  <p className="mt-3 text-sm italic text-muted-foreground">
+                                    "{s.vocab.exampleSentence}"
+                                  </p>
                                 )}
                               </CardContent>
                             </Card>
                           ) : s.stepType === "QUESTION" && s.question ? (
                             <Card className="border-chart-1/30 bg-chart-1/5">
                               <CardContent className="pt-6">
-                                <div className="text-xs uppercase tracking-[0.15em] text-muted-foreground">{stepLabel}</div>
+                                <div className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
+                                  {stepLabel}
+                                </div>
                                 <h3 className="mt-2 text-2xl font-semibold">{s.question.prompt}</h3>
 
-                                {s.question.questionType === "MATCH" && Array.isArray(s.question.matchPairs) && s.question.matchPairs.length > 0 ? (
+                                {s.question.questionType === "MATCH" &&
+                                Array.isArray(s.question.matchPairs) &&
+                                s.question.matchPairs.length > 0 ? (
                                   <div className="mt-4 space-y-2">
-                                    <div className="text-sm font-semibold text-muted-foreground">Match pairs:</div>
+                                    <div className="text-sm font-semibold text-muted-foreground">
+                                      Match pairs:
+                                    </div>
                                     {s.question.matchPairs.map((pair: any, idx: number) => (
                                       <div key={pair.id ?? idx} className="flex gap-4">
                                         <div className="flex-1 rounded border px-3 py-2 bg-card/80 border-border">
@@ -1066,7 +1439,8 @@ function ReviewPage() {
                                       </div>
                                     ))}
                                   </div>
-                                ) : Array.isArray(s.question.choices) && s.question.choices.length > 0 ? (
+                                ) : Array.isArray(s.question.choices) &&
+                                  s.question.choices.length > 0 ? (
                                   <div className="mt-4 space-y-3">
                                     {s.question.choices.map((c: any, idx: number) => (
                                       <div
@@ -1074,7 +1448,11 @@ function ReviewPage() {
                                         className={`w-full rounded border px-4 py-3 flex justify-between items-center ${c.isCorrect ? "border-green-500 bg-[rgba(72,187,120,0.06)]" : "bg-card/80 border-border"}`}
                                       >
                                         <div className="text-base">{c.text}</div>
-                                        {c.isCorrect ? <div className="text-sm text-green-500 font-semibold">Correct</div> : null}
+                                        {c.isCorrect ? (
+                                          <div className="text-sm text-green-500 font-semibold">
+                                            Correct
+                                          </div>
+                                        ) : null}
                                       </div>
                                     ))}
                                   </div>
@@ -1082,9 +1460,11 @@ function ReviewPage() {
                                   <div className="mt-4 text-sm">
                                     <div className="font-semibold">Accepted answers</div>
                                     <ul className="list-disc ml-5 mt-2">
-                                      {(s.question.acceptedAnswers ?? []).map((a: any, i: number) => (
-                                        <li key={i}>{a}</li>
-                                      ))}
+                                      {(s.question.acceptedAnswers ?? []).map(
+                                        (a: any, i: number) => (
+                                          <li key={i}>{a}</li>
+                                        ),
+                                      )}
                                     </ul>
                                   </div>
                                 )}
@@ -1093,12 +1473,18 @@ function ReviewPage() {
                           ) : s.stepType === "DIALOGUE" && (s.dialogueText || s.payload?.text) ? (
                             <Card className="border-chart-1/30 bg-chart-1/5">
                               <CardContent className="pt-6">
-                                <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">Dialogue</p>
-                                <p className="mt-3 text-lg whitespace-pre-wrap">{s.dialogueText ?? s.payload?.text}</p>
+                                <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">
+                                  Dialogue
+                                </p>
+                                <p className="mt-3 text-lg whitespace-pre-wrap">
+                                  {s.dialogueText ?? s.payload?.text}
+                                </p>
                               </CardContent>
                             </Card>
                           ) : (
-                            <div className="p-3 border rounded">{stepLabel}: {JSON.stringify(s)}</div>
+                            <div className="p-3 border rounded">
+                              {stepLabel}: {JSON.stringify(s)}
+                            </div>
                           )}
                         </div>
                       );

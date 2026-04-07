@@ -174,7 +174,7 @@ function ProfilePage() {
 
     try {
       // reuse avatar upload logic so role changes and saves behave the same
-      let avatarPath = avatarRemoved ? null : meProfile.avatarPath ?? null;
+      let avatarPath = avatarRemoved ? null : (meProfile.avatarPath ?? null);
       let nextAvatarUrl = avatarRemoved ? null : meAvatarUrl;
 
       if (avatarFile) {
@@ -233,7 +233,10 @@ function ProfilePage() {
     }
   };
 
-  const uploadAvatarIfNeeded = async (): Promise<{ avatarPath: string | null; nextAvatarUrl: string | null }> => {
+  const uploadAvatarIfNeeded = async (): Promise<{
+    avatarPath: string | null;
+    nextAvatarUrl: string | null;
+  }> => {
     if (!user) throw new Error("Not authenticated");
     if (!avatarFile) {
       return { avatarPath: meProfile.avatarPath ?? null, nextAvatarUrl: meAvatarUrl };
@@ -259,7 +262,9 @@ function ProfilePage() {
 
     if (uploadError) {
       if ((uploadError.message || "").toLowerCase().includes("bucket")) {
-        throw new Error(`Storage bucket "${AVATAR_BUCKET}" not found. Create it in Supabase Storage or set VITE_SUPABASE_AVATAR_BUCKET.`);
+        throw new Error(
+          `Storage bucket "${AVATAR_BUCKET}" not found. Create it in Supabase Storage or set VITE_SUPABASE_AVATAR_BUCKET.`,
+        );
       }
       throw new Error(uploadError.message || "Failed to upload avatar");
     }
@@ -273,7 +278,7 @@ function ProfilePage() {
     setSaveSuccess(null);
     setRoleChanging(true);
     try {
-      let avatarPath = avatarRemoved ? null : meProfile.avatarPath ?? null;
+      let avatarPath = avatarRemoved ? null : (meProfile.avatarPath ?? null);
       let nextAvatarUrl = avatarRemoved ? null : meAvatarUrl;
 
       if (avatarFile) {
@@ -287,7 +292,9 @@ function ProfilePage() {
         const payload = buildPatchPayload(avatarPath);
         await patchMe(payload as any);
 
-        const updated = await api.post("users/me/dev-role", { searchParams: { role: r } }).json<MeResponse>();
+        const updated = await api
+          .post("users/me/dev-role", { searchParams: { role: r } })
+          .json<MeResponse>();
         setMeProfile(updated);
         setUserRole(updated.role);
         setCurrentUserViewCache(queryClient, { profile: updated, avatarUrl: nextAvatarUrl });
@@ -315,7 +322,7 @@ function ProfilePage() {
       setRolePanelOpen(false);
     }
   };
-  
+
   const displayName = profile.name.trim() || user?.email?.split("@")[0] || "unknown user";
   const initials = getInitials(displayName);
   const avatarColor = profile.avatarColor || "#475569";
@@ -363,9 +370,16 @@ function ProfilePage() {
                 <div className="relative">
                   <div className="h-20 w-20 overflow-hidden rounded-full bg-muted text-sm font-semibold text-white shadow">
                     {avatarPreview ? (
-                      <img src={avatarPreview} alt="avatar preview" className="h-full w-full object-cover" />
+                      <img
+                        src={avatarPreview}
+                        alt="avatar preview"
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
-                      <span style={{ backgroundColor: avatarColor }} className="flex h-full w-full items-center justify-center text-lg">
+                      <span
+                        style={{ backgroundColor: avatarColor }}
+                        className="flex h-full w-full items-center justify-center text-lg"
+                      >
                         {initials}
                       </span>
                     )}
@@ -383,23 +397,40 @@ function ProfilePage() {
               <div />
 
               <div className="flex items-center justify-end gap-3">
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => {
-                  const nextFile = event.target.files?.[0] ?? null;
-                  setAvatarFile(nextFile);
-                  if (nextFile) {
-                    const localPreview = URL.createObjectURL(nextFile);
-                    setAvatarPreview(localPreview);
-                    setAvatarRemoved(false);
-                  }
-                }} />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const nextFile = event.target.files?.[0] ?? null;
+                    setAvatarFile(nextFile);
+                    if (nextFile) {
+                      const localPreview = URL.createObjectURL(nextFile);
+                      setAvatarPreview(localPreview);
+                      setAvatarRemoved(false);
+                    }
+                  }}
+                />
                 {editing ? (
                   <>
-                    <Button type="button" variant="ghost" onClick={() => fileInputRef.current?.click()}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
                       <Upload className="h-4 w-4" />
                       <span>Choose avatar</span>
                     </Button>
                     {(avatarPreview || meProfile.avatarPath) && (
-                      <Button type="button" variant="ghost" disabled={saving} onClick={() => void handleRemoveAvatar()}>Remove</Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={saving}
+                        onClick={() => void handleRemoveAvatar()}
+                      >
+                        Remove
+                      </Button>
                     )}
                   </>
                 ) : (
@@ -487,7 +518,11 @@ function ProfilePage() {
             {!editing ? (
               <div className="flex items-center gap-2">
                 <div className="relative">
-                  <Button type="button" variant="outline" onClick={() => setRolePanelOpen((v) => !v)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setRolePanelOpen((v) => !v)}
+                  >
                     Change role
                   </Button>
                   {rolePanelOpen && (
@@ -495,13 +530,28 @@ function ProfilePage() {
                       <p className="mb-2 text-sm font-medium">Choose role</p>
                       <div className="grid gap-2">
                         {availableRoles.map((r) => (
-                          <Button key={r} type="button" variant={userRole === r ? "secondary" : "outline"} className="h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left" onClick={() => void changeRole(r)} disabled={roleChanging}>
+                          <Button
+                            key={r}
+                            type="button"
+                            variant={userRole === r ? "secondary" : "outline"}
+                            className="h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left"
+                            onClick={() => void changeRole(r)}
+                            disabled={roleChanging}
+                          >
                             <p className="font-medium">{r[0] + r.slice(1).toLowerCase()}</p>
-                            <p className="text-xs text-muted-foreground">{r === "LEARNER" ? "Focus on lessons and review drills" : r === "CONTRIBUTOR" ? "Submit and help improve community entries" : "Admin (testing only)"}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {r === "LEARNER"
+                                ? "Focus on lessons and review drills"
+                                : r === "CONTRIBUTOR"
+                                  ? "Submit and help improve community entries"
+                                  : "Admin (testing only)"}
+                            </p>
                           </Button>
                         ))}
                       </div>
-                      <p className="mt-2 text-xs text-muted-foreground">Admin option is intended for testing only.</p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Admin option is intended for testing only.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -516,7 +566,11 @@ function ProfilePage() {
               <div className="flex items-center justify-between w-full">
                 <div className="flex items-center gap-2">
                   <div className="relative">
-                    <Button type="button" variant="outline" onClick={() => setRolePanelOpen((v) => !v)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setRolePanelOpen((v) => !v)}
+                    >
                       Change role
                     </Button>
                     {rolePanelOpen && (
@@ -524,13 +578,28 @@ function ProfilePage() {
                         <p className="mb-2 text-sm font-medium">Choose role</p>
                         <div className="grid gap-2">
                           {availableRoles.map((r) => (
-                            <Button key={r} type="button" variant={userRole === r ? "secondary" : "outline"} className="h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left" onClick={() => void changeRole(r)} disabled={roleChanging}>
+                            <Button
+                              key={r}
+                              type="button"
+                              variant={userRole === r ? "secondary" : "outline"}
+                              className="h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left"
+                              onClick={() => void changeRole(r)}
+                              disabled={roleChanging}
+                            >
                               <p className="font-medium">{r[0] + r.slice(1).toLowerCase()}</p>
-                              <p className="text-xs text-muted-foreground">{r === "LEARNER" ? "Focus on lessons and review drills" : r === "CONTRIBUTOR" ? "Submit and help improve community entries" : "Admin (testing only)"}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {r === "LEARNER"
+                                  ? "Focus on lessons and review drills"
+                                  : r === "CONTRIBUTOR"
+                                    ? "Submit and help improve community entries"
+                                    : "Admin (testing only)"}
+                              </p>
                             </Button>
                           ))}
                         </div>
-                        <p className="mt-2 text-xs text-muted-foreground">Admin option is intended for testing only.</p>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Admin option is intended for testing only.
+                        </p>
                       </div>
                     )}
                   </div>

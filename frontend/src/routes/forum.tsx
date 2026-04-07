@@ -116,14 +116,7 @@ function getInitials(name: string) {
 }
 
 // deterministic palette of hex colors to match profile styling
-const AVATAR_HEX = [
-  "#60A5FA",
-  "#34D399",
-  "#F472B6",
-  "#F59E0B",
-  "#A78BFA",
-  "#475569",
-];
+const AVATAR_HEX = ["#60A5FA", "#34D399", "#F472B6", "#F59E0B", "#A78BFA", "#475569"];
 function avatarHex(name: string) {
   const s = (name ?? "?").trim();
   if (!s) return AVATAR_HEX[0];
@@ -388,7 +381,7 @@ async function uploadForumImage(file: File, userId: string): Promise<string | nu
   }
 
   // Try to get the public URL first
-    try {
+  try {
     const pubResp = await supabase.storage.from(FORUM_MEDIA_BUCKET).getPublicUrl(path as string);
     console.log("forum upload: getPublicUrl response:", pubResp);
     const publicUrl = (pubResp as any)?.data?.publicUrl ?? (pubResp as any)?.publicUrl ?? null;
@@ -405,14 +398,18 @@ async function uploadForumImage(file: File, userId: string): Promise<string | nu
 
     // Fallback: ask backend to sign the object using the service role (more reliable)
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/forum/media/signed-url`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ bucket: FORUM_MEDIA_BUCKET, path, expires: 60 * 60 * 24 }),
-      });
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/forum/media/signed-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bucket: FORUM_MEDIA_BUCKET, path, expires: 60 * 60 * 24 }),
+        },
+      );
       if (res.ok) {
         const json = await res.json();
-        const signedUrl = (json as any)?.signedUrl ?? (json as any)?.signedURL ?? (json as any)?.signed_url ?? null;
+        const signedUrl =
+          (json as any)?.signedUrl ?? (json as any)?.signedURL ?? (json as any)?.signed_url ?? null;
         if (signedUrl) return signedUrl;
       } else {
         console.warn("forum upload: backend signed-url failed", res.status);
@@ -529,7 +526,6 @@ function ForumPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [posting, setPosting] = useState(false);
-  
 
   const [answerDraft, setAnswerDraft] = useState<Record<number, string>>({});
   const [postingAnswer, setPostingAnswer] = useState<number | null>(null);

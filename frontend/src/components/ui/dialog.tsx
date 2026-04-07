@@ -12,9 +12,7 @@ export function DialogTrigger({ children, ...props }: any) {
 export function DialogPortal({ children }: { children: React.ReactNode }) {
   return (
     <RadixDialog.Portal>
-      <div className="fixed inset-0 z-50 flex items-center justify-center">
-        {children}
-      </div>
+      <div className="fixed inset-0 z-50 flex items-center justify-center">{children}</div>
     </RadixDialog.Portal>
   );
 }
@@ -32,9 +30,7 @@ export function DialogContent({ children, title, description, ...props }: any) {
         className="fixed top-1/2 left-1/2 z-50 w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 rounded-lg bg-background p-6 shadow-lg mx-4"
       >
         <div className="flex items-start justify-between">
-          {title && (
-            <RadixDialog.Title className="text-lg font-bold">{title}</RadixDialog.Title>
-          )}
+          {title && <RadixDialog.Title className="text-lg font-bold">{title}</RadixDialog.Title>}
           <RadixDialog.Close asChild>
             <button aria-label="Close" className="-m-2 rounded p-2 hover:bg-muted">
               <X className="size-4" />
@@ -42,9 +38,13 @@ export function DialogContent({ children, title, description, ...props }: any) {
           </RadixDialog.Close>
         </div>
         {description ? (
-          <RadixDialog.Description className="mt-2 text-sm text-muted-foreground">{description}</RadixDialog.Description>
+          <RadixDialog.Description className="mt-2 text-sm text-muted-foreground">
+            {description}
+          </RadixDialog.Description>
         ) : (
-          <RadixDialog.Description className="sr-only">{title ? `${title} dialog` : "Dialog"}</RadixDialog.Description>
+          <RadixDialog.Description className="sr-only">
+            {title ? `${title} dialog` : "Dialog"}
+          </RadixDialog.Description>
         )}
         <div className="mt-4">{children}</div>
       </RadixDialog.Content>

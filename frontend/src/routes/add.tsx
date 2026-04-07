@@ -37,7 +37,11 @@ function SubmitContentPage() {
         submittedBy: me.email ?? "",
       };
       await api.post("contents", { json: payload }).json();
-      setSuccess(me.role === "ADMIN" || me.role === "MODERATOR" ? "Added and live." : "Submitted — pending review.");
+      setSuccess(
+        me.role === "ADMIN" || me.role === "MODERATOR"
+          ? "Added and live."
+          : "Submitted — pending review.",
+      );
       setTerm("");
       setDefinition("");
       setExample("");
@@ -66,24 +70,49 @@ function SubmitContentPage() {
               <form onSubmit={handleLingoSubmit} className="space-y-6">
                 <div>
                   <Label htmlFor="add-term">Term</Label>
-                  <Input id="add-term" name="term" value={term} onChange={(e) => setTerm(e.target.value)} className="mt-1" />
+                  <Input
+                    id="add-term"
+                    name="term"
+                    value={term}
+                    onChange={(e) => setTerm(e.target.value)}
+                    className="mt-1"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="add-definition">Definition</Label>
-                  <textarea id="add-definition" name="definition" value={definition} onChange={(e) => setDefinition(e.target.value)} rows={6} className="mt-1 w-full rounded-md border bg-card px-3 py-2" />
+                  <textarea
+                    id="add-definition"
+                    name="definition"
+                    value={definition}
+                    onChange={(e) => setDefinition(e.target.value)}
+                    rows={6}
+                    className="mt-1 w-full rounded-md border bg-card px-3 py-2"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="add-example">Example (optional)</Label>
-                  <Input id="add-example" name="example" value={example} onChange={(e) => setExample(e.target.value)} className="mt-1" />
+                  <Input
+                    id="add-example"
+                    name="example"
+                    value={example}
+                    onChange={(e) => setExample(e.target.value)}
+                    className="mt-1"
+                  />
                 </div>
                 <div className="flex justify-end">
-                    <div className="flex gap-2">
-                    <Button type="submit" variant="default" className="rounded-md" disabled={loading || !term.trim() || !definition.trim()}>{loading ? "Submitting…" : "Submit"}</Button>
+                  <div className="flex gap-2">
+                    <Button
+                      type="submit"
+                      variant="default"
+                      className="rounded-md"
+                      disabled={loading || !term.trim() || !definition.trim()}
+                    >
+                      {loading ? "Submitting…" : "Submit"}
+                    </Button>
                   </div>
                 </div>
                 {success && <p className="text-sm text-green-600">{success}</p>}
                 {error && <p className="text-sm text-destructive">{error}</p>}
-                
               </form>
             </TabsContent>
 

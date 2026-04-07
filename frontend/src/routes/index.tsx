@@ -22,7 +22,7 @@ function RotatingWord() {
     const interval = setInterval(() => {
       setIsAnimating(true);
       setTimeout(() => {
-        setIndex(i => (i + 1) % words.length);
+        setIndex((i) => (i + 1) % words.length);
         setIsAnimating(false);
       }, 300);
     }, 2500);
@@ -31,8 +31,9 @@ function RotatingWord() {
 
   return (
     <span
-      className={`inline-block text-primary font-bold transition-all duration-300 drop-shadow-sm ${isAnimating ? 'opacity-0 scale-95' : 'opacity-100 scale-100'
-        }`}
+      className={`inline-block text-primary font-bold transition-all duration-300 drop-shadow-sm ${
+        isAnimating ? "opacity-0 scale-95" : "opacity-100 scale-100"
+      }`}
     >
       {words[index]}
     </span>
@@ -42,13 +43,18 @@ function RotatingWord() {
 function MonoFunLanding() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 text-foreground">
-
       {/* Enhanced Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-20 right-20 w-72 h-72 bg-primary/3 rounded-full blur-3xl animate-pulse" />
         <div className="absolute bottom-40 left-20 w-80 h-80 bg-muted/40 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/2 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '2s' }} />
-        <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-primary/5 rounded-full blur-2xl animate-bounce" style={{ animationDelay: '1s', animationDuration: '3s' }} />
+        <div
+          className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-primary/2 rounded-full blur-3xl animate-pulse"
+          style={{ animationDelay: "2s" }}
+        />
+        <div
+          className="absolute top-1/4 right-1/4 w-32 h-32 bg-primary/5 rounded-full blur-2xl animate-bounce"
+          style={{ animationDelay: "1s", animationDuration: "3s" }}
+        />
       </div>
 
       {/* HERO */}
@@ -66,41 +72,69 @@ function MonoFunLanding() {
             What does <RotatingWord /> even mean?
           </h1>
 
-          <p className="text-lg sm:text-xl text-muted-foreground mb-12 max-w-4xl mx-auto leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-            If you've ever heard someone use a word and had no idea what it meant — you're not alone.
-            <span className="block mt-4 font-semibold text-foreground text-xl">Join people staying current with modern language.</span>
+          <p
+            className="text-lg sm:text-xl text-muted-foreground mb-12 max-w-4xl mx-auto leading-relaxed animate-fade-in-up"
+            style={{ animationDelay: "0.2s" }}
+          >
+            If you've ever heard someone use a word and had no idea what it meant — you're not
+            alone.
+            <span className="block mt-4 font-semibold text-foreground text-xl">
+              Join people staying current with modern language.
+            </span>
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-16 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-            <Button asChild size="lg" className="px-10 py-6 text-lg font-bold shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-105 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground border-0">
+          <div
+            className="flex flex-col sm:flex-row gap-4 justify-center mb-16 animate-fade-in-up"
+            style={{ animationDelay: "0.4s" }}
+          >
+            <Button
+              asChild
+              size="lg"
+              className="px-10 py-6 text-lg font-bold shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-105 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground border-0"
+            >
               <Link to="/login" hash="signup" className="flex items-center gap-3">
                 Start Learning Now
                 <ArrowRight className="h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="px-10 py-6 text-lg font-semibold border-2 border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 backdrop-blur-sm">
+            <Button
+              asChild
+              variant="outline"
+              size="lg"
+              className="px-10 py-6 text-lg font-semibold border-2 border-border/50 hover:border-primary/50 hover:bg-primary/5 transition-all duration-300 backdrop-blur-sm"
+            >
               <Link to="/login">I already have an account</Link>
             </Button>
           </div>
 
           {/* Enhanced product preview */}
-          <div className="bg-card/95 backdrop-blur-xl border border-border/50 shadow-2xl p-8 max-w-lg mx-auto mb-12 hover:shadow-3xl transition-all duration-500 hover:scale-105 hover:-translate-y-2 animate-fade-in-up" style={{ animationDelay: '0.6s' }}>
+          <div
+            className="bg-card/95 backdrop-blur-xl border border-border/50 shadow-2xl p-8 max-w-lg mx-auto mb-12 hover:shadow-3xl transition-all duration-500 hover:scale-105 hover:-translate-y-2 animate-fade-in-up"
+            style={{ animationDelay: "0.6s" }}
+          >
             <div className="flex items-center gap-4 mb-6">
               <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-primary/10 rounded-2xl flex items-center justify-center shadow-lg">
                 <BookOpen className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide">Example lesson</p>
+                <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide">
+                  Example lesson
+                </p>
                 <p className="font-bold text-foreground text-2xl">rizz</p>
               </div>
             </div>
             <p className="text-card-foreground mb-4 font-medium text-lg">Charm or charisma.</p>
             <div className="bg-gradient-to-r from-muted/60 to-muted/30 rounded-xl p-4 border-l-4 border-primary shadow-inner">
-              <p className="text-muted-foreground italic text-base font-medium">"He's got mad rizz."</p>
+              <p className="text-muted-foreground italic text-base font-medium">
+                "He's got mad rizz."
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center justify-center gap-3 text-muted-foreground animate-fade-in-up" style={{ animationDelay: '0.8s' }}>
+          <div
+            className="flex items-center justify-center gap-3 text-muted-foreground animate-fade-in-up"
+            style={{ animationDelay: "0.8s" }}
+          >
             <div className="w-12 h-0.5 bg-gradient-to-r from-transparent to-border rounded"></div>
             <p className="text-base font-medium">Scroll to learn more</p>
             <div className="w-12 h-0.5 bg-gradient-to-l from-transparent to-border rounded"></div>
@@ -122,7 +156,8 @@ function MonoFunLanding() {
               Keep up without feeling lost
             </h2>
             <p className="text-lg sm:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-              Quick lessons, real examples, and slang you'll actually remember — all in a clean, easy-to-read interface designed for modern learners.
+              Quick lessons, real examples, and slang you'll actually remember — all in a clean,
+              easy-to-read interface designed for modern learners.
             </p>
           </div>
 
@@ -132,7 +167,10 @@ function MonoFunLanding() {
                 <BookOpen className="h-8 w-8 text-primary" />
               </div>
               <h3 className="font-bold text-xl mb-3 text-foreground">Lessons</h3>
-              <p className="text-muted-foreground leading-relaxed text-base">Master modern slang through bite-sized lessons, real examples, and quick review drills.</p>
+              <p className="text-muted-foreground leading-relaxed text-base">
+                Master modern slang through bite-sized lessons, real examples, and quick review
+                drills.
+              </p>
             </div>
 
             <div className="group p-8 rounded-3xl bg-card/80 backdrop-blur-sm border border-border/50 shadow-lg hover:shadow-2xl transition-all duration-700 hover:-translate-y-4 hover:border-primary/30 hover:bg-card/90">
@@ -140,7 +178,10 @@ function MonoFunLanding() {
                 <Search className="h-8 w-8 text-primary" />
               </div>
               <h3 className="font-bold text-xl mb-3 text-foreground">Dictionary</h3>
-              <p className="text-muted-foreground leading-relaxed text-base">Look up approved slang terms, definitions, and examples in a searchable reference library.</p>
+              <p className="text-muted-foreground leading-relaxed text-base">
+                Look up approved slang terms, definitions, and examples in a searchable reference
+                library.
+              </p>
             </div>
 
             <div className="group p-8 rounded-3xl bg-card/80 backdrop-blur-sm border border-border/50 shadow-lg hover:shadow-2xl transition-all duration-700 hover:-translate-y-4 hover:border-primary/30 hover:bg-card/90">
@@ -148,12 +189,19 @@ function MonoFunLanding() {
                 <MessageCircle className="h-8 w-8 text-primary" />
               </div>
               <h3 className="font-bold text-xl mb-3 text-foreground">Forum</h3>
-              <p className="text-muted-foreground leading-relaxed text-base">Ask questions, share examples, and see how the community uses slang in everyday conversation.</p>
+              <p className="text-muted-foreground leading-relaxed text-base">
+                Ask questions, share examples, and see how the community uses slang in everyday
+                conversation.
+              </p>
             </div>
           </div>
 
           <div className="text-center">
-            <Button asChild size="lg" className="px-12 py-6 text-xl font-bold shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-105 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground border-0">
+            <Button
+              asChild
+              size="lg"
+              className="px-12 py-6 text-xl font-bold shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-105 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground border-0"
+            >
               <Link to="/login" hash="signup" className="flex items-center gap-3">
                 Get started for free
                 <ArrowRight className="h-6 w-6 group-hover:translate-x-1 transition-transform" />
@@ -168,7 +216,10 @@ function MonoFunLanding() {
         {/* Animated background elements */}
         <div className="absolute inset-0">
           <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/10 rounded-full blur-3xl animate-pulse"></div>
-          <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-primary/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+          <div
+            className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-primary/5 rounded-full blur-3xl animate-pulse"
+            style={{ animationDelay: "1s" }}
+          ></div>
         </div>
 
         <div className="max-w-5xl mx-auto text-center relative z-10">
@@ -183,10 +234,15 @@ function MonoFunLanding() {
             Ready to speak the language?
           </h2>
           <p className="text-lg sm:text-xl text-muted-foreground mb-12 max-w-3xl mx-auto leading-relaxed">
-            Join people who are already staying current with modern slang. Start your journey today and never feel lost in conversation again.
+            Join people who are already staying current with modern slang. Start your journey today
+            and never feel lost in conversation again.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg" className="px-12 py-6 text-xl font-bold shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-105 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground border-0">
+            <Button
+              asChild
+              size="lg"
+              className="px-12 py-6 text-xl font-bold shadow-2xl hover:shadow-3xl transition-all duration-500 hover:scale-105 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary text-primary-foreground border-0"
+            >
               <Link to="/login" hash="signup" className="flex items-center gap-3">
                 Start Learning Now
                 <ArrowRight className="h-6 w-6 group-hover:transl ate-x-1 transition-transform" />
