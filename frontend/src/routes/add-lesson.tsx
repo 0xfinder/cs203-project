@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { requireContributorOrOnboarded } from "@/lib/auth";
+import { requireContributorRole } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getMe } from "@/lib/me";
 import { Button } from "@/components/ui/button";
@@ -12,7 +12,7 @@ import { useUnits } from "@/features/lessons/useLessonsApi";
 import { AppPageShell } from "@/components/app-page-shell";
 
 export const Route = createFileRoute("/add-lesson")({
-  beforeLoad: requireContributorOrOnboarded,
+  beforeLoad: requireContributorRole,
   component: AddLessonPage,
 });
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { SquarePlus } from "lucide-react";
-import { requireOnboardingCompleted } from "@/lib/auth";
+import { requireContributorRole } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getMe } from "@/lib/me";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ const addTextareaClass =
   "mt-1.5 w-full rounded-xl border border-border bg-background px-3 py-2 text-sm outline-none transition-colors placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20";
 
 export const Route = createFileRoute("/add")({
-  beforeLoad: requireOnboardingCompleted,
+  beforeLoad: requireContributorRole,
   component: SubmitContentPage,
 });
 

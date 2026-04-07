@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronUp,
@@ -104,7 +103,6 @@ const fieldClass =
 
 export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
   const { data: units } = useUnits();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const allUnits = useMemo(() => {
@@ -566,14 +564,6 @@ export function LessonForm({ defaultUnitId }: { defaultUnitId?: number } = {}) {
         }
 
         setSuccess("Lesson submitted for review.");
-        setTimeout(() => {
-          try {
-            sessionStorage.setItem("reviewActiveSub", "lesson");
-          } catch (storageError) {
-            console.error("failed to set review active sub in session storage:", storageError);
-          }
-          void navigate({ to: "/review" });
-        }, 800);
       }
 
       resetLessonForm();
