@@ -185,7 +185,8 @@ class LessonAttemptServiceTest {
     draft.setStatus(LessonStatus.DRAFT);
     when(lessonRepository.findById(55L)).thenReturn(Optional.of(draft));
 
-    assertThatThrownBy(() -> lessonAttemptService.submitAttempt(learner(), 55L, List.of()))
+    assertThatThrownBy(
+            () -> lessonAttemptService.submitAttempt(learner(), 55L, List.of(), Instant.now()))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("only approved lessons can be accessed by learners");
   }
