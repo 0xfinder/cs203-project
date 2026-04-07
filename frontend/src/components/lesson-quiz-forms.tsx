@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { getMe } from "@/lib/me";
 import { getValidAccessToken } from "@/lib/session";
-import { useSubmitContent } from "@/features/content/useContentData";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -138,7 +137,6 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const submitContent = useSubmitContent();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
@@ -191,18 +189,6 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
     setSuccess(null);
     setLoading(true);
     try {
-      const getNextOrderIndex = (uId: number | null) => {
-        try {
-          if (!uId) return 0;
-          const unit = allUnits.find((uu: any) => uu.id === uId);
-          if (!unit) return 0;
-          const lessons = Array.isArray(unit.lessons) ? unit.lessons : [];
-          const max = lessons.reduce((m: number, l: any) => Math.max(m, (l.orderIndex ?? 0)), -1);
-          return max + 1;
-        } catch (e) {
-          return 0;
-        }
-      };
       const me = await getMe();
       const isAdmin = me.role === "ADMIN" || me.role === "MODERATOR";
       let stepsPayload: any[] = [];
@@ -697,7 +683,7 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
           try {
             sessionStorage.setItem("reviewActiveSub", "lesson");
           } catch (e) {}
-          navigate("/review");
+          void navigate({ to: "/review" });
         }, 800);
       }
       setTerm("");
@@ -947,7 +933,7 @@ export function LessonForm({ defaultUnitId, setTempRefresh }: { defaultUnitId?: 
                   </label>
                 </div>
                 <div className="space-y-2 mt-2">
-                  {qChoices.map((c, idx) => (
+                  {qChoices.map((c) => (
                     <div key={c.id} className="flex gap-2 items-center">
                       {qAllowMultiple ? (
                         <input type="checkbox" checked={!!c.isCorrect} onChange={(e) => setQChoices((s) => s.map((cc) => cc.id === c.id ? { ...cc, isCorrect: e.target.checked } : cc))} />
@@ -1122,6 +1108,8 @@ export function QuizForm() {
       <div className="flex justify-end">
         <Button type="submit" disabled={loading}>{loading ? "Submitting…" : "Submit Quiz"}</Button>
       </div>
+      {success && <p className="text-sm text-green-600">{success}</p>}
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </form>
   );
 }

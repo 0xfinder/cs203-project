@@ -92,12 +92,16 @@ function ProfilePage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [meAvatarUrl, setMeAvatarUrl] = useState<string | null>(loaderData.avatarUrl);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(loaderData.avatarUrl);
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
   const [userRole, setUserRole] = useState<UserRole | null>(initialProfile.role);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dark, setDark] = useState<boolean>(() => getStoredTheme() === "dark");
   const [rolePanelOpen, setRolePanelOpen] = useState(false);
   const [roleChanging, setRoleChanging] = useState(false);
   const allowDevRoleChange = import.meta.env.VITE_ALLOW_DEV_ROLE_CHANGE === "true";
+  const availableRoles: UserRole[] = allowDevRoleChange
+    ? ["LEARNER", "CONTRIBUTOR", "ADMIN"]
+    : ["LEARNER", "CONTRIBUTOR"];
 
   useEffect(() => {
     applyTheme(dark ? "dark" : "light");
@@ -108,6 +112,13 @@ function ProfilePage() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setAvatarRemoved(true);
+    resetAvatarInput();
   };
 
   const handleSignOut = async () => {
@@ -163,8 +174,8 @@ function ProfilePage() {
 
     try {
       // reuse avatar upload logic so role changes and saves behave the same
-      let avatarPath = meProfile.avatarPath ?? null;
-      let nextAvatarUrl = meAvatarUrl;
+      let avatarPath = avatarRemoved ? null : meProfile.avatarPath ?? null;
+      let nextAvatarUrl = avatarRemoved ? null : meAvatarUrl;
 
       if (avatarFile) {
         const uploadResult = await uploadAvatarIfNeeded();
@@ -211,6 +222,7 @@ function ProfilePage() {
       });
 
       resetAvatarInput();
+      setAvatarRemoved(false);
       setEditing(false);
       setSaveSuccess("Profile saved");
     } catch (error) {
@@ -261,8 +273,8 @@ function ProfilePage() {
     setSaveSuccess(null);
     setRoleChanging(true);
     try {
-      let avatarPath = meProfile.avatarPath ?? null;
-      let nextAvatarUrl = meAvatarUrl;
+      let avatarPath = avatarRemoved ? null : meProfile.avatarPath ?? null;
+      let nextAvatarUrl = avatarRemoved ? null : meAvatarUrl;
 
       if (avatarFile) {
         const uploadResult = await uploadAvatarIfNeeded();
@@ -293,6 +305,8 @@ function ProfilePage() {
         setMeAvatarUrl(nextAvatarUrl);
         setAvatarPreview(nextAvatarUrl);
       }
+      resetAvatarInput();
+      setAvatarRemoved(false);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setSaveError(`Failed to set role: ${msg}`);
@@ -375,6 +389,7 @@ function ProfilePage() {
                   if (nextFile) {
                     const localPreview = URL.createObjectURL(nextFile);
                     setAvatarPreview(localPreview);
+                    setAvatarRemoved(false);
                   }
                 }} />
                 {editing ? (
@@ -479,7 +494,7 @@ function ProfilePage() {
                     <div className="absolute left-0 z-20 bottom-full mb-2 w-72 rounded-lg border border-border bg-card p-3 shadow-lg">
                       <p className="mb-2 text-sm font-medium">Choose role</p>
                       <div className="grid gap-2">
-                        {(["LEARNER", "CONTRIBUTOR", "ADMIN"].filter((r) => r !== "ADMIN" || allowDevRoleChange) as const).map((r) => (
+                        {availableRoles.map((r) => (
                           <Button key={r} type="button" variant={userRole === r ? "secondary" : "outline"} className="h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left" onClick={() => void changeRole(r)} disabled={roleChanging}>
                             <p className="font-medium">{r[0] + r.slice(1).toLowerCase()}</p>
                             <p className="text-xs text-muted-foreground">{r === "LEARNER" ? "Focus on lessons and review drills" : r === "CONTRIBUTOR" ? "Submit and help improve community entries" : "Admin (testing only)"}</p>
@@ -508,7 +523,7 @@ function ProfilePage() {
                       <div className="absolute left-0 z-20 bottom-full mb-2 w-72 rounded-lg border border-border bg-card p-3 shadow-lg">
                         <p className="mb-2 text-sm font-medium">Choose role</p>
                         <div className="grid gap-2">
-                          {(["LEARNER", "CONTRIBUTOR", "ADMIN"].filter((r) => r !== "ADMIN" || allowDevRoleChange) as const).map((r) => (
+                          {availableRoles.map((r) => (
                             <Button key={r} type="button" variant={userRole === r ? "secondary" : "outline"} className="h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left" onClick={() => void changeRole(r)} disabled={roleChanging}>
                               <p className="font-medium">{r[0] + r.slice(1).toLowerCase()}</p>
                               <p className="text-xs text-muted-foreground">{r === "LEARNER" ? "Focus on lessons and review drills" : r === "CONTRIBUTOR" ? "Submit and help improve community entries" : "Admin (testing only)"}</p>
@@ -526,6 +541,7 @@ function ProfilePage() {
                       setEditing(false);
                       setProfile(toProfileState(meProfile));
                       setAvatarPreview(meAvatarUrl);
+                      setAvatarRemoved(false);
                       resetAvatarInput();
                     }}
                   >
