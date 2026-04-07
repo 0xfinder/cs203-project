@@ -100,9 +100,7 @@ public class LessonAttemptService {
     User user = userRepository.findById(actor.getId()).orElse(actor);
 
     UserLessonProgress progress =
-        userLessonProgressRepository
-            .findByUserIdAndLessonId(actor.getId(), lessonId)
-            .orElse(null);
+        userLessonProgressRepository.findByUserIdAndLessonId(actor.getId(), lessonId).orElse(null);
     boolean isFirstAttempt = progress == null || progress.getAttemptCount() == 0;
 
     int currentStreak = user.getCurrentCorrectStreak();
@@ -158,7 +156,7 @@ public class LessonAttemptService {
     if (passed) {
       long durationSeconds = java.time.Duration.between(safeStartedAt, submittedAt).toSeconds();
       long safeDuration = Math.max(0, durationSeconds);
-      
+
       // If first time passing, increment completedLessonsCount
       if (progress == null || progress.getCompletedAt() == null) {
         user.setCompletedLessonsCount(user.getCompletedLessonsCount() + 1);
@@ -166,7 +164,7 @@ public class LessonAttemptService {
 
       // Track personal best time per lesson for "Fastest Trial"
       if (progress == null) {
-        // This shouldn't happen usually as upsertProgress is called later, 
+        // This shouldn't happen usually as upsertProgress is called later,
         // but we handle it by updating the user total time here based on first pass
         user.setTotalTimeSeconds(user.getTotalTimeSeconds() + safeDuration);
       } else {
@@ -193,10 +191,9 @@ public class LessonAttemptService {
               .findFirst()
               .orElseThrow();
 
-      JsonNode submittedAnswer = (input == null || input.answer() == null) 
-          ? JSON.nullNode() 
-          : input.answer();
-      
+      JsonNode submittedAnswer =
+          (input == null || input.answer() == null) ? JSON.nullNode() : input.answer();
+
       LessonStepPayloadService.Evaluation evaluation = evaluateAnswer(step, input);
       attemptResults.add(
           new LessonAttemptResult(

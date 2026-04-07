@@ -194,7 +194,8 @@ class LessonAttemptServiceTest {
   void getAttemptRendersStoredAnswerFormats() {
     User learner = learner();
     Lesson lesson = approvedLesson();
-    LessonAttempt attempt = new LessonAttempt(learner.getId(), lesson, 100, 3, 3, true, Instant.now(), Instant.now());
+    LessonAttempt attempt =
+        new LessonAttempt(learner.getId(), lesson, 100, 3, 3, true, Instant.now(), Instant.now());
     ReflectionTestUtils.setField(attempt, "id", 88L);
 
     LessonAttemptResult mcq =
@@ -260,7 +261,8 @@ class LessonAttemptServiceTest {
     Lesson lesson = approvedLesson();
     LessonStep weakStep = mcqQuestionStep(lesson, 101L, 1);
     LessonStep fallbackStep = mcqQuestionStep(lesson, 102L, 2);
-    LessonAttempt lessonAttempt = new LessonAttempt(learner.getId(), lesson, 0, 1, 0, false, Instant.now(), Instant.now());
+    LessonAttempt lessonAttempt =
+        new LessonAttempt(learner.getId(), lesson, 0, 1, 0, false, Instant.now(), Instant.now());
     ReflectionTestUtils.setField(lessonAttempt, "id", 99L);
 
     LessonAttemptResult wrongResult =
