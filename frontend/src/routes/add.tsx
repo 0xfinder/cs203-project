@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { BookPlus, GraduationCap, NotebookPen, Sparkles } from "lucide-react";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getMe } from "@/lib/me";
@@ -63,60 +62,6 @@ function SubmitContentPage() {
             Draft a new dictionary term or lesson for AlphaLingo’s learning library.
           </p>
         </div>
-
-        <Card className="overflow-hidden border-border/70 bg-card/95 shadow-sm">
-          <CardContent className="grid gap-5 p-5 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                  <BookPlus className="size-5" />
-                </div>
-                <div>
-                  <p className="text-base font-semibold">Build thoughtful content</p>
-                  <p className="text-sm text-muted-foreground">
-                    Keep entries crisp, specific, and useful for learners discovering Gen-Alpha
-                    culture.
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-sm text-muted-foreground">
-                  <Sparkles className="size-4 text-primary" />
-                  Reviewed before publishing
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-sm text-muted-foreground">
-                  <NotebookPen className="size-4 text-primary" />
-                  Add lingo with examples
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-muted px-3 py-1.5 text-sm text-muted-foreground">
-                  <GraduationCap className="size-4 text-primary" />
-                  Build lesson drafts
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-border/60 bg-muted/40 p-4">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                Quality Bar
-              </p>
-              <div className="mt-3 space-y-3 text-sm">
-                <div>
-                  <p className="font-medium">Clear explanation</p>
-                  <p className="text-muted-foreground">
-                    Define the term or lesson in direct language, not references alone.
-                  </p>
-                </div>
-                <div>
-                  <p className="font-medium">Good context</p>
-                  <p className="text-muted-foreground">
-                    Include examples that show how the slang or concept is actually used.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
         {(success || error) && (
           <div>
