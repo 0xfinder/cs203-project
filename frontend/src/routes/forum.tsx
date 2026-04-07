@@ -25,10 +25,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RoleBadge } from "@/components/role-badge";
-import {
-  optionalCurrentUserViewQueryOptions,
-  resolveAvatarSignedUrl,
-} from "@/lib/current-user-view";
+import { UserAvatar } from "@/components/user-avatar";
+import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import { type MeResponse } from "@/lib/me";
 import { queryClient } from "@/lib/query-client";
 import { api } from "@/lib/api";
@@ -80,7 +78,6 @@ type UserProfile = MeResponse;
 
 const FORUM_MEDIA_BUCKET = import.meta.env.VITE_SUPABASE_FORUM_BUCKET?.trim() || "forum-media";
 const MAX_IMAGE_MB = 5;
-const signedAvatarUrlCache = new Map<string, string | null>();
 
 /* -- Error extraction ------------------------------------------------------ */
 async function extractErrorMessage(e: unknown, fallback: string): Promise<string> {
@@ -106,123 +103,12 @@ function timeAgo(iso: string) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-function getInitials(name: string) {
-  return (
-    name
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase() || "U"
-  );
-}
-
-// deterministic palette of hex colors to match profile styling
-const AVATAR_HEX = ["#60A5FA", "#34D399", "#F472B6", "#F59E0B", "#A78BFA", "#475569"];
-function avatarHex(name: string) {
-  const s = (name ?? "?").trim();
-  if (!s) return AVATAR_HEX[0];
-  const code = s.charCodeAt(0);
-  return AVATAR_HEX[code % AVATAR_HEX.length];
-}
-
 function displayLabel(profile: UserProfile | null): string {
   if (!profile) return "Guest";
   return profile.displayName?.trim() || profile.email.split("@")[0];
 }
 
 /* -- Sub-components -------------------------------------------------------- */
-function Avatar({
-  name,
-  avatarPath,
-  avatarColor,
-  avatarUrl,
-}: {
-  name: string;
-  avatarPath?: string | null;
-  avatarColor?: string | null;
-  avatarUrl?: string | null;
-}) {
-  const [url, setUrl] = useState<string | null>(() => {
-    if (avatarUrl !== undefined) {
-      return avatarUrl;
-    }
-    if (!avatarPath) {
-      return null;
-    }
-    return signedAvatarUrlCache.get(avatarPath) ?? null;
-  });
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    setImageFailed(false);
-
-    if (avatarUrl !== undefined) {
-      setUrl(avatarUrl);
-      if (avatarPath) {
-        signedAvatarUrlCache.set(avatarPath, avatarUrl);
-      }
-      return () => {
-        active = false;
-      };
-    }
-
-    if (!avatarPath) {
-      setUrl(null);
-      return () => {
-        active = false;
-      };
-    }
-
-    const cachedUrl = signedAvatarUrlCache.get(avatarPath);
-    if (cachedUrl !== undefined) {
-      setUrl(cachedUrl);
-      return () => {
-        active = false;
-      };
-    }
-
-    void resolveAvatarSignedUrl(avatarPath).then((nextUrl) => {
-      if (active) {
-        signedAvatarUrlCache.set(avatarPath, nextUrl);
-        setUrl(nextUrl);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [avatarPath, avatarUrl]);
-
-  const showImage = !!url && !imageFailed;
-  const fallbackColor = avatarColor ?? avatarHex(name);
-
-  return (
-    <span className="inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
-      {showImage ? (
-        <img
-          src={url}
-          alt={`${name} avatar`}
-          className="h-full w-full object-cover"
-          onError={() => setImageFailed(true)}
-        />
-      ) : null}
-      <span
-        className={cn(
-          "items-center justify-center text-xs font-bold text-white",
-          showImage ? "hidden h-full w-full" : "inline-flex h-full w-full",
-        )}
-        style={{ backgroundColor: fallbackColor }}
-      >
-        {getInitials(name)}
-      </span>
-    </span>
-  );
-}
-
 function AnswerBadge({ count }: { count: number }) {
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
@@ -566,12 +452,6 @@ function ForumPage() {
   const profile = (currentUserViewQuery.data && currentUserViewQuery.data.profile) || null;
   const currentUserAvatarUrl = currentUserViewQuery.data?.avatarUrl ?? null;
 
-  useEffect(() => {
-    if (profile?.avatarPath) {
-      signedAvatarUrlCache.set(profile.avatarPath, currentUserAvatarUrl);
-    }
-  }, [profile?.avatarPath, currentUserAvatarUrl]);
-
   const [showAskForm, setShowAskForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
@@ -766,7 +646,7 @@ function ForumPage() {
         <div className="flex items-center gap-3">
           {profile ? (
             <span className="hidden items-center gap-2 text-sm sm:flex">
-              <Avatar
+              <UserAvatar
                 name={authorName}
                 avatarPath={profile.avatarPath}
                 avatarColor={profile.avatarColor}
@@ -929,7 +809,7 @@ function ForumPage() {
                 <CardContent className="pb-0">
                   {/* author row */}
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Avatar
+                    <UserAvatar
                       name={q.authorInfo.displayName ?? q.author}
                       avatarPath={q.authorInfo.avatarPath}
                       avatarColor={q.authorInfo.avatarColor}
@@ -1003,7 +883,7 @@ function ForumPage() {
                       <ul className="space-y-3">
                         {q.answers.map((a) => (
                           <li key={a.id} className="group flex gap-3">
-                            <Avatar
+                            <UserAvatar
                               name={a.authorInfo.displayName ?? a.author}
                               avatarPath={a.authorInfo.avatarPath}
                               avatarColor={a.authorInfo.avatarColor}

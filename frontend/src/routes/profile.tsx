@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RoleBadge } from "@/components/role-badge";
+import { UserAvatar } from "@/components/user-avatar";
 import {
   requiredCurrentUserViewQueryOptions,
   resolveAvatarSignedUrl,
@@ -44,19 +45,6 @@ function toRoleIntent(role: UserRole): RoleIntent | undefined {
     return role;
   }
   return undefined;
-}
-
-function getInitials(value: string): string {
-  return (
-    value
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((part) => part[0])
-      .slice(0, 2)
-      .join("")
-      .toUpperCase() || "U"
-  );
 }
 
 async function loadProfilePageData() {
@@ -324,7 +312,6 @@ function ProfilePage() {
   };
 
   const displayName = profile.name.trim() || user?.email?.split("@")[0] || "unknown user";
-  const initials = getInitials(displayName);
   const avatarColor = profile.avatarColor || "#475569";
 
   return (
@@ -367,22 +354,14 @@ function ProfilePage() {
           <CardContent className="p-0">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-center">
               <div className="flex items-center gap-4">
-                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-muted text-sm font-semibold text-white shadow">
-                  {avatarPreview ? (
-                    <img
-                      src={avatarPreview}
-                      alt="avatar preview"
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    <span
-                      style={{ backgroundColor: avatarColor }}
-                      className="flex h-full w-full items-center justify-center text-lg"
-                    >
-                      {initials}
-                    </span>
-                  )}
-                </div>
+                <UserAvatar
+                  name={displayName}
+                  avatarPath={avatarRemoved ? null : (meProfile.avatarPath ?? null)}
+                  avatarColor={avatarColor}
+                  avatarUrl={avatarPreview}
+                  className="h-20 w-20 text-sm font-semibold shadow"
+                  fallbackClassName="text-lg"
+                />
                 <div className="flex h-20 min-w-0 flex-col justify-center gap-1">
                   <p className="text-lg font-semibold">{displayName}</p>
                   <p className="text-sm text-muted-foreground">{user?.email ?? "unknown user"}</p>

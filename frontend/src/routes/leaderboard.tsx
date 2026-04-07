@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getLeaderboard } from "@/lib/api";
 import { requireOnboardingCompleted } from "@/lib/auth";
+import { UserAvatar } from "@/components/user-avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Trophy, Star, Flame, Zap, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -146,12 +147,11 @@ function LeaderboardPage() {
                     >
                       <div className="flex justify-center">{rankIcon}</div>
                       <div className="flex items-center gap-3 overflow-hidden">
-                        <div
-                          className="size-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-white"
-                          style={{ backgroundColor: entry.avatarColor || "#94a3b8" }}
-                        >
-                          {entry.displayName?.charAt(0).toUpperCase() || "?"}
-                        </div>
+                        <UserAvatar
+                          name={entry.displayName || "Anonymous Learner"}
+                          avatarPath={entry.avatarPath}
+                          avatarColor={entry.avatarColor}
+                        />
                         <span className="font-semibold truncate">
                           {entry.displayName || "Anonymous Learner"}
                         </span>
