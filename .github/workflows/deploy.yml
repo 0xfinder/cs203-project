@@ -1,0 +1,31 @@
+name: Deploy to Azure VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Execute Remote SSH Commands
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            mkdir -p ~/cs203-project
+            cd ~/cs203-project
+
+            if [ -d .git ]; then
+              git pull origin main
+            else
+              git clone git@github.com:${{ github.repository }}.git .
+            fi
+
+            docker compose up -d --build
