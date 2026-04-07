@@ -11,5 +11,7 @@ public interface ContentVoteRepository extends JpaRepository<ContentVote, Long> 
 
   long countByContentIdAndVoteType(Long contentId, ContentVote.VoteType voteType);
 
+  void deleteAllByContentId(Long contentId);
+
   void deleteByContentIdAndUserId(Long contentId, UUID userId);
 }

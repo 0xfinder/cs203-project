@@ -2,7 +2,9 @@ package com.group7.app.content.service;
 
 import com.group7.app.content.model.Content;
 import com.group7.app.content.repository.ContentRepository;
+import com.group7.app.content.repository.ContentVoteRepository;
 import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -11,9 +13,12 @@ import org.springframework.web.server.ResponseStatusException;
 public class ContentServiceImpl implements ContentService {
 
   private final ContentRepository contentRepository;
+  private final ContentVoteRepository contentVoteRepository;
 
-  public ContentServiceImpl(ContentRepository contentRepository) {
+  public ContentServiceImpl(
+      ContentRepository contentRepository, ContentVoteRepository contentVoteRepository) {
     this.contentRepository = contentRepository;
+    this.contentVoteRepository = contentVoteRepository;
   }
 
   @Override
@@ -72,12 +77,14 @@ public class ContentServiceImpl implements ContentService {
   }
 
   @Override
+  @Transactional
   public void deleteContent(Long id) {
     Content content =
         contentRepository
             .findById(id)
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found"));
+    contentVoteRepository.deleteAllByContentId(id);
     contentRepository.delete(content);
   }
 }
