@@ -30,10 +30,13 @@ public class ContentController {
     this.userService = userService;
   }
 
-  // Contributor submits a new term (also used as an appeal submission)
+  // Contributor submits a new term for moderator review.
   @PostMapping
   @PreAuthorize("isAuthenticated()")
-  @Operation(summary = "Create new content", description = "Submit a new content item. Contributors can use this endpoint to submit new terms or to appeal existing content; submitted items are created with status=PENDING for moderator review.")
+  @Operation(
+      summary = "Create new content",
+      description =
+          "Submit a new content item. Contributor submissions are created with status=PENDING for moderator review.")
   public Content submitContent(
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ContentCreateRequest request) {
     String email = getEmail(jwt);

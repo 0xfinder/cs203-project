@@ -24,13 +24,11 @@ import { api } from "@/lib/api";
 function ReviewPage() {
   const queryClient = useQueryClient();
   const [page] = useState(0);
-  const [activeTab, setActiveTab] = useState("content");
   const [contentSubTab, setContentSubTab] = useState("term");
   useEffect(() => {
     try {
       const pref = sessionStorage.getItem("reviewActiveSub");
       if (pref === "lesson") {
-        setActiveTab("content");
         setContentSubTab("lesson");
         sessionStorage.removeItem("reviewActiveSub");
       }
@@ -49,14 +47,7 @@ function ReviewPage() {
   const approveLessonMutation = useApproveLesson();
   const rejectLessonMutation = useRejectLesson();
   const pendingContents = response?.content || [];
-  const appeals = pendingContents.filter(
-    (c: any) => typeof c.term === "string" && c.term.startsWith("Appeal:"),
-  );
-  const newContents = pendingContents.filter(
-    (c: any) => !(typeof c.term === "string" && c.term.startsWith("Appeal:")),
-  );
-  // pending contents endpoint currently returns submitted term/content items only
-  const termItems = newContents;
+  const termItems = pendingContents;
   const { data: pendingLessons } = usePendingLessons();
   const lessonItems: any[] = Array.isArray(pendingLessons) ? pendingLessons : [];
   const { data: units } = useUnits();
@@ -271,8 +262,6 @@ function ReviewPage() {
 
   const termCount = termItems.length;
   const lessonCount = lessonItems.length;
-  const contentCount = termCount + lessonCount;
-  const appealsCount = appeals.length;
 
   if (isLoading || hasAccess === null) {
     return <div className="p-8 text-center">Loading pending items...</div>;
@@ -290,393 +279,39 @@ function ReviewPage() {
       <div className="max-w-4xl mx-auto">
         <h1 className="text-3xl font-bold mb-6">Review</h1>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="mb-6 gap-4">
-            <TabsTrigger value="content" className="px-8 py-2 flex items-center gap-2">
-              <span>Content</span>
-              {contentCount > 0 && (
-                <Badge variant="secondary" className="bg-primary text-primary-foreground">
-                  {contentCount}
+        <Tabs value={contentSubTab} onValueChange={setContentSubTab}>
+          <TabsList className="mb-6 grid w-full grid-cols-2">
+            <TabsTrigger value="term" className="flex items-center justify-center gap-2">
+              <span>Term</span>
+              {termCount > 0 && (
+                <Badge variant="outline" className="border-primary/50 text-primary">
+                  {termCount}
                 </Badge>
               )}
             </TabsTrigger>
-            <TabsTrigger value="appeals" className="px-8 py-2 flex items-center gap-2">
-              <span>Appeals</span>
-              {appealsCount > 0 && (
-                <Badge variant="secondary" className="bg-primary text-primary-foreground">
-                  {appealsCount}
+            <TabsTrigger value="lesson" className="flex items-center justify-center gap-2">
+              <span>Lesson</span>
+              {lessonCount > 0 && (
+                <Badge variant="outline" className="border-primary/50 text-primary">
+                  {lessonCount}
                 </Badge>
               )}
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="content" className="space-y-4">
-            <Tabs value={contentSubTab} onValueChange={setContentSubTab}>
-              <TabsList className="mb-6 grid w-full grid-cols-2">
-                <TabsTrigger value="term" className="flex items-center justify-center gap-2">
-                  <span>Term</span>
-                  {termCount > 0 && (
-                    <Badge variant="outline" className="border-primary/50 text-primary">
-                      {termCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-                <TabsTrigger value="lesson" className="flex items-center justify-center gap-2">
-                  <span>Lesson</span>
-                  {lessonCount > 0 && (
-                    <Badge variant="outline" className="border-primary/50 text-primary">
-                      {lessonCount}
-                    </Badge>
-                  )}
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="term">
-                {termItems.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <h2 className="text-xl font-semibold mb-2">No term items to review</h2>
-                  </div>
-                ) : (
-                  <>
-                    <p className="text-muted-foreground mb-6">
-                      Page {page + 1} of {totalPages} • Showing {termItems.length} of{" "}
-                      {totalElements} pending {totalElements === 1 ? "item" : "items"}
-                    </p>
-                    <div className="grid gap-4">
-                      {termItems.map((content: any) => (
-                        <Card key={content.id} className="p-6">
-                          <div className="mb-4">
-                            <h2 className="text-2xl font-bold text-primary">{content.term}</h2>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              Submitted by: {content.submittedBy}
-                            </p>
-                          </div>
-
-                          <div className="space-y-3 mb-6">
-                            <div>
-                              <Label className="font-semibold">Learn</Label>
-                              <p className="text-foreground mt-2">{content.definition}</p>
-                            </div>
-
-                            {content.example && (
-                              <div>
-                                <Label className="font-semibold">Example</Label>
-                                <p className="text-foreground mt-2">{content.example}</p>
-                              </div>
-                            )}
-
-                            <div className="text-xs text-muted-foreground">
-                              Created:{" "}
-                              {new Date(content.createdAt).toLocaleDateString("en-GB", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "2-digit",
-                              })}
-                            </div>
-                          </div>
-
-                          <div className="flex gap-3">
-                            <Button
-                              onClick={() =>
-                                setExpandedId(expandedId === content.id ? null : content.id)
-                              }
-                              variant="success"
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              onClick={() =>
-                                setExpandedId(expandedId === -content.id ? null : -content.id)
-                              }
-                              variant="destructive"
-                            >
-                              Reject
-                            </Button>
-                          </div>
-
-                          {expandedId === content.id && (
-                            <div className="mt-4 space-y-4 border-t pt-4">
-                              <h3 className="font-semibold">Approve "{content.term}"</h3>
-                              <div>
-                                <Label htmlFor={`approve-comment-${content.id}`}>
-                                  Comment (Optional)
-                                </Label>
-                                <textarea
-                                  id={`approve-comment-${content.id}`}
-                                  placeholder="Add any notes about this approval..."
-                                  value={reviewData[content.id]?.comment || ""}
-                                  onChange={(e) =>
-                                    setReviewData((prev) => ({
-                                      ...prev,
-                                      [content.id]: { comment: e.target.value },
-                                    }))
-                                  }
-                                  className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  onClick={() => handleApprove(content.id)}
-                                  variant="success"
-                                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
-                                  disabled={approveMutation.isPending}
-                                >
-                                  {approveMutation.isPending ? "Approving..." : "Confirm Approve"}
-                                </Button>
-                                <Button onClick={() => setExpandedId(null)} variant="outline">
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-
-                          {expandedId === -content.id && (
-                            <div className="mt-4 space-y-4 border-t pt-4">
-                              <h3 className="font-semibold">Reject "{content.term}"</h3>
-                              <div>
-                                <Label htmlFor={`reject-comment-${content.id}`}>
-                                  Reason for Rejection
-                                </Label>
-                                <textarea
-                                  id={`reject-comment-${content.id}`}
-                                  placeholder="Explain why this item is being rejected..."
-                                  value={reviewData[content.id]?.comment || ""}
-                                  onChange={(e) =>
-                                    setReviewData((prev) => ({
-                                      ...prev,
-                                      [content.id]: { comment: e.target.value },
-                                    }))
-                                  }
-                                  className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  onClick={() => handleReject(content.id)}
-                                  variant="destructive"
-                                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
-                                  disabled={rejectMutation.isPending}
-                                >
-                                  {rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}
-                                </Button>
-                                <Button onClick={() => setExpandedId(null)} variant="outline">
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </Card>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </TabsContent>
-
-              <TabsContent value="lesson">
-                {lessonItems.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground">
-                    <h2 className="text-xl font-semibold mb-2">No lesson items to review</h2>
-                    {debugInfo ? (
-                      <div className="mt-4 text-sm text-muted-foreground">
-                        <div>
-                          Server pending count:{" "}
-                          {typeof debugInfo.serverPendingCount === "number"
-                            ? debugInfo.serverPendingCount
-                            : "?"}
-                        </div>
-                        <div>
-                          Server total lessons:{" "}
-                          {typeof debugInfo.serverAllCount === "number"
-                            ? debugInfo.serverAllCount
-                            : "?"}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
-                ) : (
-                  <div className="grid gap-4">
-                    {lessonItems.map((lesson: any) => {
-                      const unit = units?.find((u: any) => u.id === lesson.unitId);
-                      // prefer server-provided metadata, fall back to client-cached firstStepMap
-                      const firstMeta = {
-                        stepType: lesson.firstStepType ?? firstStepMap[lesson.id]?.stepType,
-                        questionType:
-                          lesson.firstQuestionType ?? firstStepMap[lesson.id]?.questionType,
-                        prompt: lesson.firstStepPrompt ?? firstStepMap[lesson.id]?.prompt,
-                      };
-                      const formatStepLabel = (stepType?: string, questionType?: string | null) => {
-                        if (!stepType) return null;
-                        switch (stepType) {
-                          case "TEACH":
-                            return "Learn";
-                          case "QUESTION":
-                            return `Question${questionType ? ` (${questionType})` : ""}`;
-                          case "DIALOGUE":
-                            return "Dialogue";
-                          case "RECAP":
-                            return "Recap";
-                          default:
-                            return stepType;
-                        }
-                      };
-                      const typeLabel = formatStepLabel(firstMeta.stepType, firstMeta.questionType);
-                      // Choose display title/summary for question lessons
-                      const displayTitle =
-                        firstMeta.stepType === "QUESTION" && firstMeta.prompt
-                          ? firstMeta.prompt
-                          : lesson.title;
-                      const displaySummary =
-                        firstMeta.stepType === "QUESTION" && firstMeta.prompt
-                          ? firstMeta.prompt
-                          : lesson.description;
-                      const submittedBy = (lesson as any).submittedBy ?? null;
-
-                      return (
-                        <Card key={lesson.id} className="p-6">
-                          <div className="mb-4">
-                            <h2 className="text-2xl font-bold text-primary">{displayTitle}</h2>
-                            {submittedBy ? (
-                              <p className="text-sm text-muted-foreground mt-1">
-                                Submitted by: {submittedBy}
-                              </p>
-                            ) : null}
-                            {(() => {
-                              return (
-                                <p className="text-sm text-muted-foreground mt-1">
-                                  Unit: {unit?.title ?? lesson.unitId}
-                                  {typeLabel ? ` • Type: ${typeLabel}` : null}
-                                </p>
-                              );
-                            })()}
-                          </div>
-
-                          <div className="space-y-3 mb-6">
-                            <div>
-                              <Label className="font-semibold">Summary</Label>
-                              <p className="text-foreground mt-2">{displaySummary}</p>
-                            </div>
-                          </div>
-
-                          <div className="flex gap-3">
-                            <Button
-                              onClick={() =>
-                                setExpandedId(expandedId === lesson.id ? null : lesson.id)
-                              }
-                              variant="success"
-                            >
-                              Approve
-                            </Button>
-                            <Button
-                              onClick={() =>
-                                setExpandedId(expandedId === -lesson.id ? null : -lesson.id)
-                              }
-                              variant="destructive"
-                            >
-                              Reject
-                            </Button>
-                            <Button onClick={() => openLessonModal(lesson.id)} variant="secondary">
-                              View
-                            </Button>
-                          </div>
-                          {expandedId === lesson.id && (
-                            <div className="mt-4 space-y-4 border-t pt-4">
-                              <h3 className="font-semibold">Approve "{lesson.title}"</h3>
-                              <div>
-                                <Label htmlFor={`approve-comment-lesson-${lesson.id}`}>
-                                  Comment (Optional)
-                                </Label>
-                                <textarea
-                                  id={`approve-comment-lesson-${lesson.id}`}
-                                  placeholder="Add any notes about this approval..."
-                                  value={reviewData[lesson.id]?.comment || ""}
-                                  onChange={(e) =>
-                                    setReviewData((prev) => ({
-                                      ...prev,
-                                      [lesson.id]: { comment: e.target.value },
-                                    }))
-                                  }
-                                  className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  onClick={() => handleApproveLesson(lesson.id)}
-                                  variant="success"
-                                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
-                                  disabled={approveLessonMutation.isPending}
-                                >
-                                  {approveLessonMutation.isPending
-                                    ? "Approving..."
-                                    : "Confirm Approve"}
-                                </Button>
-                                <Button onClick={() => setExpandedId(null)} variant="outline">
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-
-                          {expandedId === -lesson.id && (
-                            <div className="mt-4 space-y-4 border-t pt-4">
-                              <h3 className="font-semibold">Reject "{lesson.title}"</h3>
-                              <div>
-                                <Label htmlFor={`reject-comment-lesson-${lesson.id}`}>
-                                  Reason for Rejection
-                                </Label>
-                                <textarea
-                                  id={`reject-comment-lesson-${lesson.id}`}
-                                  placeholder="Explain why this item is being rejected..."
-                                  value={reviewData[lesson.id]?.comment || ""}
-                                  onChange={(e) =>
-                                    setReviewData((prev) => ({
-                                      ...prev,
-                                      [lesson.id]: { comment: e.target.value },
-                                    }))
-                                  }
-                                  className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
-                                />
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  onClick={() => handleRejectLesson(lesson.id)}
-                                  variant="destructive"
-                                  className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
-                                  disabled={rejectLessonMutation.isPending}
-                                >
-                                  {rejectLessonMutation.isPending
-                                    ? "Rejecting..."
-                                    : "Confirm Reject"}
-                                </Button>
-                                <Button onClick={() => setExpandedId(null)} variant="outline">
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </Card>
-                      );
-                    })}
-                  </div>
-                )}
-              </TabsContent>
-            </Tabs>
-          </TabsContent>
-
-          <TabsContent value="appeals" className="space-y-4">
-            {appeals.length === 0 ? (
+          <TabsContent value="term">
+            {termItems.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
-                <h2 className="text-xl font-semibold mb-2">No appeals</h2>
-                <p>There are no lesson appeals pending review.</p>
+                <h2 className="text-xl font-semibold mb-2">No term items to review</h2>
               </div>
             ) : (
               <>
                 <p className="text-muted-foreground mb-6">
-                  Page {page + 1} of {totalPages} • Showing {appeals.length} of {totalElements}{" "}
+                  Page {page + 1} of {totalPages} • Showing {termItems.length} of {totalElements}{" "}
                   pending {totalElements === 1 ? "item" : "items"}
                 </p>
-
                 <div className="grid gap-4">
-                  {appeals.map((content: any) => (
+                  {termItems.map((content: any) => (
                     <Card key={content.id} className="p-6">
                       <div className="mb-4">
                         <h2 className="text-2xl font-bold text-primary">{content.term}</h2>
@@ -687,9 +322,16 @@ function ReviewPage() {
 
                       <div className="space-y-3 mb-6">
                         <div>
-                          <Label className="font-semibold">Appeal Text</Label>
+                          <Label className="font-semibold">Learn</Label>
                           <p className="text-foreground mt-2">{content.definition}</p>
                         </div>
+
+                        {content.example && (
+                          <div>
+                            <Label className="font-semibold">Example</Label>
+                            <p className="text-foreground mt-2">{content.example}</p>
+                          </div>
+                        )}
 
                         <div className="text-xs text-muted-foreground">
                           Created:{" "}
@@ -707,16 +349,14 @@ function ReviewPage() {
                             setExpandedId(expandedId === content.id ? null : content.id)
                           }
                           variant="success"
-                          className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
                         >
-                          Resolve
+                          Approve
                         </Button>
                         <Button
                           onClick={() =>
                             setExpandedId(expandedId === -content.id ? null : -content.id)
                           }
                           variant="destructive"
-                          className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
                         >
                           Reject
                         </Button>
@@ -724,14 +364,14 @@ function ReviewPage() {
 
                       {expandedId === content.id && (
                         <div className="mt-4 space-y-4 border-t pt-4">
-                          <h3 className="font-semibold">Resolve "{content.term}"</h3>
+                          <h3 className="font-semibold">Approve "{content.term}"</h3>
                           <div>
                             <Label htmlFor={`approve-comment-${content.id}`}>
                               Comment (Optional)
                             </Label>
                             <textarea
                               id={`approve-comment-${content.id}`}
-                              placeholder="Add any notes about this resolution..."
+                              placeholder="Add any notes about this approval..."
                               value={reviewData[content.id]?.comment || ""}
                               onChange={(e) =>
                                 setReviewData((prev) => ({
@@ -749,79 +389,7 @@ function ReviewPage() {
                               className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
                               disabled={approveMutation.isPending}
                             >
-                              {approveMutation.isPending ? "Resolving..." : "Confirm Resolve"}
-                            </Button>
-                            <Button onClick={() => setExpandedId(null)} variant="outline">
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {expandedId === -content.id && (
-                        <div className="mt-4 space-y-4 border-t pt-4">
-                          <h3 className="font-semibold">Reject "{content.term}"</h3>
-                          <div>
-                            <Label htmlFor={`reject-comment-${content.id}`}>
-                              Reason for Rejection
-                            </Label>
-                            <textarea
-                              id={`reject-comment-${content.id}`}
-                              placeholder="Explain why this item is being rejected..."
-                              value={reviewData[content.id]?.comment || ""}
-                              onChange={(e) =>
-                                setReviewData((prev) => ({
-                                  ...prev,
-                                  [content.id]: { comment: e.target.value },
-                                }))
-                              }
-                              className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={() => handleReject(content.id)}
-                              variant="destructive"
-                              className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
-                              disabled={rejectMutation.isPending}
-                            >
-                              {rejectMutation.isPending ? "Rejecting..." : "Confirm Reject"}
-                            </Button>
-                            <Button onClick={() => setExpandedId(null)} variant="outline">
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {expandedId === content.id && (
-                        <div className="mt-4 space-y-4 border-t pt-4">
-                          <h3 className="font-semibold">Resolve "{content.term}"</h3>
-                          <div>
-                            <Label htmlFor={`approve-comment-${content.id}`}>
-                              Comment (Optional)
-                            </Label>
-                            <textarea
-                              id={`approve-comment-${content.id}`}
-                              placeholder="Add any notes about this resolution..."
-                              value={reviewData[content.id]?.comment || ""}
-                              onChange={(e) =>
-                                setReviewData((prev) => ({
-                                  ...prev,
-                                  [content.id]: { comment: e.target.value },
-                                }))
-                              }
-                              className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
-                            />
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              onClick={() => handleApprove(content.id)}
-                              variant="success"
-                              className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
-                              disabled={approveMutation.isPending}
-                            >
-                              {approveMutation.isPending ? "Resolving..." : "Confirm Resolve"}
+                              {approveMutation.isPending ? "Approving..." : "Confirm Approve"}
                             </Button>
                             <Button onClick={() => setExpandedId(null)} variant="outline">
                               Cancel
@@ -869,6 +437,187 @@ function ReviewPage() {
                   ))}
                 </div>
               </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="lesson">
+            {lessonItems.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                <h2 className="text-xl font-semibold mb-2">No lesson items to review</h2>
+                {debugInfo ? (
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    <div>
+                      Server pending count:{" "}
+                      {typeof debugInfo.serverPendingCount === "number"
+                        ? debugInfo.serverPendingCount
+                        : "?"}
+                    </div>
+                    <div>
+                      Server total lessons:{" "}
+                      {typeof debugInfo.serverAllCount === "number"
+                        ? debugInfo.serverAllCount
+                        : "?"}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {lessonItems.map((lesson: any) => {
+                  const unit = units?.find((u: any) => u.id === lesson.unitId);
+                  // prefer server-provided metadata, fall back to client-cached firstStepMap
+                  const firstMeta = {
+                    stepType: lesson.firstStepType ?? firstStepMap[lesson.id]?.stepType,
+                    questionType: lesson.firstQuestionType ?? firstStepMap[lesson.id]?.questionType,
+                    prompt: lesson.firstStepPrompt ?? firstStepMap[lesson.id]?.prompt,
+                  };
+                  const formatStepLabel = (stepType?: string, questionType?: string | null) => {
+                    if (!stepType) return null;
+                    switch (stepType) {
+                      case "TEACH":
+                        return "Learn";
+                      case "QUESTION":
+                        return `Question${questionType ? ` (${questionType})` : ""}`;
+                      case "DIALOGUE":
+                        return "Dialogue";
+                      case "RECAP":
+                        return "Recap";
+                      default:
+                        return stepType;
+                    }
+                  };
+                  const typeLabel = formatStepLabel(firstMeta.stepType, firstMeta.questionType);
+                  // Choose display title/summary for question lessons
+                  const displayTitle =
+                    firstMeta.stepType === "QUESTION" && firstMeta.prompt
+                      ? firstMeta.prompt
+                      : lesson.title;
+                  const displaySummary =
+                    firstMeta.stepType === "QUESTION" && firstMeta.prompt
+                      ? firstMeta.prompt
+                      : lesson.description;
+                  const submittedBy = (lesson as any).submittedBy ?? null;
+
+                  return (
+                    <Card key={lesson.id} className="p-6">
+                      <div className="mb-4">
+                        <h2 className="text-2xl font-bold text-primary">{displayTitle}</h2>
+                        {submittedBy ? (
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Submitted by: {submittedBy}
+                          </p>
+                        ) : null}
+                        {(() => {
+                          return (
+                            <p className="text-sm text-muted-foreground mt-1">
+                              Unit: {unit?.title ?? lesson.unitId}
+                              {typeLabel ? ` • Type: ${typeLabel}` : null}
+                            </p>
+                          );
+                        })()}
+                      </div>
+
+                      <div className="space-y-3 mb-6">
+                        <div>
+                          <Label className="font-semibold">Summary</Label>
+                          <p className="text-foreground mt-2">{displaySummary}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => setExpandedId(expandedId === lesson.id ? null : lesson.id)}
+                          variant="success"
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            setExpandedId(expandedId === -lesson.id ? null : -lesson.id)
+                          }
+                          variant="destructive"
+                        >
+                          Reject
+                        </Button>
+                        <Button onClick={() => openLessonModal(lesson.id)} variant="secondary">
+                          View
+                        </Button>
+                      </div>
+                      {expandedId === lesson.id && (
+                        <div className="mt-4 space-y-4 border-t pt-4">
+                          <h3 className="font-semibold">Approve "{lesson.title}"</h3>
+                          <div>
+                            <Label htmlFor={`approve-comment-lesson-${lesson.id}`}>
+                              Comment (Optional)
+                            </Label>
+                            <textarea
+                              id={`approve-comment-lesson-${lesson.id}`}
+                              placeholder="Add any notes about this approval..."
+                              value={reviewData[lesson.id]?.comment || ""}
+                              onChange={(e) =>
+                                setReviewData((prev) => ({
+                                  ...prev,
+                                  [lesson.id]: { comment: e.target.value },
+                                }))
+                              }
+                              className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => handleApproveLesson(lesson.id)}
+                              variant="success"
+                              className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                              disabled={approveLessonMutation.isPending}
+                            >
+                              {approveLessonMutation.isPending ? "Approving..." : "Confirm Approve"}
+                            </Button>
+                            <Button onClick={() => setExpandedId(null)} variant="outline">
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {expandedId === -lesson.id && (
+                        <div className="mt-4 space-y-4 border-t pt-4">
+                          <h3 className="font-semibold">Reject "{lesson.title}"</h3>
+                          <div>
+                            <Label htmlFor={`reject-comment-lesson-${lesson.id}`}>
+                              Reason for Rejection
+                            </Label>
+                            <textarea
+                              id={`reject-comment-lesson-${lesson.id}`}
+                              placeholder="Explain why this item is being rejected..."
+                              value={reviewData[lesson.id]?.comment || ""}
+                              onChange={(e) =>
+                                setReviewData((prev) => ({
+                                  ...prev,
+                                  [lesson.id]: { comment: e.target.value },
+                                }))
+                              }
+                              className="w-full px-3 py-2 border rounded-md mt-1 min-h-20"
+                            />
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              onClick={() => handleRejectLesson(lesson.id)}
+                              variant="destructive"
+                              className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                              disabled={rejectLessonMutation.isPending}
+                            >
+                              {rejectLessonMutation.isPending ? "Rejecting..." : "Confirm Reject"}
+                            </Button>
+                            <Button onClick={() => setExpandedId(null)} variant="outline">
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
             )}
           </TabsContent>
         </Tabs>

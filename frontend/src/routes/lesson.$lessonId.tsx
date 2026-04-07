@@ -11,7 +11,6 @@ import { getUnitRoadmap, progressMap } from "@/features/lessons/lesson-roadmap";
 import { requireContributorOrOnboarded } from "@/lib/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
-import { useSubmitContent } from "@/features/content/useContentData";
 import {
   type AttemptResult,
   type LessonAnswer,
@@ -151,17 +150,10 @@ function LessonPage() {
     return unitRoadmap.orderedLessons[currentLessonIndex + 1] ?? null;
   }, [unitRoadmap, numericLessonId]);
 
-  // current user view (to check role for appeal permissions)
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
-  const currentProfile = currentUserViewQuery.data?.profile ?? null;
-  const isContributor = currentProfile?.role === "CONTRIBUTOR";
-  const isAdmin = currentProfile?.role === "ADMIN" || currentProfile?.role === "MODERATOR";
-
-  const [appealOpen, setAppealOpen] = useState(false);
-  const [appealText, setAppealText] = useState("");
-  const [appealSubmitting, setAppealSubmitting] = useState(false);
-  const [appealError, setAppealError] = useState<string | null>(null);
-  const submitContent = useSubmitContent();
+  const currentRole = currentUserViewQuery.data?.profile?.role;
+  const isContributor = currentRole === "CONTRIBUTOR";
+  const isAdmin = currentRole === "ADMIN" || currentRole === "MODERATOR";
 
   const handleDeleteLesson = (lessonIdToDelete: number) => {
     try {
@@ -175,27 +167,6 @@ function LessonPage() {
     } catch (e) {
       console.error("failed to delete lesson:", e);
       // ignore
-    }
-  };
-
-  const submitAppeal = async () => {
-    if (!appealText.trim() || !currentProfile) return;
-    setAppealSubmitting(true);
-    setAppealError(null);
-    try {
-      const title = `Appeal: Lesson ${numericLessonId} - ${lessonData?.lesson?.title ?? ""}`;
-      const payload = {
-        term: title.slice(0, 100),
-        definition: appealText.trim().slice(0, 500),
-        submittedBy: currentProfile.email,
-      };
-      await submitContent.mutateAsync(payload);
-      setAppealOpen(false);
-      setAppealText("");
-    } catch (err) {
-      setAppealError(err instanceof Error ? err.message : "Failed to submit appeal");
-    } finally {
-      setAppealSubmitting(false);
     }
   };
 
@@ -445,8 +416,6 @@ function LessonPage() {
             </span>
           </div>
         </div>
-        {/* header CTA removed — appeal button moved next to Continue below */}
-
         <div className="mx-auto max-w-6xl px-4 pb-3">
           <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
             <div
@@ -527,36 +496,6 @@ function LessonPage() {
                     </Button>
                   </>
                 )}
-
-                {appealOpen && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-                    <div className="w-full max-w-lg rounded-lg bg-card p-6">
-                      <h3 className="mb-2 text-lg font-semibold">Appeal content</h3>
-                      <p className="mb-3 text-sm text-muted-foreground">
-                        Describe the inaccuracy or issue you found.
-                      </p>
-                      <textarea
-                        className="w-full min-h-[120px] rounded-md border px-3 py-2 text-sm"
-                        value={appealText}
-                        onChange={(e) => setAppealText(e.target.value)}
-                      />
-                      {appealError && (
-                        <p className="mt-2 text-sm text-destructive">{appealError}</p>
-                      )}
-                      <div className="mt-4 flex justify-end gap-2">
-                        <Button variant="ghost" onClick={() => setAppealOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={submitAppeal}
-                          disabled={appealSubmitting || !appealText.trim()}
-                        >
-                          {appealSubmitting ? "Submitting…" : "Submit Appeal"}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
 
               <div className="mt-8">
@@ -584,7 +523,6 @@ function LessonPage() {
                 )}
                 {/* Arrows moved adjacent to the step card above (to the sides) */}
 
-                {/* For admins, show edit/delete for the current page instead of appeal */}
                 {isAdmin && currentStep ? (
                   <div className="mt-4 flex gap-2">
                     {(() => {
@@ -609,19 +547,6 @@ function LessonPage() {
                     />
                   </div>
                 ) : null}
-
-                {/* Contributors still get the appeal button */}
-                {!isAdmin && isContributor && (
-                  <div className="mt-4">
-                    <Button
-                      variant="outline"
-                      className="w-full gap-2"
-                      onClick={() => setAppealOpen(true)}
-                    >
-                      ⚑ Report an issue / Appeal
-                    </Button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
