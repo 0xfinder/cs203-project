@@ -56,6 +56,8 @@ public class ContentController {
       }
     } catch (Exception ex) {
       // if anything goes wrong reading auth info, fall back to normal pending flow
+      System.out.println("Error during content submission: " + ex.getMessage());
+      ex.printStackTrace();
     }
 
     return contentService.submitContent(content);
