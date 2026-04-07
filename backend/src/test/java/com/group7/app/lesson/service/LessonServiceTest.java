@@ -69,7 +69,13 @@ class LessonServiceTest {
         lessonService.createLesson(
             contributor,
             new LessonService.LessonDraftInput(
-                10L, "  Crème de la Rizz  ", "  Intro lesson  ", "  learn the basics  ", 7, 1));
+                10L,
+                "  Crème de la Rizz  ",
+                "  Intro lesson  ",
+                "  learn the basics  ",
+                7,
+                1,
+                null));
 
     assertThat(lesson.getTitle()).isEqualTo("Crème de la Rizz");
     assertThat(lesson.getSlug()).isEqualTo("creme-de-la-rizz");
@@ -84,7 +90,7 @@ class LessonServiceTest {
             () ->
                 lessonService.createLesson(
                     user(Role.LEARNER),
-                    new LessonService.LessonDraftInput(1L, "Title", "Desc", null, 5, 1)))
+                    new LessonService.LessonDraftInput(1L, "Title", "Desc", null, 5, 1, null)))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("insufficient role permissions");
   }

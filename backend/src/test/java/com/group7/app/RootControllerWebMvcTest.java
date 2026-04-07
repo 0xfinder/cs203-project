@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.group7.app.config.DatabaseRoleJwtAuthenticationConverter;
 import com.group7.app.config.SecurityConfig;
+import com.group7.app.user.UserService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -23,6 +24,8 @@ class RootControllerWebMvcTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private JwtDecoder jwtDecoder;
+
+  @MockitoBean private UserService userService;
 
   @MockitoBean
   private DatabaseRoleJwtAuthenticationConverter databaseRoleJwtAuthenticationConverter;
