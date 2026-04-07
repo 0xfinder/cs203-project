@@ -82,6 +82,7 @@ export type LessonAnswer = string | Record<string, string>;
 export interface AttemptResultItem {
   stepId: number;
   correct: boolean;
+  submittedAnswer: LessonAnswer | null;
   correctAnswer: string | null;
   explanation: string | null;
 }

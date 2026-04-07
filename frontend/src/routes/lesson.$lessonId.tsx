@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { HTTPError } from "ky";
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import Dialog, { DialogTrigger, DialogContent } from "@/components/ui/dialog";
 import { Card, CardContent } from "@/components/ui/card";
 import { UnitRoadmap } from "@/features/lessons/components/unit-roadmap";
@@ -297,6 +298,7 @@ function LessonPage() {
         result={result}
         lessonTitle={lessonData.lesson.title}
         unitTitle={currentUnit?.title ?? null}
+        questionSteps={questionSteps}
         nextLessonTitle={result.passed ? (nextLesson?.title ?? null) : null}
         onRetry={() => {
           setCurrentIndex(0);
@@ -515,7 +517,10 @@ function LessonPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setCurrentIndex((i) => Math.min(steps.length - 1, i + 1))}
+                      onClick={() => {
+                        void goNext();
+                      }}
+                      disabled={submitAttempt.isPending || !canContinue}
                       className="absolute right-0 top-1/2 z-20 -translate-y-1/2 translate-x-full"
                     >
                       <ChevronRight className="size-4" />
@@ -726,6 +731,7 @@ function ResultView({
   result,
   lessonTitle,
   unitTitle,
+  questionSteps,
   nextLessonTitle,
   onRetry,
   onExit,
@@ -734,31 +740,91 @@ function ResultView({
   result: AttemptResult;
   lessonTitle: string;
   unitTitle: string | null;
+  questionSteps: LessonStepPayload[];
   nextLessonTitle: string | null;
   onRetry: () => void;
   onExit: () => void;
   onContinue?: () => void;
 }) {
+  const questionStepById = new Map(questionSteps.map((step) => [step.id, step]));
+
   return (
     <div className="flex flex-1 items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-lg">
-        <CardContent className="pt-8 text-center">
-          {unitTitle ? (
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              {unitTitle}
+      <Card className="w-full max-w-4xl">
+        <CardContent className="pt-8">
+          <div className="text-center">
+            {unitTitle ? (
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {unitTitle}
+              </p>
+            ) : null}
+            <h2 className="mb-1 text-3xl font-bold">{lessonTitle}</h2>
+            <p className="mb-6 text-muted-foreground">
+              {result.passed ? "Lesson complete" : "Try again"}
             </p>
-          ) : null}
-          <h2 className="mb-1 text-3xl font-bold">{lessonTitle}</h2>
-          <p className="mb-6 text-muted-foreground">
-            {result.passed ? "Lesson complete" : "Try again"}
-          </p>
 
-          <div className="mb-6 rounded-2xl bg-secondary p-6">
-            <div className="mb-1 text-5xl font-bold">{result.score}%</div>
-            <p className="text-sm text-muted-foreground">
-              {result.correctCount} out of {result.totalQuestions} correct
-            </p>
+            <div className="mb-6 rounded-2xl bg-secondary p-6">
+              <div className="mb-1 text-5xl font-bold">{result.score}%</div>
+              <p className="text-sm text-muted-foreground">
+                {result.correctCount} out of {result.totalQuestions} correct
+              </p>
+            </div>
           </div>
+
+          {result.results.length > 0 ? (
+            <div className="mb-6 space-y-4">
+              <div className="px-1">
+                <h3 className="text-base font-semibold">Report</h3>
+                <p className="text-sm text-muted-foreground">
+                  Review what you got right and what to tighten up.
+                </p>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {result.results.map((item, index) => {
+                  const step = questionStepById.get(item.stepId);
+                  const prompt = step?.question?.prompt ?? `Question ${index + 1}`;
+
+                  return (
+                    <div
+                      key={item.stepId}
+                      className="rounded-2xl border border-border/70 bg-card/70 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <p className="min-w-0 font-medium">{prompt}</p>
+                        <Badge
+                          variant={item.correct ? "default" : "secondary"}
+                          className="px-3 py-1 text-xs font-semibold"
+                        >
+                          {item.correct ? "Correct" : "Review"}
+                        </Badge>
+                      </div>
+
+                      {!item.correct && item.submittedAnswer !== null ? (
+                        <p className="mt-3 text-sm text-muted-foreground">
+                          You selected:{" "}
+                          <span className="font-medium text-foreground">
+                            {renderSubmittedAnswer(item.submittedAnswer)}
+                          </span>
+                        </p>
+                      ) : null}
+
+                      {!item.correct && item.correctAnswer ? (
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Correct answer:{" "}
+                          <span className="font-medium text-foreground">{item.correctAnswer}</span>
+                        </p>
+                      ) : null}
+
+                      {item.explanation ? (
+                        <p className="mt-2 text-sm text-muted-foreground">{item.explanation}</p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
 
           <div className="flex flex-col gap-3">
             {result.passed && onContinue && nextLessonTitle ? (
@@ -779,6 +845,18 @@ function ResultView({
       </Card>
     </div>
   );
+}
+
+function renderSubmittedAnswer(answer: LessonAnswer) {
+  if (typeof answer === "string") {
+    return answer.trim().length > 0 ? answer : "No answer";
+  }
+
+  const pairs = Object.entries(answer)
+    .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    .map(([left, right]) => `${left} = ${right}`);
+
+  return pairs.length > 0 ? pairs.join("; ") : "No answer";
 }
 
 function readStringField(payload: LessonStepPayload["payload"], key: string) {

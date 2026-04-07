@@ -135,12 +135,13 @@ class LessonAttemptServiceTest {
     assertThat(result.passed()).isTrue();
     assertThat(result.results())
         .singleElement()
-        .satisfies(
-            item -> {
-              assertThat(item.stepId()).isEqualTo(101L);
-              assertThat(item.correct()).isTrue();
-              assertThat(item.correctAnswer()).isEqualTo("Charisma");
-            });
+            .satisfies(
+                item -> {
+                  assertThat(item.stepId()).isEqualTo(101L);
+                  assertThat(item.correct()).isTrue();
+                  assertThat(item.submittedAnswer().asText()).isEqualTo("Charisma");
+                  assertThat(item.correctAnswer()).isEqualTo("Charisma");
+                });
 
     ArgumentCaptor<UserLessonProgress> progressCaptor =
         ArgumentCaptor.forClass(UserLessonProgress.class);
@@ -219,6 +220,12 @@ class LessonAttemptServiceTest {
     assertThat(response.results())
         .extracting(LessonAttemptService.ResultItem::correctAnswer)
         .containsExactly("Charisma", "no cap", "rizz = charisma");
+    assertThat(response.results())
+        .extracting(item -> item.submittedAnswer().toString())
+        .containsExactly(
+            "{\"text\":\"Charisma\"}",
+            "{\"acceptedAnswers\":[\"no cap\"]}",
+            "{\"pairs\":[{\"left\":\"rizz\",\"right\":\"charisma\"}]}");
   }
 
   @Test
@@ -397,7 +404,8 @@ class LessonAttemptServiceTest {
       LessonAttempt attempt,
       LessonStep step,
       com.fasterxml.jackson.databind.JsonNode evaluatedAnswer) {
-    return new LessonAttemptResult(attempt, step, 55L, true, null, evaluatedAnswer, "explanation");
+    return new LessonAttemptResult(
+        attempt, step, 55L, true, evaluatedAnswer, evaluatedAnswer, "explanation");
   }
 
   private com.fasterxml.jackson.databind.JsonNode acceptedAnswerNode(String answer) {

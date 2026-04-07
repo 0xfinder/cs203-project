@@ -128,6 +128,7 @@ public class LessonAttemptService {
           new ResultItem(
               step.getId(),
               evaluation.correct(),
+              submittedAnswerFromInput(input),
               evaluation.correctAnswerText(),
               evaluation.explanation()));
     }
@@ -191,8 +192,7 @@ public class LessonAttemptService {
               .findFirst()
               .orElseThrow();
 
-      JsonNode submittedAnswer =
-          (input == null || input.answer() == null) ? JSON.nullNode() : input.answer();
+      JsonNode submittedAnswer = submittedAnswerFromInput(input);
 
       LessonStepPayloadService.Evaluation evaluation = evaluateAnswer(step, input);
       attemptResults.add(
@@ -230,6 +230,7 @@ public class LessonAttemptService {
                     new ResultItem(
                         result.getLessonStep().getId(),
                         result.isCorrect(),
+                        result.getSubmittedAnswer(),
                         renderEvaluatedAnswer(result.getEvaluatedAnswer()),
                         result.getExplanation()))
             .toList();
@@ -348,6 +349,7 @@ public class LessonAttemptService {
           new ResultItem(
               step.getId(),
               evaluation.correct(),
+              submittedAnswerFromInput(answer),
               evaluation.correctAnswerText(),
               evaluation.explanation()));
       events.add(
@@ -650,6 +652,10 @@ public class LessonAttemptService {
     return lessonStepPayloadService.evaluate(step, submitted);
   }
 
+  private JsonNode submittedAnswerFromInput(AnswerInput input) {
+    return (input == null || input.answer() == null) ? JSON.nullNode() : input.answer();
+  }
+
   private String renderEvaluatedAnswer(JsonNode evaluatedAnswer) {
     if (evaluatedAnswer == null || evaluatedAnswer.isNull()) {
       return null;
@@ -678,7 +684,11 @@ public class LessonAttemptService {
   public record AnswerInput(Long stepId, JsonNode answer) {}
 
   public record ResultItem(
-      Long stepId, boolean correct, String correctAnswer, String explanation) {}
+      Long stepId,
+      boolean correct,
+      JsonNode submittedAnswer,
+      String correctAnswer,
+      String explanation) {}
 
   public record AttemptSubmissionResult(
       Long attemptId,
