@@ -80,6 +80,7 @@ type UserProfile = MeResponse;
 
 const FORUM_MEDIA_BUCKET = import.meta.env.VITE_SUPABASE_FORUM_BUCKET?.trim() || "forum-media";
 const MAX_IMAGE_MB = 5;
+const signedAvatarUrlCache = new Map<string, string | null>();
 
 /* -- Error extraction ------------------------------------------------------ */
 async function extractErrorMessage(e: unknown, fallback: string): Promise<string> {
@@ -137,17 +138,37 @@ function Avatar({
   name,
   avatarPath,
   avatarColor,
+  avatarUrl,
 }: {
   name: string;
   avatarPath?: string | null;
   avatarColor?: string | null;
+  avatarUrl?: string | null;
 }) {
-  const [url, setUrl] = useState<string | null>(null);
+  const [url, setUrl] = useState<string | null>(() => {
+    if (avatarUrl !== undefined) {
+      return avatarUrl;
+    }
+    if (!avatarPath) {
+      return null;
+    }
+    return signedAvatarUrlCache.get(avatarPath) ?? null;
+  });
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
     setImageFailed(false);
+
+    if (avatarUrl !== undefined) {
+      setUrl(avatarUrl);
+      if (avatarPath) {
+        signedAvatarUrlCache.set(avatarPath, avatarUrl);
+      }
+      return () => {
+        active = false;
+      };
+    }
 
     if (!avatarPath) {
       setUrl(null);
@@ -156,8 +177,17 @@ function Avatar({
       };
     }
 
+    const cachedUrl = signedAvatarUrlCache.get(avatarPath);
+    if (cachedUrl !== undefined) {
+      setUrl(cachedUrl);
+      return () => {
+        active = false;
+      };
+    }
+
     void resolveAvatarSignedUrl(avatarPath).then((nextUrl) => {
       if (active) {
+        signedAvatarUrlCache.set(avatarPath, nextUrl);
         setUrl(nextUrl);
       }
     });
@@ -165,7 +195,7 @@ function Avatar({
     return () => {
       active = false;
     };
-  }, [avatarPath]);
+  }, [avatarPath, avatarUrl]);
 
   const showImage = !!url && !imageFailed;
   const fallbackColor = avatarColor ?? avatarHex(name);
@@ -534,6 +564,13 @@ function ForumPage() {
   // the user signs in/out or edits their profile (cache updated elsewhere)
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
   const profile = (currentUserViewQuery.data && currentUserViewQuery.data.profile) || null;
+  const currentUserAvatarUrl = currentUserViewQuery.data?.avatarUrl ?? null;
+
+  useEffect(() => {
+    if (profile?.avatarPath) {
+      signedAvatarUrlCache.set(profile.avatarPath, currentUserAvatarUrl);
+    }
+  }, [profile?.avatarPath, currentUserAvatarUrl]);
 
   const [showAskForm, setShowAskForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -733,6 +770,7 @@ function ForumPage() {
                 name={authorName}
                 avatarPath={profile.avatarPath}
                 avatarColor={profile.avatarColor}
+                avatarUrl={currentUserAvatarUrl}
               />
               <span className="max-w-[140px] truncate font-medium">{authorName}</span>
               <RoleBadge role={profile.role} className="text-muted-foreground" />

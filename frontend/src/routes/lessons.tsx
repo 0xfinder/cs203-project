@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LessonForm } from "@/components/lesson-quiz-forms";
 import { AdminUnitsPanel } from "@/features/lessons/components/admin-units-panel";
 import { requireContributorOrOnboarded } from "@/lib/auth";
+import { getLeaderboard } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { getUnitRoadmap, getVisibleUnits, progressMap } from "@/features/lessons/lesson-roadmap";
 import { useQuery } from "@tanstack/react-query";
@@ -39,6 +40,11 @@ function LearnPage() {
   const isAdmin = role === "ADMIN" || role === "MODERATOR";
   const isContributor = role === "CONTRIBUTOR" || role === "ADMIN" || role === "MODERATOR";
   const [activeTab, setActiveTab] = useState("learn");
+  const leaderboardQuery = useQuery({
+    queryKey: ["leaderboard", "points", "lessons-header"],
+    queryFn: () => getLeaderboard(200, "points"),
+    enabled: !!profile?.id,
+  });
 
   if (unitsLoading || progressLoading) {
     return (
@@ -61,8 +67,12 @@ function LearnPage() {
     return roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
   }).length;
 
-  const streak = 0;
-  const totalXP = (progressItems ?? []).reduce((sum, item) => sum + item.bestScore, 0);
+  const currentLeaderboardEntry =
+    leaderboardQuery.data?.find((entry) => entry.userId === profile?.id) ?? null;
+  const streak = currentLeaderboardEntry?.maxCorrectStreak ?? 0;
+  const totalXP =
+    currentLeaderboardEntry?.totalScore ??
+    (progressItems ?? []).reduce((sum, item) => sum + item.bestScore, 0);
 
   const isUnlocked = (index: number) => {
     if (isContributor) return true;

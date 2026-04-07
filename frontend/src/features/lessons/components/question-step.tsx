@@ -102,6 +102,7 @@ function TextQuestion({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder="Type your answer"
+        className="rounded-xl border-border bg-background"
       />
     </div>
   );
