@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
+import { SquarePlus } from "lucide-react";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { api } from "@/lib/api";
 import { getMe } from "@/lib/me";
@@ -63,11 +64,16 @@ function SubmitContentPage() {
   return (
     <AppPageShell contentClassName="max-w-4xl">
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold">Add Content</h1>
-          <p className="text-sm text-muted-foreground">
-            Draft a new dictionary term or lesson for AlphaLingo’s learning library.
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+            <SquarePlus className="size-5 text-primary" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold">Add Content</h1>
+            <p className="text-sm text-muted-foreground">
+              Draft a new dictionary term or lesson for AlphaLingo’s learning library.
+            </p>
+          </div>
         </div>
 
         {(success || error) && (

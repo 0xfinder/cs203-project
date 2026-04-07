@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
+import { BarChart3, ThumbsDown, ThumbsUp } from "lucide-react";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { useMyApprovedContentsWithVotes } from "@/features/content/useContentData";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import { AppPageShell } from "@/components/app-page-shell";
 
@@ -45,10 +45,17 @@ function DashboardPage() {
 
   return (
     <AppPageShell contentClassName="max-w-4xl">
-      <h1 className="text-3xl font-bold mb-2">My Dashboard</h1>
-      <p className="text-muted-foreground mb-8">
-        Track your approved lingo and community engagement
-      </p>
+      <div className="mb-8 flex items-center gap-3">
+        <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+          <BarChart3 className="size-5 text-primary" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold">My Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            Track your approved lingo and community engagement
+          </p>
+        </div>
+      </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">

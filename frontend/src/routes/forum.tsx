@@ -5,6 +5,7 @@ import remarkGfm from "remark-gfm";
 import { useQuery } from "@tanstack/react-query";
 import {
   MessageCircle,
+  MessageCircleMore,
   Plus,
   Trash2,
   X,
@@ -638,13 +639,18 @@ function ForumPage() {
     <AppPageShell contentClassName="max-w-3xl">
       {/* debug banner removed (undefined `debugMessage` caused runtime error) */}
       {/* page header */}
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Forum</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Beat the Unc Allegations 💀</p>
+      <div className="mb-6 flex items-start justify-between gap-4">
+        <div className="min-w-0 flex items-center gap-3">
+          <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10">
+            <MessageCircleMore className="size-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold">Forum</h1>
+            <p className="text-sm text-muted-foreground">Beat the Unc Allegations 💀</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="shrink-0 flex items-center gap-3">
           {profile ? (
             <span className="hidden items-center gap-2 text-sm sm:flex">
               <UserAvatar
