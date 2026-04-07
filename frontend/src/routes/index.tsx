@@ -14,6 +14,36 @@ export const Route = createFileRoute("/")({
 
 const words = ["skibidi", "rizz", "gyatt", "mid", "sus"];
 
+function AlphaLingoWordmark() {
+  return (
+    <div className="mb-8 flex flex-col items-center gap-4 animate-fade-in-up">
+      <div className="relative inline-flex justify-center">
+        <div className="absolute inset-x-8 bottom-0 h-10 rounded-full bg-primary/20 blur-3xl" />
+
+        <div className="relative rounded-[2rem] border border-border/60 bg-card/90 px-6 py-5 shadow-2xl backdrop-blur-xl sm:px-10 sm:py-6">
+          <span
+            className="block bg-gradient-to-b from-chart-4 via-chart-5 to-primary bg-clip-text text-center font-black leading-[0.84] tracking-[-0.08em] text-transparent"
+            style={{
+              fontSize: "clamp(4rem, 14vw, 9rem)",
+              WebkitTextStroke: "1.5px color-mix(in oklab, var(--primary) 22%, white)",
+              textShadow: "0 6px 0 rgba(255, 250, 240, 0.75)",
+            }}
+          >
+            AlphaLingo
+          </span>
+        </div>
+
+        <div className="absolute -left-4 top-4 rounded-full border border-primary/15 bg-secondary/95 px-3 py-1 text-xs font-bold text-primary shadow-lg backdrop-blur-sm sm:-left-8 sm:px-4 sm:text-sm -rotate-12">
+          slay
+        </div>
+        <div className="absolute -right-3 bottom-5 rounded-full border border-chart-5/20 bg-accent/90 px-3 py-1 text-xs font-bold text-foreground shadow-lg backdrop-blur-sm sm:-right-8 sm:px-4 sm:text-sm rotate-12">
+          no cap
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RotatingWord() {
   const [index, setIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -67,6 +97,8 @@ function MonoFunLanding() {
               <div className="w-2 h-2 bg-primary rounded-full animate-ping"></div>
             </div>
           </div>
+
+          <AlphaLingoWordmark />
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-8 leading-tight tracking-tight animate-fade-in-up">
             What does <RotatingWord /> even mean?
