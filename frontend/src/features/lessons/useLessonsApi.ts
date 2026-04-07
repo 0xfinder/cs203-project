@@ -170,15 +170,18 @@ export function useSubmitLessonAttempt() {
     mutationFn: ({
       lessonId,
       answers,
+      startedAt,
     }: {
       lessonId: number;
       answers: Array<{ stepId: number; answer: LessonAnswer }>;
+      startedAt?: string;
     }) =>
       api
         .post("lesson-attempts", {
           json: {
             lessonId,
             answers,
+            startedAt,
           },
         })
         .json<AttemptResult>(),

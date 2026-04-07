@@ -55,6 +55,7 @@ public class LessonAttemptService {
   private final UserStepEventRepository userStepEventRepository;
   private final UserVocabMemoryRepository userVocabMemoryRepository;
   private final VocabItemRepository vocabItemRepository;
+  private final com.group7.app.user.UserRepository userRepository;
 
   public LessonAttemptService(
       LessonRepository lessonRepository,
@@ -65,7 +66,8 @@ public class LessonAttemptService {
       UserLessonProgressRepository userLessonProgressRepository,
       UserStepEventRepository userStepEventRepository,
       UserVocabMemoryRepository userVocabMemoryRepository,
-      VocabItemRepository vocabItemRepository) {
+      VocabItemRepository vocabItemRepository,
+      com.group7.app.user.UserRepository userRepository) {
     this.lessonRepository = lessonRepository;
     this.lessonStepRepository = lessonStepRepository;
     this.lessonStepPayloadService = lessonStepPayloadService;
@@ -75,11 +77,14 @@ public class LessonAttemptService {
     this.userStepEventRepository = userStepEventRepository;
     this.userVocabMemoryRepository = userVocabMemoryRepository;
     this.vocabItemRepository = vocabItemRepository;
+    this.userRepository = userRepository;
   }
 
   public AttemptSubmissionResult submitAttempt(
-      User actor, Long lessonId, List<AnswerInput> answers) {
+      User actor, Long lessonId, List<AnswerInput> answers, Instant startedAt) {
     Lesson lesson = requireApprovedLesson(lessonId);
+    Instant submittedAt = Instant.now();
+    Instant safeStartedAt = startedAt != null ? startedAt : submittedAt.minusSeconds(60);
 
     List<LessonStep> questionSteps =
         lessonStepRepository.findByLessonIdAndStepTypeOrderByOrderIndexAsc(
@@ -91,6 +96,18 @@ public class LessonAttemptService {
       answersByStep.put(answer.stepId(), answer);
     }
 
+    // Refresh user from DB to have latest streak data
+    User user = userRepository.findById(actor.getId()).orElse(actor);
+
+    UserLessonProgress progress =
+        userLessonProgressRepository
+            .findByUserIdAndLessonId(actor.getId(), lessonId)
+            .orElse(null);
+    boolean isFirstAttempt = progress == null || progress.getAttemptCount() == 0;
+
+    int currentStreak = user.getCurrentCorrectStreak();
+    int maxStreak = user.getMaxCorrectStreak();
+
     int correctCount = 0;
     List<ResultItem> resultItems = new ArrayList<>();
     for (LessonStep step : questionSteps) {
@@ -98,6 +115,16 @@ public class LessonAttemptService {
       LessonStepPayloadService.Evaluation evaluation = evaluateAnswer(step, input);
       if (evaluation.correct()) {
         correctCount++;
+        if (isFirstAttempt) {
+          currentStreak++;
+          if (currentStreak > maxStreak) {
+            maxStreak = currentStreak;
+          }
+        }
+      } else {
+        if (isFirstAttempt) {
+          currentStreak = 0;
+        }
       }
       resultItems.add(
           new ResultItem(
@@ -107,13 +134,55 @@ public class LessonAttemptService {
               evaluation.explanation()));
     }
 
+    if (isFirstAttempt) {
+      user.setCurrentCorrectStreak(currentStreak);
+      user.setMaxCorrectStreak(maxStreak);
+    }
+
     int totalQuestions = questionSteps.size();
     int score = totalQuestions == 0 ? 0 : (int) Math.round((correctCount * 100.0) / totalQuestions);
     boolean passed = score >= 60;
 
     LessonAttempt attempt =
         lessonAttemptRepository.save(
-            new LessonAttempt(actor.getId(), lesson, score, totalQuestions, correctCount, passed));
+            new LessonAttempt(
+                actor.getId(),
+                lesson,
+                score,
+                totalQuestions,
+                correctCount,
+                passed,
+                safeStartedAt,
+                submittedAt));
+
+    if (passed) {
+      long durationSeconds = java.time.Duration.between(safeStartedAt, submittedAt).toSeconds();
+      long safeDuration = Math.max(0, durationSeconds);
+      
+      // If first time passing, increment completedLessonsCount
+      if (progress == null || progress.getCompletedAt() == null) {
+        user.setCompletedLessonsCount(user.getCompletedLessonsCount() + 1);
+      }
+
+      // Track personal best time per lesson for "Fastest Trial"
+      if (progress == null) {
+        // This shouldn't happen usually as upsertProgress is called later, 
+        // but we handle it by updating the user total time here based on first pass
+        user.setTotalTimeSeconds(user.getTotalTimeSeconds() + safeDuration);
+      } else {
+        Long oldBest = progress.getBestTimeSeconds();
+        if (oldBest == null) {
+          user.setTotalTimeSeconds(user.getTotalTimeSeconds() + safeDuration);
+          progress.setBestTimeSeconds(safeDuration);
+        } else if (safeDuration < oldBest) {
+          // New Personal Best! Update total time by subtracting the improvement
+          long improvement = oldBest - safeDuration;
+          user.setTotalTimeSeconds(user.getTotalTimeSeconds() - improvement);
+          progress.setBestTimeSeconds(safeDuration);
+        }
+      }
+    }
+    userRepository.save(user);
 
     List<LessonAttemptResult> attemptResults = new ArrayList<>();
     for (ResultItem resultItem : resultItems) {
@@ -124,7 +193,10 @@ public class LessonAttemptService {
               .findFirst()
               .orElseThrow();
 
-      JsonNode submittedAnswer = input == null ? null : input.answer();
+      JsonNode submittedAnswer = (input == null || input.answer() == null) 
+          ? JSON.nullNode() 
+          : input.answer();
+      
       LessonStepPayloadService.Evaluation evaluation = evaluateAnswer(step, input);
       attemptResults.add(
           new LessonAttemptResult(

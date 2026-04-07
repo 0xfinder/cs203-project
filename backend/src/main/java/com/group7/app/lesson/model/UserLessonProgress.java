@@ -45,6 +45,9 @@ public class UserLessonProgress {
   @Column(name = "last_attempt_at")
   private Instant lastAttemptAt;
 
+  @Column(name = "best_time_seconds")
+  private Long bestTimeSeconds;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
 
@@ -108,6 +111,14 @@ public class UserLessonProgress {
 
   public void setLastAttemptAt(Instant lastAttemptAt) {
     this.lastAttemptAt = lastAttemptAt;
+  }
+
+  public Long getBestTimeSeconds() {
+    return bestTimeSeconds;
+  }
+
+  public void setBestTimeSeconds(Long bestTimeSeconds) {
+    this.bestTimeSeconds = bestTimeSeconds;
   }
 
   public Instant getCreatedAt() {

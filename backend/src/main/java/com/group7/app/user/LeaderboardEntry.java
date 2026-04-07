@@ -8,4 +8,6 @@ public record LeaderboardEntry(
     String avatarColor,
     String avatarPath,
     Long totalScore,
-    Long lessonsCompleted) {}
+    Integer lessonsCompleted,
+    Integer maxCorrectStreak,
+    Double avgTimeSeconds) {}

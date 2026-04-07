@@ -2,9 +2,11 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { getLeaderboard } from "@/lib/api";
 import { requireOnboardingCompleted } from "@/lib/auth";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Trophy, Medal, Star } from "lucide-react";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Trophy, Star, Flame, Zap, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState } from "react";
 
 export const Route = createFileRoute("/leaderboard")({
   beforeLoad: async () => {
@@ -13,14 +15,24 @@ export const Route = createFileRoute("/leaderboard")({
   component: LeaderboardPage,
 });
 
+function formatDuration(seconds: number | undefined) {
+  if (seconds === undefined || seconds === null) return "N/A";
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.round(seconds % 60);
+  return `${mins}m ${secs}s`;
+}
+
 function LeaderboardPage() {
+  const [sortBy, setSortBy] = useState("points");
+
   const {
     data: leaderboard,
     isLoading,
     error,
   } = useQuery({
-    queryKey: ["leaderboard"],
-    queryFn: () => getLeaderboard(50),
+    queryKey: ["leaderboard", sortBy],
+    queryFn: () => getLeaderboard(50, sortBy),
   });
 
   if (isLoading) {
@@ -35,23 +47,75 @@ function LeaderboardPage() {
     );
   }
 
+  const getMetricLabel = () => {
+    switch (sortBy) {
+      case "streak":
+        return "Max Streak";
+      case "speed":
+        return "Avg Speed";
+      default:
+        return "Total XP";
+    }
+  };
+
+  const getMetricIcon = () => {
+    switch (sortBy) {
+      case "streak":
+        return <Flame className="size-3.5 text-orange-500 fill-orange-500" />;
+      case "speed":
+        return <Clock className="size-3.5 text-blue-500" />;
+      default:
+        return <Star className="size-3.5 text-yellow-500 fill-yellow-500" />;
+    }
+  };
+
+  const getMetricValue = (entry: any) => {
+    switch (sortBy) {
+      case "streak":
+        return `${entry.maxCorrectStreak || 0} 🔥`;
+      case "speed":
+        return formatDuration(entry.avgTimeSeconds);
+      default:
+        return entry.totalScore?.toLocaleString() || 0;
+    }
+  };
+
   return (
     <div className="flex-1 p-8">
       <div className="max-w-2xl mx-auto">
-        <div className="text-center mb-10">
+        <div className="text-center mb-6">
           <Trophy className="size-12 text-yellow-500 mx-auto mb-4" />
           <h1 className="text-3xl font-bold mb-2">Global Leaderboard</h1>
           <p className="text-muted-foreground">
-            Top learners in the community based on lesson performance
+            Top learners in the community
           </p>
+        </div>
+
+        <div className="flex justify-center mb-8">
+          <Tabs value={sortBy} onValueChange={setSortBy} className="w-full max-w-md">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="points">
+                <Star className="size-4 mr-2" />
+                Points
+              </TabsTrigger>
+              <TabsTrigger value="streak">
+                <Flame className="size-4 mr-2" />
+                Streak
+              </TabsTrigger>
+              <TabsTrigger value="speed">
+                <Zap className="size-4 mr-2" />
+                Speed
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         <Card>
           <CardHeader className="border-b bg-muted/30">
-            <div className="grid grid-cols-[3rem_1fr_6rem] items-center text-sm font-semibold text-muted-foreground">
+            <div className="grid grid-cols-[3rem_1fr_8rem] items-center text-sm font-semibold text-muted-foreground">
               <span>Rank</span>
               <span>User</span>
-              <span className="text-right">Total XP</span>
+              <span className="text-right">{getMetricLabel()}</span>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -80,7 +144,7 @@ function LeaderboardPage() {
                     <div
                       key={entry.userId}
                       className={cn(
-                        "grid grid-cols-[3rem_1fr_6rem] items-center p-4 transition-colors",
+                        "grid grid-cols-[3rem_1fr_8rem] items-center p-4 transition-colors",
                         isTopThree ? "bg-primary/5" : "hover:bg-muted/30"
                       )}
                     >
@@ -97,9 +161,9 @@ function LeaderboardPage() {
                         </span>
                       </div>
                       <div className="text-right flex items-center justify-end gap-1.5">
-                        <Star className="size-3.5 text-yellow-500 fill-yellow-500" />
+                        {getMetricIcon()}
                         <span className="font-bold text-primary">
-                          {entry.totalScore?.toLocaleString() || 0}
+                          {getMetricValue(entry)}
                         </span>
                       </div>
                     </div>
@@ -111,7 +175,7 @@ function LeaderboardPage() {
         </Card>
 
         <div className="mt-8 text-center text-xs text-muted-foreground">
-          <p>Rankings are updated in real-time based on your best score per lesson.</p>
+          <p>Rankings are updated in real-time based on your activity.</p>
         </div>
       </div>
     </div>

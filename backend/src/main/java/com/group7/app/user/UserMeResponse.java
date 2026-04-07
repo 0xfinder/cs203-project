@@ -12,7 +12,11 @@ public record UserMeResponse(
     String avatarColor,
     String avatarPath,
     Role role,
-    boolean onboardingCompleted) {
+    boolean onboardingCompleted,
+    Integer currentCorrectStreak,
+    Integer maxCorrectStreak,
+    Long totalTimeSeconds,
+    Integer completedLessonsCount) {
 
   public static UserMeResponse fromUser(User user, boolean onboardingCompleted) {
     return new UserMeResponse(
@@ -25,6 +29,10 @@ public record UserMeResponse(
         user.getAvatarColor(),
         user.getAvatarPath(),
         user.getRole(),
-        onboardingCompleted);
+        onboardingCompleted,
+        user.getCurrentCorrectStreak(),
+        user.getMaxCorrectStreak(),
+        user.getTotalTimeSeconds(),
+        user.getCompletedLessonsCount());
   }
 }

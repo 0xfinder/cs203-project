@@ -22,6 +22,6 @@ spring:
           jws-algorithms: ${SUPABASE_JWS_ALGORITHMS:ES256}
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: true
     open-in-view: false

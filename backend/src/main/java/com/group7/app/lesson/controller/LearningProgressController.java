@@ -57,7 +57,8 @@ public class LearningProgressController {
                 .map(
                     answer ->
                         new LessonAttemptService.AnswerInput(answer.stepId(), answer.answer()))
-                .toList());
+                .toList(),
+            request.startedAt());
     return ResponseEntity.ok(result);
   }
 
@@ -136,7 +137,9 @@ public class LearningProgressController {
   }
 
   public record SubmitAttemptRequest(
-      @NotNull Long lessonId, @NotNull List<AttemptAnswerRequest> answers) {}
+      @NotNull Long lessonId,
+      @NotNull List<AttemptAnswerRequest> answers,
+      java.time.Instant startedAt) {}
 
   public record AttemptAnswerRequest(@NotNull Long stepId, JsonNode answer) {}
 

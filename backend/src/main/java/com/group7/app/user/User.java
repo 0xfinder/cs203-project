@@ -51,6 +51,18 @@ public class User {
   @Column(name = "updated_at")
   private Instant updatedAt;
 
+  @Column(name = "current_correct_streak")
+  private Integer currentCorrectStreak = 0;
+
+  @Column(name = "max_correct_streak")
+  private Integer maxCorrectStreak = 0;
+
+  @Column(name = "total_time_seconds")
+  private Long totalTimeSeconds = 0L;
+
+  @Column(name = "completed_lessons_count")
+  private Integer completedLessonsCount = 0;
+
   protected User() {}
 
   public User(UUID id, String email) {
@@ -132,6 +144,38 @@ public class User {
 
   public Instant getUpdatedAt() {
     return updatedAt;
+  }
+
+  public Integer getCurrentCorrectStreak() {
+    return currentCorrectStreak != null ? currentCorrectStreak : 0;
+  }
+
+  public void setCurrentCorrectStreak(Integer currentCorrectStreak) {
+    this.currentCorrectStreak = currentCorrectStreak;
+  }
+
+  public Integer getMaxCorrectStreak() {
+    return maxCorrectStreak != null ? maxCorrectStreak : 0;
+  }
+
+  public void setMaxCorrectStreak(Integer maxCorrectStreak) {
+    this.maxCorrectStreak = maxCorrectStreak;
+  }
+
+  public Long getTotalTimeSeconds() {
+    return totalTimeSeconds != null ? totalTimeSeconds : 0L;
+  }
+
+  public void setTotalTimeSeconds(Long totalTimeSeconds) {
+    this.totalTimeSeconds = totalTimeSeconds;
+  }
+
+  public Integer getCompletedLessonsCount() {
+    return completedLessonsCount != null ? completedLessonsCount : 0;
+  }
+
+  public void setCompletedLessonsCount(Integer completedLessonsCount) {
+    this.completedLessonsCount = completedLessonsCount;
   }
 
   @PrePersist

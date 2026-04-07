@@ -54,13 +54,17 @@ public class LessonAttempt {
       Integer score,
       Integer totalQuestions,
       Integer correctCount,
-      boolean passed) {
+      boolean passed,
+      Instant startedAt,
+      Instant submittedAt) {
     this.userId = userId;
     this.lesson = lesson;
     this.score = score;
     this.totalQuestions = totalQuestions;
     this.correctCount = correctCount;
     this.passed = passed;
+    this.startedAt = startedAt;
+    this.submittedAt = submittedAt;
   }
 
   public Long getId() {
@@ -97,12 +101,5 @@ public class LessonAttempt {
 
   public Instant getSubmittedAt() {
     return submittedAt;
-  }
-
-  @PrePersist
-  protected void onCreate() {
-    Instant now = Instant.now();
-    startedAt = now;
-    submittedAt = now;
   }
 }

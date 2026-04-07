@@ -23,8 +23,10 @@ export interface LeaderboardEntry {
   avatarPath?: string;
   totalScore: number;
   lessonsCompleted: number;
+  maxCorrectStreak?: number;
+  avgTimeSeconds?: number;
 }
 
-export const getLeaderboard = async (limit = 10) => {
-  return await api.get(`leaderboard?limit=${limit}`).json<LeaderboardEntry[]>();
+export const getLeaderboard = async (limit = 10, sortBy = "points") => {
+  return await api.get(`leaderboard?limit=${limit}&sortBy=${sortBy}`).json<LeaderboardEntry[]>();
 };

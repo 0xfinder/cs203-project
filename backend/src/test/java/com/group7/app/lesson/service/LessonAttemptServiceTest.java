@@ -30,6 +30,7 @@ import com.group7.app.lesson.repository.UserVocabMemoryRepository;
 import com.group7.app.lesson.repository.VocabItemRepository;
 import com.group7.app.user.Role;
 import com.group7.app.user.User;
+import com.group7.app.user.UserRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -64,6 +65,8 @@ class LessonAttemptServiceTest {
 
   @Mock private VocabItemRepository vocabItemRepository;
 
+  @Mock private UserRepository userRepository;
+
   private LessonAttemptService lessonAttemptService;
 
   private LessonStepPayloadService payloadService;
@@ -81,7 +84,8 @@ class LessonAttemptServiceTest {
             userLessonProgressRepository,
             userStepEventRepository,
             userVocabMemoryRepository,
-            vocabItemRepository);
+            vocabItemRepository,
+            userRepository);
   }
 
   @Test
@@ -93,6 +97,7 @@ class LessonAttemptServiceTest {
     LessonStep teachStep = teachStep(lesson, vocabItem, 100L, 1);
     LessonStep questionStep = mcqQuestionStep(lesson, 101L, 2);
 
+    when(userRepository.findById(learner.getId())).thenReturn(Optional.of(learner));
     when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
     when(lessonStepRepository.findByLessonIdAndStepTypeOrderByOrderIndexAsc(55L, StepType.QUESTION))
         .thenReturn(List.of(questionStep));
@@ -103,6 +108,8 @@ class LessonAttemptServiceTest {
             invocation -> {
               LessonAttempt attempt = invocation.getArgument(0);
               ReflectionTestUtils.setField(attempt, "id", 77L);
+              ReflectionTestUtils.setField(attempt, "startedAt", Instant.now());
+              ReflectionTestUtils.setField(attempt, "submittedAt", Instant.now());
               return attempt;
             });
     when(userLessonProgressRepository.findByUserIdAndLessonId(learner.getId(), 55L))
@@ -119,7 +126,8 @@ class LessonAttemptServiceTest {
             55L,
             List.of(
                 new LessonAttemptService.AnswerInput(
-                    101L, JsonNodeFactory.instance.textNode("Charisma"))));
+                    101L, JsonNodeFactory.instance.textNode("Charisma"))),
+            Instant.now().minusSeconds(30));
 
     assertThat(result.attemptId()).isEqualTo(77L);
     assertThat(result.score()).isEqualTo(100);
@@ -186,7 +194,7 @@ class LessonAttemptServiceTest {
   void getAttemptRendersStoredAnswerFormats() {
     User learner = learner();
     Lesson lesson = approvedLesson();
-    LessonAttempt attempt = new LessonAttempt(learner.getId(), lesson, 100, 3, 3, true);
+    LessonAttempt attempt = new LessonAttempt(learner.getId(), lesson, 100, 3, 3, true, Instant.now(), Instant.now());
     ReflectionTestUtils.setField(attempt, "id", 88L);
 
     LessonAttemptResult mcq =
@@ -252,7 +260,7 @@ class LessonAttemptServiceTest {
     Lesson lesson = approvedLesson();
     LessonStep weakStep = mcqQuestionStep(lesson, 101L, 1);
     LessonStep fallbackStep = mcqQuestionStep(lesson, 102L, 2);
-    LessonAttempt lessonAttempt = new LessonAttempt(learner.getId(), lesson, 0, 1, 0, false);
+    LessonAttempt lessonAttempt = new LessonAttempt(learner.getId(), lesson, 0, 1, 0, false, Instant.now(), Instant.now());
     ReflectionTestUtils.setField(lessonAttempt, "id", 99L);
 
     LessonAttemptResult wrongResult =

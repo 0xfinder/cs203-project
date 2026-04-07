@@ -43,6 +43,7 @@ function LessonPage() {
   const [tempAnswer, setTempAnswer] = useState<LessonAnswer>("");
   const [result, setResult] = useState<AttemptResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const startedAtRef = useRef<string>(new Date().toISOString());
   const progressThrottleMs = 1200;
   const lastProgressSentAtRef = useRef(0);
   const pendingProgressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -306,6 +307,7 @@ function LessonPage() {
       const submission = await submitAttempt.mutateAsync({
         lessonId: numericLessonId,
         answers: payloadAnswers,
+        startedAt: startedAtRef.current,
       });
       setResult(submission);
     } catch (error) {

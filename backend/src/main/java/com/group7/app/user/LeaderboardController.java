@@ -22,8 +22,14 @@ public class LeaderboardController {
 
   @GetMapping
   @Operation(summary = "Get global leaderboard")
-  public List<LeaderboardEntry> getLeaderboard(@RequestParam(defaultValue = "10") int limit) {
+  public List<LeaderboardEntry> getLeaderboard(
+      @RequestParam(defaultValue = "10") int limit,
+      @RequestParam(defaultValue = "points") String sortBy) {
     int safeLimit = Math.max(1, Math.min(limit, 100));
-    return leaderboardRepository.getTopPlayers(PageRequest.of(0, safeLimit));
+    String safeSortBy =
+        List.of("points", "streak", "speed").contains(sortBy.toLowerCase())
+            ? sortBy.toLowerCase()
+            : "points";
+    return leaderboardRepository.getTopPlayers(safeSortBy, PageRequest.of(0, safeLimit));
   }
 }
