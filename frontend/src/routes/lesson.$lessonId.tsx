@@ -4,13 +4,12 @@ import { HTTPError } from "ky";
 import { ArrowLeft, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Dialog, { DialogTrigger, DialogContent, DialogClose } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { UnitRoadmap } from "@/features/lessons/components/unit-roadmap";
-import { findUnitByLessonId, getUnitRoadmap, progressMap } from "@/features/lessons/lesson-roadmap";
-import { requireOnboardingCompleted, requireContributorOrOnboarded } from "@/lib/auth";
+import { getUnitRoadmap, progressMap } from "@/features/lessons/lesson-roadmap";
+import { requireContributorOrOnboarded } from "@/lib/auth";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import { api } from "@/lib/api";
@@ -48,7 +47,7 @@ function LessonPage() {
   // valid if: positive integer (server lesson), temp- route, or negative integer (client-side lesson in temp unit)
   const hasValidLessonId = Number.isInteger(numericLessonId) || isTempLesson;
 
-  const { data, isLoading, error } = useLessonPlay(numericLessonId);
+  const { data, isLoading } = useLessonPlay(numericLessonId);
   const { data: editData } = useLessonForEdit(numericLessonId);
   const { data: units, refetch: refetchUnits } = useUnits();
   const { data: progressItems } = useLessonProgress();
@@ -97,27 +96,27 @@ function LessonPage() {
       setTempRefresh((v) => v + 1);
     };
     window.addEventListener("appended-lessons-changed", handleAppendedLessonsChanged);
-    
+
     // Also listen for steps being added (from approval)
     const handleStepsAdded = () => {
       // Refresh tempData to re-read steps from localStorage
       setTempRefresh((v) => v + 1);
     };
     window.addEventListener("tempUnit-steps-added", handleStepsAdded);
-    
+
     // Also listen for steps being deleted
     const handleStepDeleted = () => {
       // Refresh tempData to re-read steps from localStorage
       setTempRefresh((v) => v + 1);
     };
     window.addEventListener("tempUnit-step-deleted", handleStepDeleted);
-    
+
     // Listen for lesson approval so we use fresh API data with shuffledRights
     const handleLessonApproved = () => {
       setTempRefresh((v) => v + 1);
     };
     window.addEventListener("lesson-approved", handleLessonApproved);
-    
+
     return () => {
       window.removeEventListener("appended-lessons-changed", handleAppendedLessonsChanged);
       window.removeEventListener("tempUnit-steps-added", handleStepsAdded);
@@ -167,13 +166,12 @@ function LessonPage() {
             const lessonsArray = Array.isArray(parsed.lessons) ? parsed.lessons : [];
             const foundLesson = lessonsArray.find((l: any) => l?.id === numericLessonId);
             if (foundLesson) {
-
               // Steps can be stored either:
               // 1. On the lesson object itself (foundLesson.steps)
               // 2. In the unit's steps array with step.id matching the lesson ID
               // 3. In the unit's steps array with step.targetSubunitId matching the lesson ID (after approval)
               let stepsArray = Array.isArray(foundLesson.steps) ? foundLesson.steps : [];
-              
+
               // If no steps on lesson, look in unit's steps array by matching lesson ID or targetSubunitId
               if (stepsArray.length === 0) {
                 const unitSteps = Array.isArray(parsed.steps) ? parsed.steps : [];
@@ -184,7 +182,7 @@ function LessonPage() {
                   return matches;
                 });
               }
-              
+
               return {
                 lesson: foundLesson,
                 steps: stepsArray,
@@ -210,8 +208,8 @@ function LessonPage() {
     // Otherwise prefer tempData for lessons still in appended units
     return tempData ?? data;
   })();
-  const effectiveSteps = effectiveData?.steps ?? [];
-  
+  const effectiveSteps: LessonStepPayload[] = effectiveData?.steps ?? [];
+
   // Auto-navigate to first subunit when opening appended unit
   useEffect(() => {
     if (isTempLesson && tempData?.unit) {
@@ -226,27 +224,28 @@ function LessonPage() {
       }
     }
   }, [isTempLesson, tempData?.unit?.lessons?.length, navigate]);
-  
+
   // Filter out placeholder steps (marked with __placeholder flag when creating new subunits)
-  const steps = effectiveSteps.filter((step: any) => !step.__placeholder);
-  
+  const steps = effectiveSteps.filter(
+    (step) => !(step as LessonStepPayload & { __placeholder?: boolean }).__placeholder,
+  );
+
   const currentStep = steps[currentIndex];
   const questionSteps = useMemo(
     () => steps.filter((step) => step.stepType === "QUESTION"),
     [steps],
   );
   const progressByLessonId = useMemo(() => progressMap(progressItems), [progressItems]);
-  const currentUnit = useMemo(
-    () => {
-      // If we have tempData (either from temp-<key> route or negative ID within temp unit), use it
-      if (tempData?.unit) return tempData.unit;
-      // Otherwise for positive server IDs, find the unit from the server list
-      // We search through units directly (not getVisibleUnits) to show all lessons including DRAFT
-      if (!units) return null;
-      return units.find((unit) => unit.lessons?.some((lesson) => lesson.id === numericLessonId)) ?? null;
-    },
-    [units, numericLessonId, tempData],
-  );
+  const currentUnit = useMemo(() => {
+    // If we have tempData (either from temp-<key> route or negative ID within temp unit), use it
+    if (tempData?.unit) return tempData.unit;
+    // Otherwise for positive server IDs, find the unit from the server list
+    // We search through units directly (not getVisibleUnits) to show all lessons including DRAFT
+    if (!units) return null;
+    return (
+      units.find((unit) => unit.lessons?.some((lesson) => lesson.id === numericLessonId)) ?? null
+    );
+  }, [units, numericLessonId, tempData]);
   const displayUnit = useMemo(() => {
     if (!currentUnit) return null;
     // Filter for temp units: only show placeholder subunits and approved lessons in sidebar
@@ -273,12 +272,15 @@ function LessonPage() {
         if (l.targetSubunitId) return false;
         if (l.status === "APPROVED") return true;
         // Hide anything else (DRAFT, PENDING_REVIEW, REJECTED)
-        if (l.status === "DRAFT" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") return false;
+        if (l.status === "DRAFT" || l.status === "PENDING_REVIEW" || l.status === "REJECTED")
+          return false;
         return true;
       });
-      return filtered.length > 0 ? ({ ...currentUnit, lessons: filtered } as typeof currentUnit) : ({ ...currentUnit, lessons: [] } as typeof currentUnit);
+      return filtered.length > 0
+        ? ({ ...currentUnit, lessons: filtered } as typeof currentUnit)
+        : ({ ...currentUnit, lessons: [] } as typeof currentUnit);
     }
-    
+
     // Also filter server units: hide DRAFT/PENDING_REVIEW/REJECTED lessons from sidebar
     const lessons = Array.isArray(currentUnit?.lessons) ? currentUnit.lessons : [];
     const isPlaceholder = (lesson: any) => {
@@ -300,21 +302,24 @@ function LessonPage() {
       // Hide lessons that are wrappers for adding to specific subunits (targetSubunitId set)
       if (l.targetSubunitId) return false;
       // Show approved/published lessons, hide DRAFT/PENDING_REVIEW/REJECTED
-      if (l.status === "DRAFT" || l.status === "PENDING_REVIEW" || l.status === "REJECTED") return false;
+      if (l.status === "DRAFT" || l.status === "PENDING_REVIEW" || l.status === "REJECTED")
+        return false;
       // Show everything else (published, approved, etc.)
       return true;
     });
-    
-    return filtered.length > 0 ? ({ ...currentUnit, lessons: filtered } as typeof currentUnit) : ({ ...currentUnit, lessons: [] } as typeof currentUnit);
+
+    return filtered.length > 0
+      ? ({ ...currentUnit, lessons: filtered } as typeof currentUnit)
+      : ({ ...currentUnit, lessons: [] } as typeof currentUnit);
   }, [currentUnit, tempData]);
-  
+
   // Debug: log displayUnit vs currentUnit
   useEffect(() => {
     if (currentUnit?.id && currentUnit.id < 0) {
       // appended unit loaded
     }
   }, [displayUnit, currentUnit]);
-  
+
   const unitRoadmap = useMemo(
     () => (displayUnit ? getUnitRoadmap(displayUnit, progressByLessonId, numericLessonId) : null),
     [displayUnit, progressByLessonId, numericLessonId],
@@ -346,10 +351,8 @@ function LessonPage() {
   // current user view (to check role for appeal permissions)
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
   const currentProfile = currentUserViewQuery.data?.profile ?? null;
-  const isContributor =
-    currentProfile?.role === "CONTRIBUTOR";
-  const isAdmin =
-    currentProfile?.role === "ADMIN" || currentProfile?.role === "MODERATOR";
+  const isContributor = currentProfile?.role === "CONTRIBUTOR";
+  const isAdmin = currentProfile?.role === "ADMIN" || currentProfile?.role === "MODERATOR";
 
   const [appealOpen, setAppealOpen] = useState(false);
   const [appealText, setAppealText] = useState("");
@@ -385,7 +388,9 @@ function LessonPage() {
         const parsed = JSON.parse(raw);
         parsed.lessons = (parsed.lessons || []).filter((l: any) => l.id !== lessonIdToDelete);
         // Delete steps that belong to this lesson (either by id or targetSubunitId)
-        parsed.steps = (parsed.steps || []).filter((s: any) => s.id !== lessonIdToDelete && s.targetSubunitId !== lessonIdToDelete);
+        parsed.steps = (parsed.steps || []).filter(
+          (s: any) => s.id !== lessonIdToDelete && s.targetSubunitId !== lessonIdToDelete,
+        );
         localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
         setTempRefresh((v) => v + 1);
         if (lessonIdToDelete === numericLessonId) {
@@ -405,7 +410,9 @@ function LessonPage() {
           const before = (parsed.lessons || []).length;
           parsed.lessons = (parsed.lessons || []).filter((l: any) => l.id !== lessonIdToDelete);
           // Delete steps that belong to this lesson (either by id or targetSubunitId)
-          parsed.steps = (parsed.steps || []).filter((s: any) => s.id !== lessonIdToDelete && s.targetSubunitId !== lessonIdToDelete);
+          parsed.steps = (parsed.steps || []).filter(
+            (s: any) => s.id !== lessonIdToDelete && s.targetSubunitId !== lessonIdToDelete,
+          );
           const after = (parsed.lessons || []).length;
           if (after !== before) {
             localStorage.setItem(key, JSON.stringify(parsed));
@@ -448,7 +455,7 @@ function LessonPage() {
       const payload = {
         term: title.slice(0, 100),
         definition: appealText.trim().slice(0, 500),
-        example: null,
+        submittedBy: currentProfile.email,
       };
       await submitContent.mutateAsync(payload);
       setAppealOpen(false);
@@ -540,7 +547,7 @@ function LessonPage() {
     );
   }
 
-    // For temp units we will render Add Content inside the normal page layout below
+  // For temp units we will render Add Content inside the normal page layout below
 
   if (!currentStep) {
     // For temp units show Add Content UI in the main pane while preserving the sidebar/header
@@ -571,7 +578,10 @@ function LessonPage() {
             </div>
             <div className="mx-auto max-w-6xl px-4 pb-3">
               <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                <div className="h-full rounded-full bg-gradient-to-r from-chart-1 to-chart-5" style={{ width: `0%` }} />
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-chart-1 to-chart-5"
+                  style={{ width: `0%` }}
+                />
               </div>
             </div>
           </div>
@@ -590,14 +600,21 @@ function LessonPage() {
                       allowAllUnlocked={isContributor || isAdmin}
                       onDeleteLesson={deleteTempLesson}
                       headerAction={
-                        (isContributor || isAdmin) ? (
+                        isContributor || isAdmin ? (
                           <div className="flex gap-2">
                             <Dialog>
                               <DialogTrigger asChild>
                                 <Button variant="default">Add Content</Button>
                               </DialogTrigger>
-                              <DialogContent title="Add Content" description="Create a lesson for this section" className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                                <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
+                              <DialogContent
+                                title="Add Content"
+                                description="Create a lesson for this section"
+                                className="max-w-2xl max-h-[90vh] overflow-y-auto"
+                              >
+                                <LessonForm
+                                  defaultUnitId={currentUnit?.id ?? undefined}
+                                  setTempRefresh={setTempRefresh}
+                                />
                               </DialogContent>
                             </Dialog>
                             {isAdmin && (
@@ -605,121 +622,170 @@ function LessonPage() {
                                 <DialogTrigger asChild>
                                   <Button variant="default">Add Subunit</Button>
                                 </DialogTrigger>
-                              <DialogContent title="Add Subunit" description="Create a lesson under this section">
-                              <div className="space-y-3">
-                                <div>
-                                  <Label htmlFor="add-lesson-title">Subunit title</Label>
-                                  <Input id="add-lesson-title" value={addTitle} onChange={(e) => setAddTitle(e.target.value)} />
-                                </div>
-                                <div>
-                                  <Label htmlFor="add-lesson-desc">Description</Label>
-                                  <Input id="add-lesson-desc" value={addDesc} onChange={(e) => setAddDesc(e.target.value)} />
-                                </div>
-                                <div className="flex justify-end gap-2">
-                                  <DialogClose asChild>
-                                    <Button variant="outline">Cancel</Button>
-                                  </DialogClose>
-                                  <DialogClose asChild>
-                                    <Button
-                                      onClick={async () => {
-                                        try {
-                                          if (isTempLesson) {
-                                            const key = String(lessonId).slice(5);
-                                            const raw = localStorage.getItem(`tempUnit:${key}`);
-                                            const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
-                                            const nextIndex = (parsed.lessons?.length ?? 0) + 1;
-                                            const newLesson = {
-                                              id: -(Date.now()),
-                                              unitId: parsed.id,
-                                              title: addTitle || `New Lesson ${nextIndex}`,
-                                              slug: `new-lesson-${nextIndex}`,
-                                              description: addDesc || "Coming soon",
-                                              learningObjective: null,
-                                              estimatedMinutes: null,
-                                              orderIndex: nextIndex,
-                                              status: "DRAFT",
-                                            };
-                                            parsed.lessons = parsed.lessons ?? [];
-                                            parsed.lessons.push(newLesson);
-                                            parsed.steps = parsed.steps ?? [];
-                                            parsed.steps.push({
-                                              id: newLesson.id,
-                                              orderIndex: newLesson.orderIndex,
-                                              stepType: "TEACH",
-                                              vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
-                                              question: null,
-                                              dialogueText: null,
-                                              payload: null,
-                                              __placeholder: true,
-                                            });
-                                            localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
-                                            setTempRefresh((v) => v + 1);
-                                          } else if (currentUnit?.id && currentUnit.id < 0) {
-                                          const nextIndex = (currentUnit.lessons?.length ?? 0) + 1;
-                                          const newLesson = {
-                                            id: -(Date.now()),
-                                            unitId: currentUnit.id,
-                                            title: addTitle || `New Lesson ${nextIndex}`,
-                                            slug: `new-lesson-${nextIndex}`,
-                                            description: addDesc || "Coming soon",
-                                            learningObjective: null,
-                                            estimatedMinutes: null,
-                                            orderIndex: nextIndex,
-                                            status: "DRAFT",
-                                          };
-                                          const tempKey = currentUnit.id;
-                                          const raw = localStorage.getItem(`tempPlaceholderUnit:${tempKey}`);
-                                          const parsed = raw ? JSON.parse(raw) : { ...currentUnit, lessons: [], steps: [] };
-                                          parsed.lessons = (parsed.lessons ?? []).concat(newLesson);
-                                          parsed.steps = (parsed.steps ?? []).concat({
-                                            id: newLesson.id,
-                                            orderIndex: newLesson.orderIndex,
-                                            stepType: "TEACH",
-                                            vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
-                                            question: null,
-                                            dialogueText: null,
-                                            payload: null,
-                                            __placeholder: true,
-                                          });
-                                          localStorage.setItem(`tempPlaceholderUnit:${tempKey}`, JSON.stringify(parsed));
-                                          setTempRefresh((v) => v + 1);
-                                          } else {
-                                          // Submit to lessons API for real units
-                                          const finalTitle = (addTitle || "").trim() || "New Lesson";
-                                          const finalDesc = (addDesc || "").trim() || "Coming soon";
-                                          await api.post("lessons", {
-                                            json: {
-                                              unitId: currentUnit?.id,
-                                              title: finalTitle.slice(0, 100),
-                                              description: finalDesc.slice(0, 500),
-                                              learningObjective: null,
-                                              estimatedMinutes: null,
-                                              targetSubunitId: currentUnit?.id,
-                                            },
-                                          });
-                                          // Refetch units to show new lesson
-                                          await refetchUnits();
-                                          setTempRefresh((v) => v + 1);
-                                          }
-                                          setAddTitle("");
-                                          setAddDesc("");
-                                        } catch (e) {
-                                          alert(`Error adding subunit: ${e instanceof Error ? e.message : String(e)}`);
-                                        }
-                                      }}
-                                    >
-                                      Save
-                                    </Button>
-                                  </DialogClose>
-                                </div>
-                              </div>
-                            </DialogContent>
-                            </Dialog>
+                                <DialogContent
+                                  title="Add Subunit"
+                                  description="Create a lesson under this section"
+                                >
+                                  <div className="space-y-3">
+                                    <div>
+                                      <Label htmlFor="add-lesson-title">Subunit title</Label>
+                                      <Input
+                                        id="add-lesson-title"
+                                        value={addTitle}
+                                        onChange={(e) => setAddTitle(e.target.value)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label htmlFor="add-lesson-desc">Description</Label>
+                                      <Input
+                                        id="add-lesson-desc"
+                                        value={addDesc}
+                                        onChange={(e) => setAddDesc(e.target.value)}
+                                      />
+                                    </div>
+                                    <div className="flex justify-end gap-2">
+                                      <DialogClose asChild>
+                                        <Button variant="outline">Cancel</Button>
+                                      </DialogClose>
+                                      <DialogClose asChild>
+                                        <Button
+                                          onClick={async () => {
+                                            try {
+                                              if (isTempLesson) {
+                                                const key = String(lessonId).slice(5);
+                                                const raw = localStorage.getItem(`tempUnit:${key}`);
+                                                const parsed = raw
+                                                  ? JSON.parse(raw)
+                                                  : {
+                                                      id: -Date.now(),
+                                                      title:
+                                                        effectiveData?.lesson?.title ??
+                                                        "New Section",
+                                                      description:
+                                                        effectiveData?.lesson?.description ?? null,
+                                                      orderIndex: 0,
+                                                      lessons: [],
+                                                      steps: [],
+                                                    };
+                                                const nextIndex = (parsed.lessons?.length ?? 0) + 1;
+                                                const newLesson = {
+                                                  id: -Date.now(),
+                                                  unitId: parsed.id,
+                                                  title: addTitle || `New Lesson ${nextIndex}`,
+                                                  slug: `new-lesson-${nextIndex}`,
+                                                  description: addDesc || "Coming soon",
+                                                  learningObjective: null,
+                                                  estimatedMinutes: null,
+                                                  orderIndex: nextIndex,
+                                                  status: "DRAFT",
+                                                };
+                                                parsed.lessons = parsed.lessons ?? [];
+                                                parsed.lessons.push(newLesson);
+                                                parsed.steps = parsed.steps ?? [];
+                                                parsed.steps.push({
+                                                  id: newLesson.id,
+                                                  orderIndex: newLesson.orderIndex,
+                                                  stepType: "TEACH",
+                                                  vocab: {
+                                                    term: newLesson.title,
+                                                    definition: newLesson.description,
+                                                    exampleSentence: null,
+                                                    partOfSpeech: null,
+                                                  },
+                                                  question: null,
+                                                  dialogueText: null,
+                                                  payload: null,
+                                                  __placeholder: true,
+                                                });
+                                                localStorage.setItem(
+                                                  `tempUnit:${key}`,
+                                                  JSON.stringify(parsed),
+                                                );
+                                                setTempRefresh((v) => v + 1);
+                                              } else if (currentUnit?.id && currentUnit.id < 0) {
+                                                const nextIndex =
+                                                  (currentUnit.lessons?.length ?? 0) + 1;
+                                                const newLesson = {
+                                                  id: -Date.now(),
+                                                  unitId: currentUnit.id,
+                                                  title: addTitle || `New Lesson ${nextIndex}`,
+                                                  slug: `new-lesson-${nextIndex}`,
+                                                  description: addDesc || "Coming soon",
+                                                  learningObjective: null,
+                                                  estimatedMinutes: null,
+                                                  orderIndex: nextIndex,
+                                                  status: "DRAFT",
+                                                };
+                                                const tempKey = currentUnit.id;
+                                                const raw = localStorage.getItem(
+                                                  `tempPlaceholderUnit:${tempKey}`,
+                                                );
+                                                const parsed = raw
+                                                  ? JSON.parse(raw)
+                                                  : { ...currentUnit, lessons: [], steps: [] };
+                                                parsed.lessons = (parsed.lessons ?? []).concat(
+                                                  newLesson,
+                                                );
+                                                parsed.steps = (parsed.steps ?? []).concat({
+                                                  id: newLesson.id,
+                                                  orderIndex: newLesson.orderIndex,
+                                                  stepType: "TEACH",
+                                                  vocab: {
+                                                    term: newLesson.title,
+                                                    definition: newLesson.description,
+                                                    exampleSentence: null,
+                                                    partOfSpeech: null,
+                                                  },
+                                                  question: null,
+                                                  dialogueText: null,
+                                                  payload: null,
+                                                  __placeholder: true,
+                                                });
+                                                localStorage.setItem(
+                                                  `tempPlaceholderUnit:${tempKey}`,
+                                                  JSON.stringify(parsed),
+                                                );
+                                                setTempRefresh((v) => v + 1);
+                                              } else {
+                                                // Submit to lessons API for real units
+                                                const finalTitle =
+                                                  (addTitle || "").trim() || "New Lesson";
+                                                const finalDesc =
+                                                  (addDesc || "").trim() || "Coming soon";
+                                                await api.post("lessons", {
+                                                  json: {
+                                                    unitId: currentUnit?.id,
+                                                    title: finalTitle.slice(0, 100),
+                                                    description: finalDesc.slice(0, 500),
+                                                    learningObjective: null,
+                                                    estimatedMinutes: null,
+                                                    targetSubunitId: currentUnit?.id,
+                                                  },
+                                                });
+                                                // Refetch units to show new lesson
+                                                await refetchUnits();
+                                                setTempRefresh((v) => v + 1);
+                                              }
+                                              setAddTitle("");
+                                              setAddDesc("");
+                                            } catch (e) {
+                                              alert(
+                                                `Error adding subunit: ${e instanceof Error ? e.message : String(e)}`,
+                                              );
+                                            }
+                                          }}
+                                        >
+                                          Save
+                                        </Button>
+                                      </DialogClose>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
                             )}
                           </div>
                         ) : null
                       }
-                      onDeleteLesson={deleteTempLesson}
                     />
                   </div>
                 </aside>
@@ -734,16 +800,26 @@ function LessonPage() {
                   <div className="relative">
                     <Card className="border-chart-1/30 bg-chart-1/5">
                       <CardContent className="pt-6 text-center">
-                        <h2 className="text-xl font-semibold">This section has no published steps</h2>
-                        <p className="mt-2 text-sm text-muted-foreground">Add lessons or quizzes to populate this section.</p>
+                        <h2 className="text-xl font-semibold">
+                          This section has no published steps
+                        </h2>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                          Add lessons or quizzes to populate this section.
+                        </p>
                         {(isContributor || isAdmin) && (
                           <div className="mt-6">
                             <Dialog>
                               <DialogTrigger asChild>
                                 <Button size="lg">Add Content</Button>
                               </DialogTrigger>
-                              <DialogContent title="Add Content" description="Create a lesson or quiz for this section">
-                                    <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
+                              <DialogContent
+                                title="Add Content"
+                                description="Create a lesson or quiz for this section"
+                              >
+                                <LessonForm
+                                  defaultUnitId={currentUnit?.id ?? undefined}
+                                  setTempRefresh={setTempRefresh}
+                                />
                               </DialogContent>
                             </Dialog>
                           </div>
@@ -790,14 +866,19 @@ function LessonPage() {
           setResult(null);
           setSubmitError(null);
         }}
-        onExit={() => navigate({ to: "/lessons" })}
+        onExit={() => {
+          void navigate({ to: "/lessons" });
+        }}
         onContinue={
           result.passed && nextLesson && !isAdmin && !isContributor
-            ? () =>
-                navigate({ to: "/lesson/$lessonId", params: { lessonId: String(nextLesson.id) } })
+            ? () => {
+                void navigate({
+                  to: "/lesson/$lessonId",
+                  params: { lessonId: String(nextLesson.id) },
+                });
+              }
             : undefined
-                      }
-                      onDeleteLesson={deleteTempLesson}
+        }
       />
     );
   }
@@ -898,30 +979,30 @@ function LessonPage() {
   return (
     <div className="flex flex-1 flex-col bg-background">
       <div className="border-b bg-card/60 backdrop-blur">
-          <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => navigate({ to: "/lessons" })}
-                className="gap-1.5"
-              >
-                <ArrowLeft className="size-4" />
-                Exit
-              </Button>
-              {/* admin edit/delete controls moved to bottom area for per-page editing */}
-            </div>
-            <div className="text-right">
-              {currentUnit ? (
-                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                  {currentUnit.title}
-                </p>
-              ) : null}
-              <span className="text-sm font-semibold text-muted-foreground">
-                {currentIndex + 1} / {steps.length}
-              </span>
-            </div>
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate({ to: "/lessons" })}
+              className="gap-1.5"
+            >
+              <ArrowLeft className="size-4" />
+              Exit
+            </Button>
+            {/* admin edit/delete controls moved to bottom area for per-page editing */}
           </div>
+          <div className="text-right">
+            {currentUnit ? (
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                {currentUnit.title}
+              </p>
+            ) : null}
+            <span className="text-sm font-semibold text-muted-foreground">
+              {currentIndex + 1} / {steps.length}
+            </span>
+          </div>
+        </div>
         {/* header CTA removed — appeal button moved next to Continue below */}
 
         <div className="mx-auto max-w-6xl px-4 pb-3">
@@ -945,17 +1026,24 @@ function LessonPage() {
                   currentLessonId={numericLessonId}
                   title="Unit Lessons"
                   interactive
-                    allowAllUnlocked={isContributor || isAdmin}
-                    onDeleteLesson={deleteTempLesson}
+                  allowAllUnlocked={isContributor || isAdmin}
+                  onDeleteLesson={deleteTempLesson}
                   headerAction={
-                    (isContributor || isAdmin) ? (
+                    isContributor || isAdmin ? (
                       <div className="flex gap-2">
                         <Dialog>
                           <DialogTrigger asChild>
                             <Button variant="default">Add Content</Button>
                           </DialogTrigger>
-                          <DialogContent title="Add Content" description="Create a lesson for this section" className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                            <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
+                          <DialogContent
+                            title="Add Content"
+                            description="Create a lesson for this section"
+                            className="max-w-2xl max-h-[90vh] overflow-y-auto"
+                          >
+                            <LessonForm
+                              defaultUnitId={currentUnit?.id ?? undefined}
+                              setTempRefresh={setTempRefresh}
+                            />
                           </DialogContent>
                         </Dialog>
                         {isAdmin && (
@@ -963,114 +1051,163 @@ function LessonPage() {
                             <DialogTrigger asChild>
                               <Button variant="default">Add Subunit</Button>
                             </DialogTrigger>
-                          <DialogContent title="Add Subunit" description={`Create a lesson under ${currentUnit?.title ?? "this section"}`}>
-                          <div className="space-y-3">
-                            <div>
-                              <Label htmlFor="add-lesson-title">Subunit title</Label>
-                              <Input id="add-lesson-title" value={addTitle} onChange={(e) => setAddTitle(e.target.value)} />
-                            </div>
-                            <div>
-                              <Label htmlFor="add-lesson-desc">Description</Label>
-                              <Input id="add-lesson-desc" value={addDesc} onChange={(e) => setAddDesc(e.target.value)} />
-                            </div>
-                            <div className="flex justify-end gap-2">
-                              <DialogClose asChild>
-                                <Button variant="outline">Cancel</Button>
-                              </DialogClose>
-                              <DialogClose asChild>
-                                <Button
-                                  onClick={async () => {
-                                    try {
-                                      if (isTempLesson) {
-                                        const key = String(lessonId).slice(5);
-                                        const raw = localStorage.getItem(`tempUnit:${key}`);
-                                        const parsed = raw ? JSON.parse(raw) : { id: -(Date.now()), title: effectiveData?.lesson?.title ?? "New Section", description: effectiveData?.lesson?.description ?? null, orderIndex: 0, lessons: [], steps: [] };
-                                        const nextIndex = (parsed.lessons?.length ?? 0) + 1;
-                                        const newLesson = {
-                                          id: -(Date.now()),
-                                          unitId: parsed.id,
-                                          title: addTitle || `New Lesson ${nextIndex}`,
-                                          slug: `new-lesson-${nextIndex}`,
-                                          description: addDesc || "Coming soon",
-                                          learningObjective: null,
-                                          estimatedMinutes: null,
-                                          orderIndex: nextIndex,
-                                          status: "DRAFT",
-                                        };
-                                        parsed.lessons = parsed.lessons ?? [];
-                                        parsed.lessons.push(newLesson);
-                                        parsed.steps = parsed.steps ?? [];
-                                        parsed.steps.push({
-                                          id: newLesson.id,
-                                          orderIndex: newLesson.orderIndex,
-                                          stepType: "TEACH",
-                                          vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
-                                          question: null,
-                                          dialogueText: null,
-                                          payload: null,
-                                        });
-                                        localStorage.setItem(`tempUnit:${key}`, JSON.stringify(parsed));
-                                        setTempRefresh((v) => v + 1);
-                                      } else if (currentUnit?.id && currentUnit.id < 0) {
-                                        const nextIndex = (currentUnit.lessons?.length ?? 0) + 1;
-                                        const newLesson = {
-                                          id: -(Date.now()),
-                                          unitId: currentUnit.id,
-                                          title: addTitle || `New Lesson ${nextIndex}`,
-                                          slug: `new-lesson-${nextIndex}`,
-                                          description: addDesc || "Coming soon",
-                                          learningObjective: null,
-                                          estimatedMinutes: null,
-                                          orderIndex: nextIndex,
-                                          status: "DRAFT",
-                                        };
-                                        const tempKey = currentUnit.id;
-                                        const raw = localStorage.getItem(`tempPlaceholderUnit:${tempKey}`);
-                                        const parsed = raw ? JSON.parse(raw) : { ...currentUnit, lessons: [], steps: [] };
-                                        parsed.lessons = (parsed.lessons ?? []).concat(newLesson);
-                                        parsed.steps = (parsed.steps ?? []).concat({
-                                          id: newLesson.id,
-                                          orderIndex: newLesson.orderIndex,
-                                          stepType: "TEACH",
-                                          vocab: { term: newLesson.title, definition: newLesson.description, exampleSentence: null, partOfSpeech: null },
-                                          question: null,
-                                          dialogueText: null,
-                                          payload: null,
-                                        });
-                                        localStorage.setItem(`tempPlaceholderUnit:${tempKey}`, JSON.stringify(parsed));
-                                        setTempRefresh((v) => v + 1);
-                                      } else {
-                                        // Submit to lessons API for real units
-                                        const finalTitle = (addTitle || "").trim() || "New Lesson";
-                                        const finalDesc = (addDesc || "").trim() || "Coming soon";
-                                        await api.post("lessons", {
-                                          json: {
-                                            unitId: currentUnit?.id,
-                                            title: finalTitle.slice(0, 100),
-                                            description: finalDesc.slice(0, 500),
-                                            learningObjective: null,
-                                            estimatedMinutes: null,
-                                            targetSubunitId: currentUnit?.id,
-                                          },
-                                        });
-                                        // Refetch units to show new lesson
-                                        await refetchUnits();
-                                        setTempRefresh((v) => v + 1);
-                                      }
-                                      setAddTitle("");
-                                      setAddDesc("");
-                                    } catch (e) {
-                                      alert(`Error adding subunit: ${e instanceof Error ? e.message : String(e)}`);
-                                    }
-                                  }}
-                                >
-                                  Save
-                                </Button>
-                              </DialogClose>
-                            </div>
-                          </div>
-                        </DialogContent>
-                        </Dialog>
+                            <DialogContent
+                              title="Add Subunit"
+                              description={`Create a lesson under ${currentUnit?.title ?? "this section"}`}
+                            >
+                              <div className="space-y-3">
+                                <div>
+                                  <Label htmlFor="add-lesson-title">Subunit title</Label>
+                                  <Input
+                                    id="add-lesson-title"
+                                    value={addTitle}
+                                    onChange={(e) => setAddTitle(e.target.value)}
+                                  />
+                                </div>
+                                <div>
+                                  <Label htmlFor="add-lesson-desc">Description</Label>
+                                  <Input
+                                    id="add-lesson-desc"
+                                    value={addDesc}
+                                    onChange={(e) => setAddDesc(e.target.value)}
+                                  />
+                                </div>
+                                <div className="flex justify-end gap-2">
+                                  <DialogClose asChild>
+                                    <Button variant="outline">Cancel</Button>
+                                  </DialogClose>
+                                  <DialogClose asChild>
+                                    <Button
+                                      onClick={async () => {
+                                        try {
+                                          if (isTempLesson) {
+                                            const key = String(lessonId).slice(5);
+                                            const raw = localStorage.getItem(`tempUnit:${key}`);
+                                            const parsed = raw
+                                              ? JSON.parse(raw)
+                                              : {
+                                                  id: -Date.now(),
+                                                  title:
+                                                    effectiveData?.lesson?.title ?? "New Section",
+                                                  description:
+                                                    effectiveData?.lesson?.description ?? null,
+                                                  orderIndex: 0,
+                                                  lessons: [],
+                                                  steps: [],
+                                                };
+                                            const nextIndex = (parsed.lessons?.length ?? 0) + 1;
+                                            const newLesson = {
+                                              id: -Date.now(),
+                                              unitId: parsed.id,
+                                              title: addTitle || `New Lesson ${nextIndex}`,
+                                              slug: `new-lesson-${nextIndex}`,
+                                              description: addDesc || "Coming soon",
+                                              learningObjective: null,
+                                              estimatedMinutes: null,
+                                              orderIndex: nextIndex,
+                                              status: "DRAFT",
+                                            };
+                                            parsed.lessons = parsed.lessons ?? [];
+                                            parsed.lessons.push(newLesson);
+                                            parsed.steps = parsed.steps ?? [];
+                                            parsed.steps.push({
+                                              id: newLesson.id,
+                                              orderIndex: newLesson.orderIndex,
+                                              stepType: "TEACH",
+                                              vocab: {
+                                                term: newLesson.title,
+                                                definition: newLesson.description,
+                                                exampleSentence: null,
+                                                partOfSpeech: null,
+                                              },
+                                              question: null,
+                                              dialogueText: null,
+                                              payload: null,
+                                            });
+                                            localStorage.setItem(
+                                              `tempUnit:${key}`,
+                                              JSON.stringify(parsed),
+                                            );
+                                            setTempRefresh((v) => v + 1);
+                                          } else if (currentUnit?.id && currentUnit.id < 0) {
+                                            const nextIndex =
+                                              (currentUnit.lessons?.length ?? 0) + 1;
+                                            const newLesson = {
+                                              id: -Date.now(),
+                                              unitId: currentUnit.id,
+                                              title: addTitle || `New Lesson ${nextIndex}`,
+                                              slug: `new-lesson-${nextIndex}`,
+                                              description: addDesc || "Coming soon",
+                                              learningObjective: null,
+                                              estimatedMinutes: null,
+                                              orderIndex: nextIndex,
+                                              status: "DRAFT",
+                                            };
+                                            const tempKey = currentUnit.id;
+                                            const raw = localStorage.getItem(
+                                              `tempPlaceholderUnit:${tempKey}`,
+                                            );
+                                            const parsed = raw
+                                              ? JSON.parse(raw)
+                                              : { ...currentUnit, lessons: [], steps: [] };
+                                            parsed.lessons = (parsed.lessons ?? []).concat(
+                                              newLesson,
+                                            );
+                                            parsed.steps = (parsed.steps ?? []).concat({
+                                              id: newLesson.id,
+                                              orderIndex: newLesson.orderIndex,
+                                              stepType: "TEACH",
+                                              vocab: {
+                                                term: newLesson.title,
+                                                definition: newLesson.description,
+                                                exampleSentence: null,
+                                                partOfSpeech: null,
+                                              },
+                                              question: null,
+                                              dialogueText: null,
+                                              payload: null,
+                                            });
+                                            localStorage.setItem(
+                                              `tempPlaceholderUnit:${tempKey}`,
+                                              JSON.stringify(parsed),
+                                            );
+                                            setTempRefresh((v) => v + 1);
+                                          } else {
+                                            // Submit to lessons API for real units
+                                            const finalTitle =
+                                              (addTitle || "").trim() || "New Lesson";
+                                            const finalDesc =
+                                              (addDesc || "").trim() || "Coming soon";
+                                            await api.post("lessons", {
+                                              json: {
+                                                unitId: currentUnit?.id,
+                                                title: finalTitle.slice(0, 100),
+                                                description: finalDesc.slice(0, 500),
+                                                learningObjective: null,
+                                                estimatedMinutes: null,
+                                                targetSubunitId: currentUnit?.id,
+                                              },
+                                            });
+                                            // Refetch units to show new lesson
+                                            await refetchUnits();
+                                            setTempRefresh((v) => v + 1);
+                                          }
+                                          setAddTitle("");
+                                          setAddDesc("");
+                                        } catch (e) {
+                                          alert(
+                                            `Error adding subunit: ${e instanceof Error ? e.message : String(e)}`,
+                                          );
+                                        }
+                                      }}
+                                    >
+                                      Save
+                                    </Button>
+                                  </DialogClose>
+                                </div>
+                              </div>
+                            </DialogContent>
+                          </Dialog>
                         )}
                       </div>
                     ) : null
@@ -1091,15 +1228,23 @@ function LessonPage() {
                   <Card className="border-chart-1/30 bg-chart-1/5">
                     <CardContent className="pt-6 text-center">
                       <h2 className="text-xl font-semibold">This section has no published steps</h2>
-                      <p className="mt-2 text-sm text-muted-foreground">Add lessons or quizzes to populate this section.</p>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        Add lessons or quizzes to populate this section.
+                      </p>
                       {(isContributor || isAdmin) && (
                         <div className="mt-6">
                           <Dialog>
                             <DialogTrigger asChild>
                               <Button size="lg">Add Content</Button>
                             </DialogTrigger>
-                            <DialogContent title="Add Content" description="Create a lesson for this section">
-                              <LessonForm defaultUnitId={currentUnit?.id ?? undefined} setTempRefresh={setTempRefresh} />
+                            <DialogContent
+                              title="Add Content"
+                              description="Create a lesson for this section"
+                            >
+                              <LessonForm
+                                defaultUnitId={currentUnit?.id ?? undefined}
+                                setTempRefresh={setTempRefresh}
+                              />
                             </DialogContent>
                           </Dialog>
                         </div>
@@ -1108,7 +1253,11 @@ function LessonPage() {
                   </Card>
                 ) : (
                   <>
-                    <StepBody step={currentStep} tempAnswer={tempAnswer} setTempAnswer={setTempAnswer} />
+                    <StepBody
+                      step={currentStep}
+                      tempAnswer={tempAnswer}
+                      setTempAnswer={setTempAnswer}
+                    />
 
                     {(isContributor || isAdmin) && (
                       <>
@@ -1137,16 +1286,25 @@ function LessonPage() {
                   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
                     <div className="w-full max-w-lg rounded-lg bg-card p-6">
                       <h3 className="mb-2 text-lg font-semibold">Appeal content</h3>
-                      <p className="mb-3 text-sm text-muted-foreground">Describe the inaccuracy or issue you found.</p>
+                      <p className="mb-3 text-sm text-muted-foreground">
+                        Describe the inaccuracy or issue you found.
+                      </p>
                       <textarea
                         className="w-full min-h-[120px] rounded-md border px-3 py-2 text-sm"
                         value={appealText}
                         onChange={(e) => setAppealText(e.target.value)}
                       />
-                      {appealError && <p className="mt-2 text-sm text-destructive">{appealError}</p>}
+                      {appealError && (
+                        <p className="mt-2 text-sm text-destructive">{appealError}</p>
+                      )}
                       <div className="mt-4 flex justify-end gap-2">
-                        <Button variant="ghost" onClick={() => setAppealOpen(false)}>Cancel</Button>
-                        <Button onClick={submitAppeal} disabled={appealSubmitting || !appealText.trim()}>
+                        <Button variant="ghost" onClick={() => setAppealOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={submitAppeal}
+                          disabled={appealSubmitting || !appealText.trim()}
+                        >
                           {appealSubmitting ? "Submitting…" : "Submit Appeal"}
                         </Button>
                       </div>
@@ -1186,7 +1344,6 @@ function LessonPage() {
                     {isTempLesson && tempUnitKey ? (
                       <>
                         <TempEditStepButton
-                          lessonId={lessonId}
                           step={currentStep}
                           unitKey={tempUnitKey}
                           onSaved={() => setTempRefresh((v) => v + 1)}
@@ -1196,7 +1353,9 @@ function LessonPage() {
                           stepId={currentStep.id}
                           step={currentStep}
                           onDeleted={() => {
-                            setCurrentIndex((idx) => Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))));
+                            setCurrentIndex((idx) =>
+                              Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))),
+                            );
                             setTempRefresh((v) => v + 1);
                           }}
                         />
@@ -1219,7 +1378,9 @@ function LessonPage() {
                           stepId={currentStep.id}
                           step={currentStep}
                           onDeleted={() => {
-                            setCurrentIndex((idx) => Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))));
+                            setCurrentIndex((idx) =>
+                              Math.max(0, Math.min(idx, Math.max(0, steps.length - 2))),
+                            );
                             setTempRefresh((v) => v + 1);
                           }}
                         />
@@ -1232,7 +1393,6 @@ function LessonPage() {
                 {!isAdmin && isContributor && (
                   <div className="mt-4">
                     <Button
-                      size="md"
                       variant="outline"
                       className="w-full gap-2"
                       onClick={() => setAppealOpen(true)}
@@ -1286,21 +1446,17 @@ function StepBody({
 }) {
   if (step.stepType === "TEACH" && step.vocab) {
     // Use payload if available (edited values), otherwise fall back to vocab
-    const title = step.payload?.title || step.vocab.term;
-    const body = step.payload?.body || step.vocab.definition;
-    const example = step.payload?.example || step.vocab.exampleSentence;
-    
+    const title = readStringField(step.payload, "title") ?? step.vocab.term;
+    const body = readStringField(step.payload, "body") ?? step.vocab.definition;
+    const example = readStringField(step.payload, "example") ?? step.vocab.exampleSentence;
+
     return (
       <Card className="border-chart-1/30 bg-chart-1/5">
         <CardContent className="pt-6">
           <p className="text-xs uppercase tracking-[0.15em] text-muted-foreground">learn</p>
           <h2 className="mt-2 text-3xl font-bold">{title}</h2>
           <p className="mt-4 text-lg">{body}</p>
-          {example && (
-            <p className="mt-3 text-sm italic text-muted-foreground">
-              "{example}"
-            </p>
-          )}
+          {example && <p className="mt-3 text-sm italic text-muted-foreground">"{example}"</p>}
         </CardContent>
       </Card>
     );
@@ -1444,7 +1600,7 @@ function AdminDeleteStepButton({
       // For appended unit lessons (negative IDs), delete from localStorage instead of API
       if (lessonId < 0) {
         if (!step) throw new Error("Step data required for appended unit deletion");
-        
+
         for (let i = 0; i < localStorage.length; i++) {
           const key = localStorage.key(i) || "";
           if (!key.startsWith("tempUnit:")) continue;
@@ -1453,49 +1609,53 @@ function AdminDeleteStepButton({
           const parsed = JSON.parse(raw);
           const steps = Array.isArray(parsed.steps) ? parsed.steps : [];
           const before = steps.length;
-          
+
           // For appended units, delete by matching (lessonId OR targetSubunitId) AND orderIndex
           // A step belongs to current lesson if:
           // 1. step.id === lessonId (original lesson, not yet approved), OR
           // 2. step.targetSubunitId === lessonId (copied to target subunit after approval)
           parsed.steps = steps.filter((s: any) => {
-            const belongsToLesson = (s.id === lessonId || s.targetSubunitId === lessonId);
+            const belongsToLesson = s.id === lessonId || s.targetSubunitId === lessonId;
             const sameOrderIndex = s.orderIndex === step.orderIndex;
             return !(belongsToLesson && sameOrderIndex);
           });
-          
+
           if (parsed.steps.length !== before) {
             // Re-index remaining steps for this lesson to ensure orderIndex is sequential
-            const lessonSteps = parsed.steps.filter((s: any) => 
-              s.id === lessonId || s.targetSubunitId === lessonId
+            const lessonSteps = parsed.steps.filter(
+              (s: any) => s.id === lessonId || s.targetSubunitId === lessonId,
             );
-            const otherSteps = parsed.steps.filter((s: any) => 
-              s.id !== lessonId && s.targetSubunitId !== lessonId
+            const otherSteps = parsed.steps.filter(
+              (s: any) => s.id !== lessonId && s.targetSubunitId !== lessonId,
             );
-            
+
             // Re-order the steps for this lesson
             lessonSteps.forEach((s: any, idx: number) => {
               s.orderIndex = idx;
             });
-            
+
             // Combine back
             parsed.steps = [...lessonSteps, ...otherSteps];
-            
+
             localStorage.setItem(key, JSON.stringify(parsed));
-            
+
             // Dispatch storage event for listeners
-            window.dispatchEvent(new StorageEvent('storage', {
-              key: key,
-              newValue: JSON.stringify(parsed),
-              oldValue: null,
-              storageArea: localStorage,
-            }));
-            
+            window.dispatchEvent(
+              new StorageEvent("storage", {
+                key: key,
+                newValue: JSON.stringify(parsed),
+                oldValue: null,
+                storageArea: localStorage,
+              }),
+            );
+
             // Dispatch custom event to trigger UI refresh
-            window.dispatchEvent(new CustomEvent('tempUnit-step-deleted', { 
-              detail: { lessonId, stepDeletedIndex: step.orderIndex } 
-            }));
-            
+            window.dispatchEvent(
+              new CustomEvent("tempUnit-step-deleted", {
+                detail: { lessonId, stepDeletedIndex: step.orderIndex },
+              }),
+            );
+
             onDeleted?.();
             setBusy(false);
             return;
@@ -1503,7 +1663,7 @@ function AdminDeleteStepButton({
         }
         throw new Error("Step not found in storage");
       }
-      
+
       // For server lessons, use the API with the actual step ID
       await deleteStep.mutateAsync({ lessonId, stepId });
       onDeleted?.();
@@ -1536,10 +1696,10 @@ function AdminEditStepButton({
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  
+
   // Use editStep (with answers) if available, otherwise fallback to step (learner-safe)
   const stepForEditing = editStep ?? step;
-  
+
   // Form fields - initialize based on step type
   const [term, setTerm] = useState(stepForEditing.vocab?.term ?? "");
   const [defText, setDefText] = useState(stepForEditing.vocab?.definition ?? "");
@@ -1547,21 +1707,27 @@ function AdminEditStepButton({
   const [dialogueText, setDialogueText] = useState(stepForEditing.dialogueText ?? "");
   const [qPrompt, setQPrompt] = useState(stepForEditing.question?.prompt ?? "");
   const [questionType, setQuestionType] = useState<"MCQ" | "MATCH" | "SHORT_ANSWER">(
-    (stepForEditing.question?.questionType as any) || "SHORT_ANSWER"
+    (stepForEditing.question?.questionType as any) || "SHORT_ANSWER",
   );
   const [qChoices, setQChoices] = useState(
-    stepForEditing.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
-      { id: Date.now(), text: "", isCorrect: false },
-    ]
+    stepForEditing.question?.choices?.map((c) => ({
+      id: c.id,
+      text: c.text,
+      isCorrect: c.isCorrect,
+    })) ?? [{ id: Date.now(), text: "", isCorrect: false }],
   );
-  
+
   // Match pairs state
-  const [qMatchPairs, setQMatchPairs] = useState<Array<{ left: string; right: string; id?: string }>>(
-    stepForEditing.question?.matchPairs?.map((p) => ({ left: p.left, right: p.right ?? "", id: String(p.left) })) ?? [
-      { left: "", right: "", id: String(Date.now()) },
-    ]
+  const [qMatchPairs, setQMatchPairs] = useState<
+    Array<{ left: string; right: string; id?: string }>
+  >(
+    stepForEditing.question?.matchPairs?.map((p) => ({
+      left: p.left,
+      right: p.right ?? "",
+      id: String(p.left),
+    })) ?? [{ left: "", right: "", id: String(Date.now()) }],
   );
-  
+
   // Helper to normalize acceptedAnswers - could be array or string
   const normalizeAcceptedAnswers = (answers: any): string => {
     if (!answers) return "";
@@ -1569,9 +1735,9 @@ function AdminEditStepButton({
     if (typeof answers === "string") return answers;
     return "";
   };
-  
+
   const [qAcceptedAnswers, setQAcceptedAnswers] = useState(
-    normalizeAcceptedAnswers(stepForEditing.question?.acceptedAnswers)
+    normalizeAcceptedAnswers(stepForEditing.question?.acceptedAnswers),
   );
 
   // RECAP fields
@@ -1587,14 +1753,14 @@ function AdminEditStepButton({
   };
 
   const [recapHeadline, setRecapHeadline] = useState(
-    readStringField(stepForEditing.payload, "headline") ?? "Quick recap"
+    readStringField(stepForEditing.payload, "headline") ?? "Quick recap",
   );
   const [recapSummary, setRecapSummary] = useState(
-    readStringField(stepForEditing.payload, "summary") ?? 
-    "You reached the end of this lesson. Lock in the key idea before you move on."
+    readStringField(stepForEditing.payload, "summary") ??
+      "You reached the end of this lesson. Lock in the key idea before you move on.",
   );
   const [recapTakeaways, setRecapTakeaways] = useState(
-    readStringArrayField(stepForEditing.payload, "takeaways").join("\n")
+    readStringArrayField(stepForEditing.payload, "takeaways").join("\n"),
   );
 
   useEffect(() => {
@@ -1603,22 +1769,29 @@ function AdminEditStepButton({
     // For TEACH: use payload if available (edited values), otherwise vocab
     setTerm((stepForEditing.payload as any)?.title ?? stepForEditing.vocab?.term ?? "");
     setDefText((stepForEditing.payload as any)?.body ?? stepForEditing.vocab?.definition ?? "");
-    setExample((stepForEditing.payload as any)?.example ?? stepForEditing.vocab?.exampleSentence ?? "");
+    setExample(
+      (stepForEditing.payload as any)?.example ?? stepForEditing.vocab?.exampleSentence ?? "",
+    );
     setDialogueText(stepForEditing.dialogueText ?? "");
     setQPrompt(stepForEditing.question?.prompt ?? "");
     setQuestionType((stepForEditing.question?.questionType as any) || "SHORT_ANSWER");
     setQChoices(
-      stepForEditing.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
-        { id: Date.now(), text: "", isCorrect: false },
-      ]
+      stepForEditing.question?.choices?.map((c) => ({
+        id: c.id,
+        text: c.text,
+        isCorrect: c.isCorrect,
+      })) ?? [{ id: Date.now(), text: "", isCorrect: false }],
     );
     setQMatchPairs(
-      stepForEditing.question?.matchPairs?.map((p) => ({ left: p.left, right: p.right ?? "", id: String(p.left) })) ?? [
-        { left: "", right: "", id: String(Date.now()) },
-      ]
+      stepForEditing.question?.matchPairs?.map((p) => ({
+        left: p.left,
+        right: p.right ?? "",
+        id: String(p.left),
+      })) ?? [{ left: "", right: "", id: String(Date.now()) }],
     );
     // Explicitly load accepted answers - check both question and payload fields
-    const answers = stepForEditing.question?.acceptedAnswers ?? (stepForEditing.payload as any)?.acceptedAnswers;
+    const answers =
+      stepForEditing.question?.acceptedAnswers ?? (stepForEditing.payload as any)?.acceptedAnswers;
     if (Array.isArray(answers) && answers.length > 0) {
       setQAcceptedAnswers(answers.join(", "));
     } else if (typeof answers === "string" && answers.trim()) {
@@ -1626,10 +1799,13 @@ function AdminEditStepButton({
     } else {
       setQAcceptedAnswers("");
     }
-    
+
     // Reset RECAP fields
     setRecapHeadline(readStringField(stepForEditing.payload, "headline") ?? "Quick recap");
-    setRecapSummary(readStringField(stepForEditing.payload, "summary") ?? "You reached the end of this lesson. Lock in the key idea before you move on.");
+    setRecapSummary(
+      readStringField(stepForEditing.payload, "summary") ??
+        "You reached the end of this lesson. Lock in the key idea before you move on.",
+    );
     setRecapTakeaways(readStringArrayField(stepForEditing.payload, "takeaways").join("\n"));
   }, [stepForEditing, open]);
 
@@ -1658,24 +1834,28 @@ function AdminEditStepButton({
           dialogueText: dialogueText.trim(),
         };
       } else if (stepForEditing.stepType === "QUESTION") {
-        const acceptedAnswersArray = questionType === "SHORT_ANSWER"
-          ? qAcceptedAnswers.split(",").map((s) => s.trim()).filter(Boolean)
-          : [];
-        
-        const optionsArray = questionType === "MCQ" 
-          ? qChoices.map((c) => c.text)
-          : null;
-        
+        const acceptedAnswersArray =
+          questionType === "SHORT_ANSWER"
+            ? qAcceptedAnswers
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : [];
+
+        const optionsArray = questionType === "MCQ" ? qChoices.map((c) => c.text) : null;
+
         // Find the index of the correct answer for MCQ
-        const correctOptionIndex = questionType === "MCQ"
-          ? qChoices.findIndex((c) => c.isCorrect)
-          : null;
+        const correctOptionIndex =
+          questionType === "MCQ" ? qChoices.findIndex((c) => c.isCorrect) : null;
 
         // Build matchPairs for MATCH type
-        const matchPairsArray = questionType === "MATCH"
-          ? qMatchPairs.filter((p) => p.left.trim() && p.right.trim()).map((p) => ({ left: p.left, right: p.right }))
-          : null;
-        
+        const matchPairsArray =
+          questionType === "MATCH"
+            ? qMatchPairs
+                .filter((p) => p.left.trim() && p.right.trim())
+                .map((p) => ({ left: p.left, right: p.right }))
+            : null;
+
         body = {
           ...body,
           questionId: stepForEditing.question?.id ?? null,
@@ -1713,7 +1893,7 @@ function AdminEditStepButton({
           if (!raw) continue;
           const parsed = JSON.parse(raw);
           const steps = Array.isArray(parsed.steps) ? parsed.steps : [];
-          
+
           // Find the step to update
           for (const s of steps) {
             if (s.id === stepForEditing.id) {
@@ -1733,16 +1913,20 @@ function AdminEditStepButton({
                   ...s.question,
                   prompt: body.prompt,
                   questionType: body.questionType,
-                  choices: questionType === "MCQ" 
-                    ? qChoices.map((c) => ({
-                        id: c.id,
-                        text: c.text,
-                        isCorrect: c.isCorrect,
-                      }))
-                    : [],
-                  matchPairs: questionType === "MATCH"
-                    ? qMatchPairs.filter((p) => p.left.trim() && p.right.trim()).map((p) => ({ left: p.left, right: p.right, id: p.id }))
-                    : [],
+                  choices:
+                    questionType === "MCQ"
+                      ? qChoices.map((c) => ({
+                          id: c.id,
+                          text: c.text,
+                          isCorrect: c.isCorrect,
+                        }))
+                      : [],
+                  matchPairs:
+                    questionType === "MATCH"
+                      ? qMatchPairs
+                          .filter((p) => p.left.trim() && p.right.trim())
+                          .map((p) => ({ left: p.left, right: p.right, id: p.id }))
+                      : [],
                   acceptedAnswers: body.acceptedAnswers,
                   explanation: body.explanation,
                 };
@@ -1754,17 +1938,21 @@ function AdminEditStepButton({
                 };
               }
               localStorage.setItem(key, JSON.stringify(parsed));
-              
+
               // Dispatch event to refresh appended unit data immediately
-              window.dispatchEvent(new CustomEvent("appended-lessons-changed", { detail: { stepId: stepForEditing.id, action: "edited" } }));
-              
+              window.dispatchEvent(
+                new CustomEvent("appended-lessons-changed", {
+                  detail: { stepId: stepForEditing.id, action: "edited" },
+                }),
+              );
+
               found = true;
               break;
             }
           }
           if (found) break;
         }
-        
+
         if (!found) {
           throw new Error("Could not find step in localStorage");
         }
@@ -1776,7 +1964,7 @@ function AdminEditStepButton({
           queryClient.refetchQueries({ queryKey: ["lessons", "edit", lessonId] }),
         ]);
       }
-      
+
       setOpen(false);
       onSaved?.();
     } catch (err) {
@@ -1795,7 +1983,12 @@ function AdminEditStepButton({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-2xl rounded-lg bg-card p-6 max-h-[90vh] overflow-y-auto">
             <h3 className="mb-4 text-lg font-semibold">
-              Edit {step.stepType === "TEACH" ? "Definition" : step.stepType === "DIALOGUE" ? "Dialogue" : "Question"}
+              Edit{" "}
+              {step.stepType === "TEACH"
+                ? "Definition"
+                : step.stepType === "DIALOGUE"
+                  ? "Dialogue"
+                  : "Question"}
             </h3>
 
             <form className="space-y-4 pr-4">
@@ -1822,7 +2015,9 @@ function AdminEditStepButton({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Example sentence (optional)</label>
+                    <label className="block text-sm font-medium mb-1">
+                      Example sentence (optional)
+                    </label>
                     <textarea
                       className="w-full rounded-md border bg-background px-3 py-2 text-base"
                       rows={2}
@@ -1852,7 +2047,13 @@ function AdminEditStepButton({
                   <div>
                     <label className="block text-sm font-medium mb-1">Question type</label>
                     <div className="w-full rounded-md border bg-muted/30 px-3 py-2">
-                      <p className="text-sm">{questionType === "MCQ" ? "Multiple Choice" : questionType === "MATCH" ? "Matching" : "Short Answer"}</p>
+                      <p className="text-sm">
+                        {questionType === "MCQ"
+                          ? "Multiple Choice"
+                          : questionType === "MATCH"
+                            ? "Matching"
+                            : "Short Answer"}
+                      </p>
                     </div>
                   </div>
 
@@ -1886,7 +2087,7 @@ function AdminEditStepButton({
                             />
                             <input
                               type="checkbox"
-                              checked={choice.isCorrect}
+                              checked={!!choice.isCorrect}
                               onChange={(e) => {
                                 const updated = [...qChoices];
                                 updated[idx] = { ...choice, isCorrect: e.target.checked };
@@ -1906,7 +2107,10 @@ function AdminEditStepButton({
                         <button
                           type="button"
                           onClick={() =>
-                            setQChoices([...qChoices, { id: Date.now(), text: "", isCorrect: false }])
+                            setQChoices([
+                              ...qChoices,
+                              { id: Date.now(), text: "", isCorrect: false },
+                            ])
                           }
                           className="text-sm text-blue-500 hover:underline"
                         >
@@ -1918,7 +2122,9 @@ function AdminEditStepButton({
 
                   {questionType === "MATCH" && (
                     <div>
-                      <label className="block text-sm font-medium mb-2">Match pairs (Left → Right)</label>
+                      <label className="block text-sm font-medium mb-2">
+                        Match pairs (Left → Right)
+                      </label>
                       <div className="space-y-2">
                         {qMatchPairs.map((pair, idx) => (
                           <div key={pair.id} className="flex gap-2 items-end">
@@ -1951,7 +2157,9 @@ function AdminEditStepButton({
                             </div>
                             <button
                               type="button"
-                              onClick={() => setQMatchPairs(qMatchPairs.filter((_, i) => i !== idx))}
+                              onClick={() =>
+                                setQMatchPairs(qMatchPairs.filter((_, i) => i !== idx))
+                              }
                               className="text-sm text-red-500 hover:underline whitespace-nowrap"
                             >
                               Remove
@@ -1961,7 +2169,10 @@ function AdminEditStepButton({
                         <button
                           type="button"
                           onClick={() =>
-                            setQMatchPairs([...qMatchPairs, { left: "", right: "", id: String(Date.now()) }])
+                            setQMatchPairs([
+                              ...qMatchPairs,
+                              { left: "", right: "", id: String(Date.now()) },
+                            ])
                           }
                           className="text-sm text-blue-500 hover:underline"
                         >
@@ -1973,7 +2184,9 @@ function AdminEditStepButton({
 
                   {questionType === "SHORT_ANSWER" && (
                     <div>
-                      <label className="block text-sm font-medium mb-1">Accepted answers (comma-separated)</label>
+                      <label className="block text-sm font-medium mb-1">
+                        Accepted answers (comma-separated)
+                      </label>
                       <textarea
                         className="w-full rounded-md border bg-background px-3 py-2 text-base"
                         rows={2}
@@ -2009,7 +2222,9 @@ function AdminEditStepButton({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Takeaways (one per line)</label>
+                    <label className="block text-sm font-medium mb-1">
+                      Takeaways (one per line)
+                    </label>
                     <textarea
                       className="w-full rounded-md border bg-background px-3 py-2 text-base font-mono text-sm"
                       rows={4}
@@ -2039,19 +2254,17 @@ function AdminEditStepButton({
 
 // Temp lesson editor - allows editing of hardcoded/localStorage lessons in JSON-like form format
 function TempEditStepButton({
-  lessonId,
   step,
   unitKey,
   onSaved,
 }: {
-  lessonId: string | number;
   step: LessonStepPayload;
   unitKey: string;
   onSaved?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
-  
+
   // Form fields - initialize based on step type
   const [term, setTerm] = useState(step.vocab?.term ?? "");
   const [defText, setDefText] = useState(step.vocab?.definition ?? "");
@@ -2059,21 +2272,25 @@ function TempEditStepButton({
   const [dialogueText, setDialogueText] = useState(step.dialogueText ?? "");
   const [qPrompt, setQPrompt] = useState(step.question?.prompt ?? "");
   const [questionType, setQuestionType] = useState<"MCQ" | "MATCH" | "SHORT_ANSWER">(
-    (step.question?.questionType as any) || "SHORT_ANSWER"
+    (step.question?.questionType as any) || "SHORT_ANSWER",
   );
   const [qChoices, setQChoices] = useState(
     step.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
       { id: Date.now(), text: "", isCorrect: false },
-    ]
+    ],
   );
-  
+
   // Match pairs state
-  const [qMatchPairs, setQMatchPairs] = useState<Array<{ left: string; right: string; id?: string }>>(
-    step.question?.matchPairs?.map((p) => ({ left: p.left, right: p.right ?? "", id: String(Date.now()) })) ?? [
-      { left: "", right: "", id: String(Date.now()) },
-    ]
+  const [qMatchPairs, setQMatchPairs] = useState<
+    Array<{ left: string; right: string; id?: string }>
+  >(
+    step.question?.matchPairs?.map((p) => ({
+      left: p.left,
+      right: p.right ?? "",
+      id: String(Date.now()),
+    })) ?? [{ left: "", right: "", id: String(Date.now()) }],
   );
-  
+
   // Helper to normalize acceptedAnswers - could be array or string
   const normalizeAcceptedAnswers = (answers: any): string => {
     if (!answers) return "";
@@ -2081,9 +2298,9 @@ function TempEditStepButton({
     if (typeof answers === "string") return answers;
     return "";
   };
-  
+
   const [qAcceptedAnswers, setQAcceptedAnswers] = useState(
-    normalizeAcceptedAnswers(step.question?.acceptedAnswers)
+    normalizeAcceptedAnswers(step.question?.acceptedAnswers),
   );
 
   // RECAP fields
@@ -2099,14 +2316,14 @@ function TempEditStepButton({
   };
 
   const [recapHeadline, setRecapHeadline] = useState(
-    readStringField(step.payload, "headline") ?? "Quick recap"
+    readStringField(step.payload, "headline") ?? "Quick recap",
   );
   const [recapSummary, setRecapSummary] = useState(
-    readStringField(step.payload, "summary") ?? 
-    "You reached the end of this lesson. Lock in the key idea before you move on."
+    readStringField(step.payload, "summary") ??
+      "You reached the end of this lesson. Lock in the key idea before you move on.",
   );
   const [recapTakeaways, setRecapTakeaways] = useState(
-    readStringArrayField(step.payload, "takeaways").join("\n")
+    readStringArrayField(step.payload, "takeaways").join("\n"),
   );
 
   useEffect(() => {
@@ -2122,7 +2339,7 @@ function TempEditStepButton({
     setQChoices(
       step.question?.choices?.map((c) => ({ id: c.id, text: c.text, isCorrect: c.isCorrect })) ?? [
         { id: Date.now(), text: "", isCorrect: false },
-      ]
+      ],
     );
     // Explicitly load accepted answers
     const answers = step.question?.acceptedAnswers;
@@ -2133,10 +2350,13 @@ function TempEditStepButton({
     } else {
       setQAcceptedAnswers("");
     }
-    
+
     // Reset RECAP fields
     setRecapHeadline(readStringField(step.payload, "headline") ?? "Quick recap");
-    setRecapSummary(readStringField(step.payload, "summary") ?? "You reached the end of this lesson. Lock in the key idea before you move on.");
+    setRecapSummary(
+      readStringField(step.payload, "summary") ??
+        "You reached the end of this lesson. Lock in the key idea before you move on.",
+    );
     setRecapTakeaways(readStringArrayField(step.payload, "takeaways").join("\n"));
   }, [step, open]);
 
@@ -2163,6 +2383,7 @@ function TempEditStepButton({
       if (step.stepType === "TEACH") {
         updatedStep.vocab = {
           ...updatedStep.vocab,
+          id: updatedStep.vocab?.id ?? step.id,
           term: term.trim(),
           definition: defText.trim(),
           exampleSentence: example.trim() || null,
@@ -2171,14 +2392,21 @@ function TempEditStepButton({
       } else if (step.stepType === "DIALOGUE") {
         updatedStep.dialogueText = dialogueText.trim();
       } else if (step.stepType === "QUESTION") {
-        const acceptedAnswersArray = questionType === "SHORT_ANSWER"
-          ? qAcceptedAnswers.split(",").map((s) => s.trim()).filter(Boolean)
-          : [];
-        
-        const matchPairsArray = questionType === "MATCH"
-          ? qMatchPairs.filter((p) => p.left.trim() && p.right.trim()).map((p) => ({ left: p.left, right: p.right }))
-          : [];
-        
+        const acceptedAnswersArray =
+          questionType === "SHORT_ANSWER"
+            ? qAcceptedAnswers
+                .split(",")
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : [];
+
+        const matchPairsArray =
+          questionType === "MATCH"
+            ? qMatchPairs
+                .filter((p) => p.left.trim() && p.right.trim())
+                .map((p) => ({ left: p.left, right: p.right }))
+            : [];
+
         updatedStep.question = {
           ...updatedStep.question,
           questionType,
@@ -2223,7 +2451,14 @@ function TempEditStepButton({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-2xl rounded-lg bg-card p-6 max-h-[90vh] flex flex-col">
             <h3 className="mb-4 text-lg font-semibold">
-              Edit {step.stepType === "TEACH" ? "Definition" : step.stepType === "DIALOGUE" ? "Dialogue" : step.stepType === "RECAP" ? "Recap" : "Question"}
+              Edit{" "}
+              {step.stepType === "TEACH"
+                ? "Definition"
+                : step.stepType === "DIALOGUE"
+                  ? "Dialogue"
+                  : step.stepType === "RECAP"
+                    ? "Recap"
+                    : "Question"}
             </h3>
 
             <form className="space-y-4 pr-4 overflow-y-auto flex-1">
@@ -2250,7 +2485,9 @@ function TempEditStepButton({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Example sentence (optional)</label>
+                    <label className="block text-sm font-medium mb-1">
+                      Example sentence (optional)
+                    </label>
                     <textarea
                       className="w-full rounded-md border bg-background px-3 py-2 text-base"
                       rows={2}
@@ -2280,7 +2517,13 @@ function TempEditStepButton({
                   <div>
                     <label className="block text-sm font-medium mb-1">Question type</label>
                     <div className="w-full rounded-md border bg-muted/30 px-3 py-2">
-                      <p className="text-sm">{questionType === "MCQ" ? "Multiple Choice" : questionType === "MATCH" ? "Matching" : "Short Answer"}</p>
+                      <p className="text-sm">
+                        {questionType === "MCQ"
+                          ? "Multiple Choice"
+                          : questionType === "MATCH"
+                            ? "Matching"
+                            : "Short Answer"}
+                      </p>
                     </div>
                   </div>
 
@@ -2314,7 +2557,7 @@ function TempEditStepButton({
                             />
                             <input
                               type="checkbox"
-                              checked={choice.isCorrect}
+                              checked={!!choice.isCorrect}
                               onChange={(e) => {
                                 const updated = [...qChoices];
                                 updated[idx] = { ...choice, isCorrect: e.target.checked };
@@ -2334,7 +2577,10 @@ function TempEditStepButton({
                         <button
                           type="button"
                           onClick={() =>
-                            setQChoices([...qChoices, { id: Date.now(), text: "", isCorrect: false }])
+                            setQChoices([
+                              ...qChoices,
+                              { id: Date.now(), text: "", isCorrect: false },
+                            ])
                           }
                           className="text-sm text-blue-500 hover:underline"
                         >
@@ -2346,7 +2592,9 @@ function TempEditStepButton({
 
                   {questionType === "MATCH" && (
                     <div>
-                      <label className="block text-sm font-medium mb-2">Match pairs (Left → Right)</label>
+                      <label className="block text-sm font-medium mb-2">
+                        Match pairs (Left → Right)
+                      </label>
                       <div className="space-y-2">
                         {qMatchPairs.map((pair, idx) => (
                           <div key={pair.id} className="flex gap-2 items-end">
@@ -2379,7 +2627,9 @@ function TempEditStepButton({
                             </div>
                             <button
                               type="button"
-                              onClick={() => setQMatchPairs(qMatchPairs.filter((_, i) => i !== idx))}
+                              onClick={() =>
+                                setQMatchPairs(qMatchPairs.filter((_, i) => i !== idx))
+                              }
                               className="text-sm text-red-500 hover:underline whitespace-nowrap"
                             >
                               Remove
@@ -2389,7 +2639,10 @@ function TempEditStepButton({
                         <button
                           type="button"
                           onClick={() =>
-                            setQMatchPairs([...qMatchPairs, { left: "", right: "", id: String(Date.now()) }])
+                            setQMatchPairs([
+                              ...qMatchPairs,
+                              { left: "", right: "", id: String(Date.now()) },
+                            ])
                           }
                           className="text-sm text-blue-500 hover:underline"
                         >
@@ -2401,7 +2654,9 @@ function TempEditStepButton({
 
                   {questionType === "SHORT_ANSWER" && (
                     <div>
-                      <label className="block text-sm font-medium mb-1">Accepted answers (comma-separated)</label>
+                      <label className="block text-sm font-medium mb-1">
+                        Accepted answers (comma-separated)
+                      </label>
                       <textarea
                         className="w-full rounded-md border bg-background px-3 py-2 text-base"
                         rows={2}
@@ -2437,7 +2692,9 @@ function TempEditStepButton({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1">Takeaways (one per line)</label>
+                    <label className="block text-sm font-medium mb-1">
+                      Takeaways (one per line)
+                    </label>
                     <textarea
                       className="w-full rounded-md border bg-background px-3 py-2 text-base font-mono text-sm"
                       rows={4}
