@@ -1,30 +1,17 @@
 package com.group7.app.config;
 
-import com.group7.app.user.UserService;
-import java.util.*;
-import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.web.cors.CorsConfiguration;
-import org.springframework.web.cors.CorsConfigurationSource;
-import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 public class SecurityConfig {
-
-  private final UserService userService;
-
-  public SecurityConfig(UserService userService) {
-    this.userService = userService;
-  }
 
   @Bean
   public SecurityFilterChain filterChain(
@@ -32,12 +19,9 @@ public class SecurityConfig {
       Converter<Jwt, ? extends AbstractAuthenticationToken> databaseRoleJwtAuthenticationConverter)
       throws Exception {
 
-    http
-        // Enable CORS using our CorsConfigurationSource bean
-        .cors(Customizer.withDefaults())
-        .sessionManagement(
+    http.sessionManagement(
             session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .csrf(Customizer.withDefaults())
+        .csrf(csrf -> csrf.disable())
 
         // Configure endpoint security
         .authorizeHttpRequests(
@@ -85,32 +69,5 @@ public class SecurityConfig {
                     jwt -> jwt.jwtAuthenticationConverter(databaseRoleJwtAuthenticationConverter)));
 
     return http.build();
-  }
-
-  @Bean
-  public CorsConfigurationSource corsConfigurationSource() {
-
-    CorsConfiguration config = new CorsConfiguration();
-
-    // Frontend origin
-    config.setAllowedOrigins(List.of("http://localhost:5173"));
-
-    config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-
-    // Allow all headers (includes Authorization)
-    config.setAllowedHeaders(List.of("*"));
-
-    // Allow Authorization header & cookies
-    config.setAllowCredentials(true);
-
-    // (Optional but recommended for JWT)
-    config.setExposedHeaders(List.of("Authorization"));
-
-    UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-
-    // Apply CORS to all endpoints
-    source.registerCorsConfiguration("/**", config);
-
-    return source;
   }
 }
