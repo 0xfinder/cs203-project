@@ -33,16 +33,12 @@ public class ContentController {
   // Contributor submits a new term (also used as an appeal submission)
   @PostMapping
   @PreAuthorize("isAuthenticated()")
-  @Operation(
-      summary = "Create new content",
-      description =
-          "Submit a new content item. Contributors can use this endpoint to submit new terms or to appeal existing content; submitted items are created with status=PENDING for moderator review.")
+  @Operation(summary = "Create new content", description = "Submit a new content item. Contributors can use this endpoint to submit new terms or to appeal existing content; submitted items are created with status=PENDING for moderator review.")
   public Content submitContent(
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ContentCreateRequest request) {
     String email = getEmail(jwt);
     // Create Content entity from the DTO, setting submittedBy from JWT
-    Content content =
-        new Content(request.getTerm(), request.getDefinition(), request.getExample(), email);
+    Content content = new Content(request.getTerm(), request.getDefinition(), request.getExample(), email);
     // If the authenticated user is an admin/moderator, auto-approve the submission
     try {
       if (email != null) {
@@ -51,18 +47,10 @@ public class ContentController {
           Role role = user.getRole();
           if (role == Role.ADMIN || role == Role.MODERATOR) {
             content.setStatus(Content.Status.APPROVED);
-            String reviewer =
-                user.getDisplayName() != null && !user.getDisplayName().isBlank()
-                    ? user.getDisplayName()
-                    : user.getEmail();
+            String reviewer = user.getDisplayName() != null && !user.getDisplayName().isBlank()
+                ? user.getDisplayName()
+                : user.getEmail();
             content.setReviewedBy(reviewer);
-          }
-        } else {
-          // If user record not found, allow a test admin override for Shu (email or name)
-          String nameClaim = jwt.getClaimAsString("name");
-          if ("shubhangiskps@gmail.com".equalsIgnoreCase(email) || "Shu".equals(nameClaim)) {
-            content.setStatus(Content.Status.APPROVED);
-            content.setReviewedBy(nameClaim != null && !nameClaim.isBlank() ? nameClaim : email);
           }
         }
       }
@@ -87,7 +75,8 @@ public class ContentController {
     }
 
     String normalizedDecision = decision.trim().toUpperCase();
-    // If reviewer not supplied, try to derive from the authenticated JWT (email or subject)
+    // If reviewer not supplied, try to derive from the authenticated JWT (email or
+    // subject)
     String resolvedReviewer = reviewer;
     if ((resolvedReviewer == null || resolvedReviewer.isBlank()) && jwt != null) {
       try {
