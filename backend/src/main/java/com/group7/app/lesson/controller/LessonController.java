@@ -303,9 +303,7 @@ public class LessonController {
                       new MatchPairPayload(pair.id(), pair.left(), pair.right(), pair.orderIndex()))
               .toList();
       List<String> shuffledOptions =
-          includeAnswers
-              ? List.of()
-              : lessonStepPayloadService.shuffledRights(question);
+          includeAnswers ? List.of() : lessonStepPayloadService.shuffledRights(question);
       payload =
           new QuestionPayload(
               step.getId(),

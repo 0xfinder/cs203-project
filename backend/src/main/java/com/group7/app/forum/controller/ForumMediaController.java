@@ -88,7 +88,8 @@ public class ForumMediaController {
       return ResponseEntity.status(ex.getStatusCode())
           .body(responseBody != null ? responseBody : Map.of("error", "storage signing failed"));
     } catch (IllegalArgumentException ex) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "invalid storage signing request", ex);
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "invalid storage signing request", ex);
     }
   }
 

@@ -246,7 +246,9 @@ public class LessonStepPayloadService {
   }
 
   public List<String> shuffledRights(QuestionContent questionContent) {
-    if (questionContent == null || questionContent.matchPairs() == null || questionContent.matchPairs().isEmpty()) {
+    if (questionContent == null
+        || questionContent.matchPairs() == null
+        || questionContent.matchPairs().isEmpty()) {
       return List.of();
     }
 
