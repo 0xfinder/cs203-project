@@ -41,7 +41,8 @@ public class ContentController {
       @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ContentCreateRequest request) {
     String email = getEmail(jwt);
     // Create Content entity from the DTO, setting submittedBy from JWT
-    Content content = new Content(request.getTerm(), request.getDefinition(), request.getExample(), email);
+    Content content =
+        new Content(request.getTerm(), request.getDefinition(), request.getExample(), email);
     // If the authenticated user is an admin/moderator, auto-approve the submission
     try {
       if (email != null) {
@@ -50,9 +51,10 @@ public class ContentController {
           Role role = user.getRole();
           if (role == Role.ADMIN || role == Role.MODERATOR) {
             content.setStatus(Content.Status.APPROVED);
-            String reviewer = user.getDisplayName() != null && !user.getDisplayName().isBlank()
-                ? user.getDisplayName()
-                : user.getEmail();
+            String reviewer =
+                user.getDisplayName() != null && !user.getDisplayName().isBlank()
+                    ? user.getDisplayName()
+                    : user.getEmail();
             content.setReviewedBy(reviewer);
           }
         }

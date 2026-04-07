@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState, useEffect } from "react";
-import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash, Plus } from "lucide-react";
+import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -200,52 +200,51 @@ function DictionaryPage() {
               placeholder="Search terms, definitions, or examples…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9"
+              className="h-11 rounded-xl border-primary/30 bg-card pl-9 shadow-sm focus-visible:border-primary/50"
             />
           </div>
 
-          {isContributor && (
+          {isContributor ? (
             <Dialog>
               <DialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="rounded-full px-3 shadow-sm flex items-center gap-2 text-primary border-primary/20"
-                >
-                  <Plus className="size-3" />
+                <Button size="lg" className="rounded-full px-5 shadow-xl">
                   Add Lingo
                 </Button>
               </DialogTrigger>
               <DialogContent
+                className="mx-0 max-h-[calc(100vh-2rem)] w-[min(calc(100vw-2rem),28rem)] max-w-none overflow-y-auto rounded-2xl p-4 sm:w-full sm:max-w-md sm:p-6"
                 title="Add Lingo"
                 description="Submit a new dictionary term for review"
               >
                 <form onSubmit={handleLingoSubmit} className="space-y-3">
-                  <div>
+                  <div className="space-y-2">
                     <Label htmlFor="dict-term">Term</Label>
                     <Input
                       id="dict-term"
                       name="term"
                       value={termInput}
                       onChange={(e) => setTermInput(e.target.value)}
+                      className="h-11 rounded-xl border-border bg-card shadow-sm"
                     />
                   </div>
-                  <div>
+                  <div className="space-y-2">
                     <Label htmlFor="dict-definition">Definition</Label>
-                    <Input
+                    <textarea
                       id="dict-definition"
                       name="definition"
                       value={defInput}
                       onChange={(e) => setDefInput(e.target.value)}
+                      className="min-h-28 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm shadow-sm outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     />
                   </div>
-                  <div>
+                  <div className="space-y-2">
                     <Label htmlFor="dict-example">Example (optional)</Label>
-                    <Input
+                    <textarea
                       id="dict-example"
                       name="example"
                       value={exampleInput}
                       onChange={(e) => setExampleInput(e.target.value)}
+                      className="min-h-24 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm shadow-sm outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
                     />
                   </div>
                   <div className="flex justify-end">
@@ -261,7 +260,7 @@ function DictionaryPage() {
                 </form>
               </DialogContent>
             </Dialog>
-          )}
+          ) : null}
         </div>
 
         {!isLoading && contents && (
@@ -274,8 +273,6 @@ function DictionaryPage() {
           </div>
         )}
       </div>
-
-      {/* (Add Lingo is available in the search bar for contributors) */}
 
       {/* alphabet rail */}
       {!isLoading && availableLetters.length > 0 && (
