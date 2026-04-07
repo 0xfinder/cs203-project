@@ -95,8 +95,8 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex flex-1 items-center justify-center bg-background px-4">
+      <Card className="w-full max-w-md bg-card shadow-lg">
         <Tabs
           value={tab}
           onValueChange={(value) => {
@@ -105,7 +105,7 @@ function LoginPage() {
             setSuccess(null);
           }}
         >
-          <CardHeader>
+          <CardHeader className="px-8 pt-8">
             <CardTitle className="text-center text-2xl">
               {tab === "login" ? "Sign in" : "Create an account"}
             </CardTitle>
@@ -114,7 +114,7 @@ function LoginPage() {
                 ? "Log in to your AlphaLingo account"
                 : "Sign up to start learning Gen-Alpha culture"}
             </CardDescription>
-            <TabsList className="mt-3 grid w-full grid-cols-2 rounded-xl bg-muted/70 p-1 sm:w-[360px]">
+            <TabsList className="mt-3 grid w-full grid-cols-2 rounded-xl bg-muted/70 p-1">
               <TabsTrigger value="login" className="rounded-lg">
                 Sign In
               </TabsTrigger>
@@ -123,7 +123,7 @@ function LoginPage() {
               </TabsTrigger>
             </TabsList>
           </CardHeader>
-          <CardContent>
+          <CardContent className="px-8 pb-8">
             {error && (
               <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
