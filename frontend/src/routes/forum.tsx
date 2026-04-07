@@ -25,7 +25,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RoleBadge } from "@/components/role-badge";
-import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
+import {
+  optionalCurrentUserViewQueryOptions,
+  resolveAvatarSignedUrl,
+} from "@/lib/current-user-view";
 import { type MeResponse } from "@/lib/me";
 import { queryClient } from "@/lib/query-client";
 import { api } from "@/lib/api";
@@ -75,7 +78,6 @@ type QuestionResp = {
 
 type UserProfile = MeResponse;
 
-const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 const FORUM_MEDIA_BUCKET = import.meta.env.VITE_SUPABASE_FORUM_BUCKET?.trim() || "forum-media";
 const MAX_IMAGE_MB = 5;
 
@@ -125,22 +127,9 @@ function avatarHex(name: string) {
   return AVATAR_HEX[code % AVATAR_HEX.length];
 }
 
-function avatarColorClass(name: string) {
-  const color = avatarHex(name);
-  return `bg-[${color}]`;
-}
-
 function displayLabel(profile: UserProfile | null): string {
   if (!profile) return "Guest";
   return profile.displayName?.trim() || profile.email.split("@")[0];
-}
-
-/* -- Avatar public URL helper ---------------------------------------------- */
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-
-function getPublicAvatarUrl(avatarPath: string | null | undefined): string | null {
-  if (!avatarPath) return null;
-  return `${SUPABASE_URL}/storage/v1/object/public/${AVATAR_BUCKET}/${avatarPath}`;
 }
 
 /* -- Sub-components -------------------------------------------------------- */
@@ -153,28 +142,50 @@ function Avatar({
   avatarPath?: string | null;
   avatarColor?: string | null;
 }) {
-  const url = getPublicAvatarUrl(avatarPath);
+  const [url, setUrl] = useState<string | null>(null);
+  const [imageFailed, setImageFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setImageFailed(false);
+
+    if (!avatarPath) {
+      setUrl(null);
+      return () => {
+        active = false;
+      };
+    }
+
+    void resolveAvatarSignedUrl(avatarPath).then((nextUrl) => {
+      if (active) {
+        setUrl(nextUrl);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [avatarPath]);
+
+  const showImage = !!url && !imageFailed;
+  const fallbackColor = avatarColor ?? avatarHex(name);
 
   return (
     <span className="inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full">
-      {url ? (
+      {showImage ? (
         <img
           src={url}
           alt={`${name} avatar`}
           className="h-full w-full object-cover"
-          onError={(e) => {
-            (e.target as HTMLImageElement).style.display = "none";
-            (e.target as HTMLImageElement).nextElementSibling?.classList.remove("hidden");
-          }}
+          onError={() => setImageFailed(true)}
         />
       ) : null}
       <span
         className={cn(
           "items-center justify-center text-xs font-bold text-white",
-          url ? "hidden h-full w-full" : "inline-flex h-full w-full",
-          avatarColor ? undefined : avatarColorClass(name),
+          showImage ? "hidden h-full w-full" : "inline-flex h-full w-full",
         )}
-        style={avatarColor ? { backgroundColor: avatarColor } : undefined}
+        style={{ backgroundColor: fallbackColor }}
       >
         {getInitials(name)}
       </span>
