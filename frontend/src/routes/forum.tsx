@@ -100,12 +100,16 @@ function forumAnswersKey(questionId: number) {
 }
 
 /* -- Sub-components -------------------------------------------------------- */
-function AnswerBadge({ count }: { count: number }) {
+function AnswerBadge({ count, onClick }: { count: number; onClick?: () => void }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
+    >
       <MessageCircle className="size-3" />
       {count} {count === 1 ? "answer" : "answers"}
-    </span>
+    </button>
   );
 }
 
@@ -640,7 +644,7 @@ function QuestionCard({
         </div>
 
         <div className="mt-3 flex items-center gap-3 pb-4">
-          <AnswerBadge count={question.answerCount} />
+          <AnswerBadge count={question.answerCount} onClick={onToggle} />
           <button
             onClick={onToggle}
             className="ml-auto flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80"
