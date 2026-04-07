@@ -33,6 +33,7 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-web")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	runtimeOnly("org.postgresql:postgresql")
+	runtimeOnly("com.h2database:h2")
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.security:spring-security-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
@@ -105,4 +106,14 @@ tasks.jacocoTestCoverageVerification {
 
 tasks.check {
 	dependsOn(tasks.jacocoTestCoverageVerification)
+}
+
+tasks.register<JavaExec>("applyStoragePolicy") {
+	group = "tools"
+	description = "Apply storage RLS policy for forum-media using JDBC"
+	classpath = sourceSets.main.get().runtimeClasspath
+	mainClass.set("com.group7.app.tools.ApplyStoragePolicy")
+	// ensure .env is available to the JVM
+	environment("SPRINGDOTENV_DIRECTORY", projectDir.absolutePath)
+	environment("SPRINGDOTENV_FILENAME", ".env")
 }

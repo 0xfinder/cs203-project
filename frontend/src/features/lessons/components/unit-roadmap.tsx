@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Check, ChevronRight, Lock } from "lucide-react";
+import { Check, ChevronRight, Lock, Trash } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,9 @@ type UnitRoadmapProps = {
   title?: string;
   interactive?: boolean;
   compact?: boolean;
+  allowAllUnlocked?: boolean;
+  headerAction?: React.ReactNode;
+  onDeleteLesson?: (lessonId: number) => void;
 };
 
 export function UnitRoadmap({
@@ -22,9 +25,99 @@ export function UnitRoadmap({
   title = "Unit Roadmap",
   interactive = false,
   compact = false,
+  allowAllUnlocked = false,
+  headerAction,
+  onDeleteLesson,
 }: UnitRoadmapProps) {
   const progressByLessonId = new Map(progressItems?.map((item) => [item.lessonId, item]) ?? []);
-  const roadmap = getUnitRoadmap(unit, progressByLessonId, currentLessonId);
+  const roadmap = getUnitRoadmap(
+    unit,
+    progressByLessonId,
+    currentLessonId,
+    allowAllUnlocked ?? false,
+  );
+
+  // Merge any client-side placeholder lessons created for this real unit
+  let mergedUnit = unit;
+  if (typeof window !== "undefined") {
+    try {
+      const placeholders: any[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i) || "";
+        if (!key.startsWith("tempPlaceholderUnit:")) continue;
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = JSON.parse(raw);
+          if (parsed?.originalUnitId && parsed.originalUnitId === unit.id) {
+            if (Array.isArray(parsed.lessons)) {
+              placeholders.push(...parsed.lessons);
+            }
+          }
+        } catch (e) {
+          console.error("failed to parse temp placeholder unit:", e);
+          // ignore malformed
+        }
+      }
+      if (placeholders.length > 0) {
+        mergedUnit = {
+          ...unit,
+          lessons: [...(unit.lessons ?? []), ...placeholders],
+        } as typeof unit;
+      }
+    } catch (e) {
+      console.error("failed to access local storage for unit placeholders:", e);
+      // ignore storage access
+    }
+  }
+
+  const isPlaceholderLesson = (lesson: any) => {
+    if (!lesson) return false;
+    const title = String(lesson.title ?? "");
+    const slug = String(lesson.slug ?? "");
+    return (
+      title.startsWith("Placeholder Lesson") ||
+      slug.startsWith("placeholder-") ||
+      title === "Coming soon"
+    );
+  };
+
+  // Recompute roadmap using merged unit if placeholders exist
+  const effectiveRoadmap =
+    mergedUnit === unit
+      ? roadmap
+      : getUnitRoadmap(mergedUnit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
+  const displayItems = effectiveRoadmap.items.filter((item) => {
+    if (!item.lesson) return false;
+    // Filter out placeholder lessons
+    if (isPlaceholderLesson(item.lesson)) return false;
+    // Filter out wrapper lessons (those with targetSubunitId set)
+    if (item.lesson.targetSubunitId) return false;
+    // Additional safety: filter out lessons that are APPROVED but have no order_index or are very new
+    // This catches wrapper lessons that might have been created recently
+    if (item.lesson.status === "APPROVED" && item.lesson.publishedAt) {
+      const now = new Date();
+      const published = new Date(item.lesson.publishedAt);
+      const ageSeconds = (now.getTime() - published.getTime()) / 1000;
+      // If APPROVED less than 5 seconds ago and has a generic title, it's likely a wrapper
+      if (
+        ageSeconds < 5 &&
+        (String(item.lesson.title ?? "").includes("Understand") ||
+          String(item.lesson.title ?? "").includes("Recognize") ||
+          String(item.lesson.title ?? "").includes("Identify"))
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Compute counts and percent using only non-placeholder lessons so placeholders
+  // do not affect the displayed lesson counts or progress.
+  const shownCompletedCount = displayItems.filter((item) => item.completed).length;
+  const shownTotalLessons = displayItems.length;
+  const shownPercentComplete =
+    shownTotalLessons === 0 ? 0 : Math.round((shownCompletedCount / shownTotalLessons) * 100);
 
   return (
     <Card className="overflow-hidden border-border/70 bg-card shadow-sm">
@@ -38,13 +131,14 @@ export function UnitRoadmap({
             {unit.description ? (
               <p className="mt-2 max-w-sm text-sm text-muted-foreground">{unit.description}</p>
             ) : null}
+            {headerAction ? <div className="mt-3">{headerAction}</div> : null}
           </div>
 
           <Badge
             variant="secondary"
             className="rounded-full border border-border bg-background px-3 py-1 text-[0.7rem] font-bold uppercase tracking-[0.18em] text-foreground"
           >
-            {roadmap.completedCount}/{roadmap.totalLessons}
+            {shownCompletedCount}/{shownTotalLessons}
           </Badge>
         </div>
 
@@ -52,17 +146,17 @@ export function UnitRoadmap({
           <div className="h-2 overflow-hidden rounded-full bg-border/70">
             <div
               className="h-full rounded-full bg-chart-1/70 transition-all duration-500"
-              style={{ width: `${roadmap.percentComplete}%` }}
+              style={{ width: `${shownPercentComplete}%` }}
             />
           </div>
           <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-            {roadmap.percentComplete}% complete
+            {shownPercentComplete}% complete
           </p>
         </div>
       </CardHeader>
 
       <CardContent className={cn("space-y-3 p-4", compact && "space-y-2 p-3")}>
-        {roadmap.items.map((item, index) => {
+        {displayItems.map((item, index) => {
           const stepLabel = `${index + 1}`.padStart(2, "0");
           const body = (
             <div
@@ -109,9 +203,27 @@ export function UnitRoadmap({
                 )}
               </div>
 
-              {item.unlocked ? (
-                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
-              ) : null}
+              <div className="flex items-center gap-2">
+                {onDeleteLesson ? (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      onDeleteLesson(item.lesson.id);
+                    }}
+                    title="Delete subunit"
+                    aria-label="Delete subunit"
+                    className="inline-flex items-center justify-center rounded-full p-2 bg-destructive text-destructive-foreground hover:scale-105 transition-transform"
+                  >
+                    <Trash className="size-4" />
+                  </button>
+                ) : null}
+
+                {item.unlocked ? (
+                  <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                ) : null}
+              </div>
             </div>
           );
 

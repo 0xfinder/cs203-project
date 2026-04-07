@@ -131,14 +131,31 @@ function MatchQuestion({
     }),
   );
   const usedOptions = new Set(Object.values(currentMap));
-  const availableOptions = question.shuffledRights.filter((option) => !usedOptions.has(option));
+  const matchPairs = question.matchPairs ?? [];
+
+  // If shuffledRights not provided (e.g., from localStorage for appended units),
+  // compute them from matchPairs on the frontend
+  let shuffledRights = question.shuffledRights;
+  if ((!shuffledRights || shuffledRights.length === 0) && matchPairs.length > 0) {
+    const rights = matchPairs
+      .filter((p: any) => p && p.right && typeof p.right === "string" && p.right.trim())
+      .map((p: any) => p.right);
+    // Shuffle the array
+    for (let i = rights.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [rights[i], rights[j]] = [rights[j], rights[i]];
+    }
+    shuffledRights = rights;
+  }
+
+  const availableOptions = (shuffledRights ?? []).filter((option) => !usedOptions.has(option));
   const selectedOption =
     activeOption && availableOptions.includes(activeOption) ? activeOption : null;
-  const matchedCount = question.matchPairs.filter((pair) => {
+  const matchedCount = matchPairs.filter((pair) => {
     const selected = currentMap[pair.left];
     return typeof selected === "string" && selected.trim().length > 0;
   }).length;
-  const totalPairs = question.matchPairs.length;
+  const totalPairs = matchPairs.length;
   const solved = totalPairs > 0 && matchedCount === totalPairs;
 
   const setPair = (left: string, right: string) => {
@@ -266,7 +283,7 @@ function MatchQuestion({
             </div>
 
             <div className="space-y-3">
-              {question.matchPairs.map((pair) => {
+              {matchPairs.map((pair) => {
                 const selected = currentMap[pair.left] ?? null;
                 return (
                   <MatchPairCard
@@ -350,11 +367,7 @@ function MatchPairCard({
               }}
             />
           ) : (
-            <button
-              type="button"
-              onClick={onAssign}
-              className="flex w-full items-center text-left"
-            >
+            <button type="button" onClick={onAssign} className="flex w-full items-center text-left">
               <div className="min-w-0 flex-1 overflow-hidden">
                 <p className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:text-[11px]">
                   Drag & drop here

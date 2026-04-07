@@ -88,10 +88,10 @@ public class LessonStepPayloadService {
       return payload;
     }
 
-    if (questionType == QuestionType.CLOZE || questionType == QuestionType.SHORT_ANSWER) {
+    if (questionType == QuestionType.SHORT_ANSWER) {
       if (acceptedAnswers == null || acceptedAnswers.isEmpty()) {
         throw new ResponseStatusException(
-            HttpStatus.BAD_REQUEST, "acceptedAnswers is required for cloze/short answer");
+            HttpStatus.BAD_REQUEST, "acceptedAnswers is required for short answer");
       }
       ArrayNode answers = payload.putArray("acceptedAnswers");
       for (String acceptedAnswer : acceptedAnswers) {
@@ -135,7 +135,7 @@ public class LessonStepPayloadService {
 
   public QuestionContent readQuestion(LessonStep step) {
     JsonNode payload = step.getPayload();
-    QuestionType questionType = QuestionType.valueOf(readRequiredText(payload, "questionType"));
+    QuestionType questionType = parseQuestionType(readRequiredText(payload, "questionType"));
     String prompt = readRequiredText(payload, "prompt");
     String explanation = readOptionalText(payload, "explanation");
 
@@ -157,12 +157,11 @@ public class LessonStepPayloadService {
     if (pairsNode != null && pairsNode.isArray()) {
       for (int i = 0; i < pairsNode.size(); i++) {
         JsonNode pair = pairsNode.get(i);
+        String left = readRequiredText(pair, "left");
+        String right = readOptionalText(pair, "right");
         matchPairs.add(
             new MatchPairOption(
-                pair.path("id").asLong(i + 1L),
-                readRequiredText(pair, "left"),
-                readOptionalText(pair, "right"),
-                pair.path("orderIndex").asInt(i + 1)));
+                pair.path("id").asLong(i + 1L), left, right, pair.path("orderIndex").asInt(i + 1)));
       }
     }
 
@@ -201,8 +200,7 @@ public class LessonStepPayloadService {
       return new Evaluation(correct, evaluatedAnswer, correctChoice.text(), question.explanation());
     }
 
-    if (question.questionType() == QuestionType.CLOZE
-        || question.questionType() == QuestionType.SHORT_ANSWER) {
+    if (question.questionType() == QuestionType.SHORT_ANSWER) {
       String submittedText = normalize(extractStringAnswer(submitted));
       boolean correct =
           question.acceptedAnswers().stream()
@@ -248,10 +246,16 @@ public class LessonStepPayloadService {
   }
 
   public List<String> shuffledRights(QuestionContent questionContent) {
+    if (questionContent == null
+        || questionContent.matchPairs() == null
+        || questionContent.matchPairs().isEmpty()) {
+      return List.of();
+    }
+
     List<String> rights =
         questionContent.matchPairs().stream()
+            .filter(pair -> pair != null && pair.right() != null && !pair.right().isBlank())
             .map(MatchPairOption::right)
-            .filter(value -> value != null && !value.isBlank())
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
     Collections.shuffle(rights);
     return rights;
@@ -277,6 +281,19 @@ public class LessonStepPayloadService {
   private static String readOptionalText(JsonNode node, String field) {
     JsonNode value = node.get(field);
     return value != null && value.isTextual() ? value.asText() : null;
+  }
+
+  private static QuestionType parseQuestionType(String typeString) {
+    try {
+      return QuestionType.valueOf(typeString.toUpperCase());
+    } catch (IllegalArgumentException e) {
+      // Handle legacy CLOZE type by converting it to SHORT_ANSWER
+      if ("CLOZE".equalsIgnoreCase(typeString)) {
+        return QuestionType.SHORT_ANSWER;
+      }
+      // Default to SHORT_ANSWER if type is unknown
+      return QuestionType.SHORT_ANSWER;
+    }
   }
 
   private static String extractStringAnswer(JsonNode answer) {

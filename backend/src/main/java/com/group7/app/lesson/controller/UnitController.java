@@ -5,6 +5,7 @@ import com.group7.app.lesson.model.Unit;
 import com.group7.app.lesson.service.AuthContextService;
 import com.group7.app.lesson.service.LessonService;
 import com.group7.app.user.User;
+import com.group7.app.user.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -20,10 +21,13 @@ import org.springframework.web.bind.annotation.RestController;
 public class UnitController {
 
   private final LessonService lessonService;
+  private final UserService userService;
   private final AuthContextService authContextService;
 
-  public UnitController(LessonService lessonService, AuthContextService authContextService) {
+  public UnitController(
+      LessonService lessonService, AuthContextService authContextService, UserService userService) {
     this.lessonService = lessonService;
+    this.userService = userService;
     this.authContextService = authContextService;
   }
 
@@ -54,6 +58,22 @@ public class UnitController {
   }
 
   private LessonSummaryResponse toLessonSummary(Lesson lesson) {
+    String submittedBy = null;
+    try {
+      if (lesson.getCreatedBy() != null) {
+        var uOpt = userService.findById(lesson.getCreatedBy());
+        if (uOpt.isPresent()) {
+          var u = uOpt.get();
+          submittedBy =
+              u.getDisplayName() != null && !u.getDisplayName().isBlank()
+                  ? u.getDisplayName()
+                  : u.getEmail();
+        }
+      }
+    } catch (Exception e) {
+      submittedBy = null;
+    }
+
     return new LessonSummaryResponse(
         lesson.getId(),
         lesson.getUnit().getId(),
@@ -63,7 +83,9 @@ public class UnitController {
         lesson.getLearningObjective(),
         lesson.getEstimatedMinutes(),
         lesson.getOrderIndex(),
-        lesson.getStatus());
+        lesson.getStatus(),
+        submittedBy,
+        lesson.getTargetSubunitId());
   }
 
   public record UnitResponse(
@@ -83,5 +105,7 @@ public class UnitController {
       String learningObjective,
       Integer estimatedMinutes,
       Integer orderIndex,
-      com.group7.app.lesson.model.LessonStatus status) {}
+      com.group7.app.lesson.model.LessonStatus status,
+      String submittedBy,
+      Long targetSubunitId) {}
 }

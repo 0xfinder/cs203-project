@@ -18,4 +18,6 @@ public interface ContentService {
   List<Content> getPendingContents();
 
   Page<Content> getPendingContents(Pageable pageable);
+
+  void deleteContent(Long id);
 }

@@ -10,6 +10,7 @@ import com.group7.app.lesson.service.AuthContextService;
 import com.group7.app.lesson.service.LessonService;
 import com.group7.app.lesson.service.LessonStepPayloadService;
 import com.group7.app.user.User;
+import com.group7.app.user.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -37,14 +38,17 @@ public class LessonController {
 
   private final LessonService lessonService;
   private final LessonStepPayloadService lessonStepPayloadService;
+  private final UserService userService;
   private final AuthContextService authContextService;
 
   public LessonController(
       LessonService lessonService,
       LessonStepPayloadService lessonStepPayloadService,
-      AuthContextService authContextService) {
+      AuthContextService authContextService,
+      UserService userService) {
     this.lessonService = lessonService;
     this.lessonStepPayloadService = lessonStepPayloadService;
+    this.userService = userService;
     this.authContextService = authContextService;
   }
 
@@ -100,7 +104,8 @@ public class LessonController {
                 request.description(),
                 request.learningObjective(),
                 request.estimatedMinutes(),
-                request.orderIndex()));
+                request.orderIndex(),
+                request.targetSubunitId()));
 
     return ResponseEntity.created(URI.create("/api/lessons/" + lesson.getId()))
         .body(toDetail(lesson, List.of()));
@@ -133,6 +138,15 @@ public class LessonController {
             .toList();
 
     return toDetail(lesson, steps);
+  }
+
+  @DeleteMapping("/{lessonId}")
+  @Operation(summary = "Delete a lesson (owner or admin only)")
+  public org.springframework.http.ResponseEntity<Void> deleteLesson(
+      @AuthenticationPrincipal Jwt jwt, @PathVariable Long lessonId) {
+    User actor = authContextService.resolveUser(jwt);
+    lessonService.deleteLesson(actor, lessonId);
+    return org.springframework.http.ResponseEntity.noContent().build();
   }
 
   @PostMapping("/{lessonId}/steps")
@@ -169,6 +183,22 @@ public class LessonController {
   }
 
   private LessonSummaryResponse toSummary(Lesson lesson) {
+    String submittedBy = null;
+    try {
+      if (lesson.getCreatedBy() != null) {
+        var uOpt = userService.findById(lesson.getCreatedBy());
+        if (uOpt.isPresent()) {
+          var u = uOpt.get();
+          submittedBy =
+              u.getDisplayName() != null && !u.getDisplayName().isBlank()
+                  ? u.getDisplayName()
+                  : u.getEmail();
+        }
+      }
+    } catch (Exception e) {
+      submittedBy = null;
+    }
+
     return new LessonSummaryResponse(
         lesson.getId(),
         lesson.getUnit().getId(),
@@ -178,7 +208,9 @@ public class LessonController {
         lesson.getLearningObjective(),
         lesson.getEstimatedMinutes(),
         lesson.getOrderIndex(),
-        lesson.getStatus());
+        lesson.getStatus(),
+        submittedBy,
+        lesson.getTargetSubunitId());
   }
 
   private LessonDetailResponse toDetail(Lesson lesson, List<StepResponse> steps) {
@@ -193,6 +225,7 @@ public class LessonController {
         lesson.getStatus(),
         lesson.getReviewComment(),
         lesson.getPublishedAt(),
+        lesson.getTargetSubunitId(),
         steps);
   }
 
@@ -269,6 +302,8 @@ public class LessonController {
                   pair ->
                       new MatchPairPayload(pair.id(), pair.left(), pair.right(), pair.orderIndex()))
               .toList();
+      List<String> shuffledOptions =
+          includeAnswers ? List.of() : lessonStepPayloadService.shuffledRights(question);
       payload =
           new QuestionPayload(
               step.getId(),
@@ -284,7 +319,7 @@ public class LessonController {
                               new MatchPairPayload(pair.id(), pair.left(), null, pair.orderIndex()))
                       .toList(),
               List.of(),
-              includeAnswers ? List.of() : lessonStepPayloadService.shuffledRights(question));
+              shuffledOptions);
     } else {
       List<String> acceptedAnswers = includeAnswers ? question.acceptedAnswers() : List.of();
       payload =
@@ -339,7 +374,8 @@ public class LessonController {
       @NotBlank String description,
       String learningObjective,
       Integer estimatedMinutes,
-      @NotNull Integer orderIndex) {}
+      Integer orderIndex,
+      Long targetSubunitId) {}
 
   public record PatchLessonRequest(
       Long unitId,
@@ -377,7 +413,9 @@ public class LessonController {
       String learningObjective,
       Integer estimatedMinutes,
       Integer orderIndex,
-      LessonStatus status) {}
+      LessonStatus status,
+      String submittedBy,
+      Long targetSubunitId) {}
 
   public record LessonDetailResponse(
       Long id,
@@ -390,6 +428,7 @@ public class LessonController {
       LessonStatus status,
       String reviewComment,
       java.time.Instant publishedAt,
+      Long targetSubunitId,
       List<StepResponse> steps) {}
 
   public record LessonPlayResponse(LessonSummaryResponse lesson, List<StepResponse> steps) {}

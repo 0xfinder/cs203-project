@@ -62,6 +62,9 @@ public class Lesson {
   @Column(name = "published_at")
   private Instant publishedAt;
 
+  @Column(name = "target_subunit_id")
+  private Long targetSubunitId;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt;
 
@@ -187,6 +190,14 @@ public class Lesson {
 
   public void setPublishedAt(Instant publishedAt) {
     this.publishedAt = publishedAt;
+  }
+
+  public Long getTargetSubunitId() {
+    return targetSubunitId;
+  }
+
+  public void setTargetSubunitId(Long targetSubunitId) {
+    this.targetSubunitId = targetSubunitId;
   }
 
   public Instant getCreatedAt() {

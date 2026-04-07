@@ -13,4 +13,6 @@ public interface LessonRepository extends JpaRepository<Lesson, Long> {
   List<Lesson> findByUnitIdOrderByOrderIndexAsc(Long unitId);
 
   List<Lesson> findAllByOrderByOrderIndexAsc();
+
+  boolean existsBySlug(String slug);
 }

@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useQuery } from "@tanstack/react-query";
 import {
   MessageCircle,
   Plus,
@@ -27,9 +28,10 @@ import { RoleBadge } from "@/components/role-badge";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import { type MeResponse } from "@/lib/me";
 import { queryClient } from "@/lib/query-client";
-import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
+import { cn } from "@/lib/utils";
+// duplicate imports removed
 
 export const Route = createFileRoute("/forum")({
   loader: () => queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
@@ -73,8 +75,24 @@ type QuestionResp = {
 
 type UserProfile = MeResponse;
 
-const FORUM_MEDIA_BUCKET = "forum-media";
+const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
+const FORUM_MEDIA_BUCKET = import.meta.env.VITE_SUPABASE_FORUM_BUCKET?.trim() || "forum-media";
 const MAX_IMAGE_MB = 5;
+
+/* -- Error extraction ------------------------------------------------------ */
+async function extractErrorMessage(e: unknown, fallback: string): Promise<string> {
+  if (e && typeof e === "object" && "response" in e) {
+    try {
+      const body = await (e as { response: Response }).response.json();
+      if (body?.message) return body.message;
+    } catch (e) {
+      console.error("failed to parse error response:", e);
+      /* ignore parse errors */
+    }
+  }
+  if (e instanceof Error) return e.message;
+  return fallback;
+}
 
 /* -- Helpers ---------------------------------------------------------------- */
 function timeAgo(iso: string) {
@@ -86,22 +104,30 @@ function timeAgo(iso: string) {
 }
 
 function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
-  return name.slice(0, 2).toUpperCase();
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((part) => part[0])
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "U"
+  );
 }
 
-const AVATAR_COLORS = [
-  "bg-chart-1",
-  "bg-chart-2",
-  "bg-chart-3",
-  "bg-chart-4",
-  "bg-chart-5",
-  "bg-primary",
-];
+// deterministic palette of hex colors to match profile styling
+const AVATAR_HEX = ["#60A5FA", "#34D399", "#F472B6", "#F59E0B", "#A78BFA", "#475569"];
+function avatarHex(name: string) {
+  const s = (name ?? "?").trim();
+  if (!s) return AVATAR_HEX[0];
+  const code = s.charCodeAt(0);
+  return AVATAR_HEX[code % AVATAR_HEX.length];
+}
+
 function avatarColorClass(name: string) {
-  const n = (name ?? "?").charCodeAt(0);
-  return AVATAR_COLORS[n % AVATAR_COLORS.length];
+  const color = avatarHex(name);
+  return `bg-[${color}]`;
 }
 
 function displayLabel(profile: UserProfile | null): string {
@@ -111,7 +137,6 @@ function displayLabel(profile: UserProfile | null): string {
 
 /* -- Avatar public URL helper ---------------------------------------------- */
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 
 function getPublicAvatarUrl(avatarPath: string | null | undefined): string | null {
   if (!avatarPath) return null;
@@ -356,11 +381,51 @@ async function uploadForumImage(file: File, userId: string): Promise<string | nu
     return null;
   }
 
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from(FORUM_MEDIA_BUCKET).getPublicUrl(path);
+  // Try to get the public URL first
+  try {
+    const pubResp = supabase.storage.from(FORUM_MEDIA_BUCKET).getPublicUrl(path as string);
+    console.log("forum upload: getPublicUrl response:", pubResp);
+    const publicUrl = (pubResp as any)?.data?.publicUrl ?? (pubResp as any)?.publicUrl ?? null;
+    if (publicUrl) {
+      // Check if the URL is actually accessible (bucket might be private)
+      try {
+        const head = await fetch(publicUrl, { method: "HEAD" });
+        console.log("forum upload: publicUrl HEAD status", head.status);
+        if (head.ok) return publicUrl;
+      } catch (e) {
+        console.error("failed to check public url accessibility:", e);
+        // network/fetch errors fallthrough to signed-url fallback
+      }
+    }
 
-  return publicUrl;
+    // Fallback: ask backend to sign the object using the service role (more reliable)
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/forum/media/signed-url`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ bucket: FORUM_MEDIA_BUCKET, path, expires: 60 * 60 * 24 }),
+        },
+      );
+      if (res.ok) {
+        const json = await res.json();
+        const signedUrl =
+          (json as any)?.signedUrl ?? (json as any)?.signedURL ?? (json as any)?.signed_url ?? null;
+        if (signedUrl) return signedUrl;
+      } else {
+        console.warn("forum upload: backend signed-url failed", res.status);
+      }
+    } catch (e) {
+      console.error("forum upload: backend signed-url error", e);
+    }
+
+    // Last resort: return whatever publicUrl we received (may 403)
+    return publicUrl || null;
+  } catch (e) {
+    console.error("Error getting public/signed URL:", e);
+    return null;
+  }
 }
 
 /* -- Markdown textarea component ------------------------------------------- */
@@ -450,12 +515,14 @@ function MarkdownTextarea({
 
 /* -- Main component -------------------------------------------------------- */
 function ForumPage() {
-  const loaderData = Route.useLoaderData();
   const [questions, setQuestions] = useState<QuestionResp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [profile] = useState<UserProfile | null>(loaderData.profile);
+  // subscribe to the shared current-user-view so this page updates when
+  // the user signs in/out or edits their profile (cache updated elsewhere)
+  const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
+  const profile = (currentUserViewQuery.data && currentUserViewQuery.data.profile) || null;
 
   const [showAskForm, setShowAskForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -515,7 +582,7 @@ function ForumPage() {
       setShowAskForm(false);
       await fetchQuestions();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to post");
+      setError(await extractErrorMessage(e, "Failed to post"));
     } finally {
       setPosting(false);
     }
@@ -523,7 +590,7 @@ function ForumPage() {
 
   /* -- post answer -------------------------------------------------------- */
   const handlePostAnswer = async (qId: number) => {
-    const content = answerDraft[qId]?.trim();
+    let content = answerDraft[qId]?.trim();
     if (!content || !canPost) return;
     setPostingAnswer(qId);
     try {
@@ -535,7 +602,7 @@ function ForumPage() {
       setAnswerDraft((prev) => ({ ...prev, [qId]: "" }));
       await fetchQuestions();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to post answer");
+      setError(await extractErrorMessage(e, "Failed to post answer"));
     } finally {
       setPostingAnswer(null);
     }
@@ -547,7 +614,8 @@ function ForumPage() {
     try {
       await api.delete(`forum/questions/${qId}`);
       await fetchQuestions();
-    } catch {
+    } catch (e) {
+      console.error("failed to delete question:", e);
       setError("Failed to delete question");
     }
   };
@@ -556,7 +624,8 @@ function ForumPage() {
     try {
       await api.delete(`forum/answers/${aId}`);
       await fetchQuestions();
-    } catch {
+    } catch (e) {
+      console.error("failed to delete answer:", e);
       setError("Failed to delete answer");
     }
   };
@@ -571,7 +640,8 @@ function ForumPage() {
         })
         .json<VoteSummary>();
       setQuestions((prev) => prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)));
-    } catch {
+    } catch (e) {
+      console.error("failed to vote on question:", e);
       setError("Failed to vote");
     }
   };
@@ -581,7 +651,8 @@ function ForumPage() {
     try {
       const updated = await api.delete(`forum/questions/${qId}/votes`).json<VoteSummary>();
       setQuestions((prev) => prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)));
-    } catch {
+    } catch (e) {
+      console.error("failed to clear question vote:", e);
       setError("Failed to clear vote");
     }
   };
@@ -604,7 +675,8 @@ function ForumPage() {
             : q,
         ),
       );
-    } catch {
+    } catch (e) {
+      console.error("failed to vote on answer:", e);
       setError("Failed to vote");
     }
   };
@@ -623,7 +695,8 @@ function ForumPage() {
             : q,
         ),
       );
-    } catch {
+    } catch (e) {
+      console.error("failed to clear answer vote:", e);
       setError("Failed to clear vote");
     }
   };
@@ -634,6 +707,7 @@ function ForumPage() {
   /* -- render ------------------------------------------------------------- */
   return (
     <div className="mx-auto w-full max-w-3xl flex-1 px-4 py-8 sm:px-6">
+      {/* debug banner removed (undefined `debugMessage` caused runtime error) */}
       {/* page header */}
       <div className="mb-6 flex items-center justify-between gap-4">
         <div>
@@ -732,6 +806,8 @@ function ForumPage() {
               disabled={!canPost}
               userId={profile?.id}
             />
+
+            {/* file attachments removed from the post form; use inline image upload in the editor */}
 
             {canPost && (
               <p className="text-xs text-muted-foreground">

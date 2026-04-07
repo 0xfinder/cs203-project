@@ -2,23 +2,31 @@ package com.group7.app.content.service;
 
 import com.group7.app.content.model.Content;
 import com.group7.app.content.repository.ContentRepository;
+import com.group7.app.content.repository.ContentVoteRepository;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ContentServiceImpl implements ContentService {
 
   private final ContentRepository contentRepository;
+  private final ContentVoteRepository contentVoteRepository;
 
-  public ContentServiceImpl(ContentRepository contentRepository) {
+  public ContentServiceImpl(
+      ContentRepository contentRepository, ContentVoteRepository contentVoteRepository) {
     this.contentRepository = contentRepository;
+    this.contentVoteRepository = contentVoteRepository;
   }
 
   @Override
   public Content submitContent(Content content) {
-    content.setStatus(Content.Status.PENDING);
+    // Respect any status already set (e.g. controller auto-approves for admins).
+    if (content.getStatus() != Content.Status.APPROVED) {
+      content.setStatus(Content.Status.PENDING);
+    }
     return contentRepository.save(content);
   }
 
@@ -66,5 +74,17 @@ public class ContentServiceImpl implements ContentService {
   public org.springframework.data.domain.Page<Content> getPendingContents(
       org.springframework.data.domain.Pageable pageable) {
     return contentRepository.findByStatus(Content.Status.PENDING, pageable);
+  }
+
+  @Override
+  @Transactional
+  public void deleteContent(Long id) {
+    Content content =
+        contentRepository
+            .findById(id)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Content not found"));
+    contentVoteRepository.deleteAllByContentId(id);
+    contentRepository.delete(content);
   }
 }

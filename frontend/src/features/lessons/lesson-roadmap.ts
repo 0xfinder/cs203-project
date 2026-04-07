@@ -23,13 +23,14 @@ export function getUnitRoadmap(
   unit: UnitData,
   progressByLessonId: Map<number, ProgressItem>,
   currentLessonId?: number,
+  allowAllUnlocked = false,
 ) {
-  const orderedLessons = sortLessons(unit.lessons);
+  const orderedLessons = Array.isArray(unit.lessons) ? sortLessons(unit.lessons) : [];
   let previousCompleted = true;
 
   const items: LessonRoadmapItem[] = orderedLessons.map((lesson) => {
     const completed = progressByLessonId.get(lesson.id)?.completedAt != null;
-    const unlocked = previousCompleted;
+    const unlocked = previousCompleted || allowAllUnlocked;
     const current = currentLessonId === lesson.id;
     previousCompleted = previousCompleted && completed;
     return {
@@ -58,7 +59,18 @@ export function getUnitRoadmap(
 }
 
 export function getVisibleUnits(units: UnitData[]) {
-  return sortUnits(units).filter((unit) => unit.lessons.length > 0);
+  // Only consider approved lessons as part of the visible roadmap so that
+  // newly-submitted (PENDING_REVIEW) lessons do not immediately appear
+  // in the Learn view. Return shallow-copies of units with their lessons
+  // filtered to approved status.
+  return sortUnits(units)
+    .map((unit) => ({
+      ...unit,
+      lessons: (Array.isArray(unit.lessons) ? unit.lessons : []).filter(
+        (l: any) => l.status === "APPROVED",
+      ),
+    }))
+    .filter((unit) => Array.isArray(unit.lessons) && unit.lessons.length > 0);
 }
 
 export function findUnitByLessonId(units: UnitData[], lessonId: number) {

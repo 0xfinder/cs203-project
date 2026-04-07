@@ -100,11 +100,29 @@ export function useSubmitContent() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (content: Omit<ContentItem, "id" | "createdAt" | "updatedAt" | "status">) =>
-      api.post("contents", { json: content }).json<ContentItem>(),
+    mutationFn: async (content: Omit<ContentItem, "id" | "createdAt" | "updatedAt" | "status">) => {
+      try {
+        return await api.post("contents", { json: content }).json<ContentItem>();
+      } catch (err: any) {
+        console.error("useSubmitContent mutation failed:", err);
+        // attempt to log response body when available
+        try {
+          const text = await err?.response?.text();
+          console.error("response body:", text);
+        } catch {
+          // ignore
+        }
+        throw err;
+      }
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: CONTENTS_KEY });
       void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+      void queryClient.invalidateQueries({ queryKey: [...CONTENTS_KEY, "pending"] });
+      void queryClient.invalidateQueries({ queryKey: [...CONTENTS_KEY, "pending", "paginated"] });
+    },
+    onError: (err: any) => {
+      console.error("useSubmitContent onError:", err);
     },
   });
 }
@@ -184,5 +202,51 @@ export function useSearchExistingTerm(term: string) {
       return contents.filter((content) => content.term.toLowerCase() === term.toLowerCase());
     },
     enabled: term.trim().length > 0,
+  });
+}
+
+export function useDeleteContent() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id }: { id: number }) => api.delete(`contents/${id}`).json<void>(),
+    // Optimistically remove content from local caches so dictionary updates instantly.
+    onMutate: async ({ id }) => {
+      await queryClient.cancelQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+      await queryClient.cancelQueries({ queryKey: CONTENTS_KEY });
+
+      const previousWithVotes =
+        queryClient.getQueryData<ContentWithVotesResponse[]>(CONTENTS_WITH_VOTES_KEY);
+      const previousApproved = queryClient.getQueryData<ContentItem[]>(CONTENTS_KEY);
+
+      if (previousWithVotes) {
+        queryClient.setQueryData<ContentWithVotesResponse[]>(
+          CONTENTS_WITH_VOTES_KEY,
+          previousWithVotes.filter((item) => item.content.id !== id),
+        );
+      }
+
+      if (previousApproved) {
+        queryClient.setQueryData<ContentItem[]>(
+          CONTENTS_KEY,
+          previousApproved.filter((item) => item.id !== id),
+        );
+      }
+
+      return { previousWithVotes, previousApproved };
+    },
+    onError: (_error, _vars, context) => {
+      if (!context) return;
+      if (context.previousWithVotes) {
+        queryClient.setQueryData(CONTENTS_WITH_VOTES_KEY, context.previousWithVotes);
+      }
+      if (context.previousApproved) {
+        queryClient.setQueryData(CONTENTS_KEY, context.previousApproved);
+      }
+    },
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+      void queryClient.invalidateQueries({ queryKey: CONTENTS_KEY });
+    },
   });
 }

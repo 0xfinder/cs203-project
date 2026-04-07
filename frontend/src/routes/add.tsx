@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { api } from "@/lib/api";
@@ -8,13 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-
-interface ContentPayload {
-  term: string;
-  definition: string;
-  example?: string | null;
-  submittedBy: string;
-}
+import { LessonForm } from "@/components/lesson-quiz-forms";
 
 export const Route = createFileRoute("/add")({
   beforeLoad: requireOnboardingCompleted,
@@ -22,236 +16,189 @@ export const Route = createFileRoute("/add")({
 });
 
 function SubmitContentPage() {
-  const [activeTab, setActiveTab] = useState("term");
   const [term, setTerm] = useState("");
   const [definition, setDefinition] = useState("");
   const [example, setExample] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
-  const [existingTerms, setExistingTerms] = useState<any[]>([]);
-  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const checkRole = async () => {
-      try {
-        const me = await getMe();
-        setHasAccess(me.role === "CONTRIBUTOR" || me.role === "MODERATOR" || me.role === "ADMIN");
-      } catch {
-        setHasAccess(false);
-      }
-    };
-    void checkRole();
-  }, []);
-
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const handleLingoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setError(null);
     setSuccess(null);
-
-    // Check if term exists and we haven't confirmed yet
-    if (!showConfirmation) {
-      setLoading(true);
-      try {
-        const contents = await api.get("contents/approved").json<any[]>();
-        const matches = contents.filter(
-          (content) => content.term.toLowerCase() === term.trim().toLowerCase(),
-        );
-
-        if (matches.length > 0) {
-          setExistingTerms(matches);
-          setShowConfirmation(true);
-          setLoading(false);
-          return;
-        }
-      } catch (err) {
-        console.error("Error checking for existing terms:", err);
-        // Continue with submission if check fails
-      }
-      setLoading(false);
-    }
-
     setLoading(true);
-
     try {
       const me = await getMe();
-      const submittedBy = me.email ?? "";
-      if (!submittedBy) {
-        setError("You must be logged in to submit content.");
-        setLoading(false);
-        return;
-      }
-
-      const payload: ContentPayload = {
+      const payload = {
         term: term.trim(),
         definition: definition.trim(),
-        example: example.trim() ? example.trim() : null,
-        submittedBy,
+        example: example.trim() || null,
+        submittedBy: me.email ?? "",
       };
-
-      await api
-        .post("contents", {
-          json: payload,
-        })
-        .json();
-
-      setSuccess("Thanks! Your lingo is now pending review.");
+      await api.post("contents", { json: payload }).json();
+      setSuccess(
+        me.role === "ADMIN" || me.role === "MODERATOR"
+          ? "Added and live."
+          : "Submitted — pending review.",
+      );
       setTerm("");
       setDefinition("");
       setExample("");
-      setExistingTerms([]);
-      setShowConfirmation(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Submission failed.";
-      setError(message);
+      console.error(err);
+      setError("Failed to submit term.");
     } finally {
       setLoading(false);
     }
   };
 
-  if (hasAccess === null) {
-    return <div className="p-8 text-center">Loading...</div>;
-  }
-
-  if (hasAccess === false) {
-    return (
-      <div className="p-8 text-center text-destructive">
-        <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-        <p>Only contributors and moderators can submit content.</p>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-lg">
-        <CardHeader>
-          <CardTitle className="text-2xl">Add New Item</CardTitle>
-          <CardDescription>Share a word, phrase, or lesson for review.</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6 grid w-full grid-cols-2">
-              <TabsTrigger value="term">Add Lingo</TabsTrigger>
-              <TabsTrigger value="lesson">Add Lesson</TabsTrigger>
-            </TabsList>
+    <div className="mx-auto w-full max-w-4xl flex-1 px-4 py-8 sm:px-6">
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold">Add Content</h1>
+          <p className="text-sm text-muted-foreground">
+            Draft a new dictionary term or lesson for AlphaLingo’s learning library.
+          </p>
+        </div>
 
-            <TabsContent value="term">
-              {error && (
-                <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {error}
-                </p>
-              )}
-              {success && (
-                <p className="mb-4 rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
-                  {success}
-                </p>
-              )}
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="term">Lingo</Label>
-                  <Input
-                    id="term"
-                    value={term}
-                    onChange={(event) => {
-                      setTerm(event.target.value);
-                      setShowConfirmation(false);
-                      setExistingTerms([]);
-                    }}
-                    placeholder="e.g. rizz"
-                    maxLength={100}
-                    required
-                  />
-                </div>
+        {(success || error) && (
+          <div>
+            {success && (
+              <p className="rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+                {success}
+              </p>
+            )}
+            {error && (
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+          </div>
+        )}
 
-                {existingTerms && existingTerms.length > 0 && showConfirmation && (
-                  <div className="rounded-md bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 p-4">
-                    <h3 className="font-semibold text-yellow-900 dark:text-yellow-200 mb-2">
-                      ⚠️ This term already exists!
-                    </h3>
-                    <p className="text-sm text-yellow-800 dark:text-yellow-300 mb-3">
-                      Found {existingTerms.length} existing{" "}
-                      {existingTerms.length === 1 ? "definition" : "definitions"} for "{term}":
-                    </p>
-                    <div className="space-y-2 max-h-40 overflow-y-auto">
-                      {existingTerms.map((existing) => (
-                        <div
-                          key={existing.id}
-                          className="bg-white dark:bg-gray-800 p-3 rounded border"
-                        >
-                          <p className="text-sm font-medium">{existing.definition}</p>
-                          {existing.example && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Example: {existing.example}
-                            </p>
-                          )}
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle>Submission Workspace</CardTitle>
+            <CardDescription>
+              Switch between quick lingo submissions and longer-form lesson drafting.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <Tabs defaultValue="lingo" className="space-y-6">
+              <TabsList className="grid w-full grid-cols-2 rounded-xl bg-muted/70 p-1 sm:w-[360px]">
+                <TabsTrigger value="lingo" className="rounded-lg">
+                  Add Lingo
+                </TabsTrigger>
+                <TabsTrigger value="lesson" className="rounded-lg">
+                  Add Lesson
+                </TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="lingo" className="mt-0">
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+                  <Card className="border-border/60">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-lg">Dictionary Submission</CardTitle>
+                      <CardDescription>
+                        Add one term at a time with a concise definition and optional usage example.
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <form onSubmit={handleLingoSubmit} className="space-y-5">
+                        <div>
+                          <Label htmlFor="add-term">Term</Label>
+                          <Input
+                            id="add-term"
+                            name="term"
+                            value={term}
+                            onChange={(e) => setTerm(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="e.g. aura farming"
+                          />
                         </div>
-                      ))}
-                    </div>
-                    <p className="text-sm text-yellow-800 dark:text-yellow-300 mt-3 font-medium">
-                      Click "Yes, Submit Anyway" if you still want to add your definition, or
-                      "Cancel" to edit further.
-                    </p>
-                  </div>
-                )}
+                        <div>
+                          <Label htmlFor="add-definition">Definition</Label>
+                          <textarea
+                            id="add-definition"
+                            name="definition"
+                            value={definition}
+                            onChange={(e) => setDefinition(e.target.value)}
+                            rows={6}
+                            className="mt-1.5 w-full rounded-md border bg-card px-3 py-2 text-sm"
+                            placeholder="Explain what it means and why someone would use it."
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="add-example">Example (optional)</Label>
+                          <Input
+                            id="add-example"
+                            name="example"
+                            value={example}
+                            onChange={(e) => setExample(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="Use it in a sentence or short context."
+                          />
+                        </div>
+                        <div className="flex justify-end">
+                          <Button
+                            type="submit"
+                            disabled={loading || !term.trim() || !definition.trim()}
+                          >
+                            {loading ? "Submitting…" : "Submit Lingo"}
+                          </Button>
+                        </div>
+                      </form>
+                    </CardContent>
+                  </Card>
 
-                <div className="space-y-2">
-                  <Label htmlFor="definition">Definition</Label>
-                  <Input
-                    id="definition"
-                    value={definition}
-                    onChange={(event) => setDefinition(event.target.value)}
-                    placeholder="What does it mean?"
-                    maxLength={500}
-                    required
-                  />
+                  <Card className="border-border/60 bg-muted/30">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-base">Before You Submit</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4 text-sm text-muted-foreground">
+                      <div>
+                        <p className="font-medium text-foreground">Avoid vague definitions</p>
+                        <p className="mt-1">
+                          If the meaning depends on tone or context, mention that explicitly.
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Prefer real usage</p>
+                        <p className="mt-1">
+                          Good examples read like something a learner might genuinely encounter
+                          online.
+                        </p>
+                      </div>
+                      <div>
+                        <p className="font-medium text-foreground">Keep it review-ready</p>
+                        <p className="mt-1">
+                          Clean formatting helps moderators approve strong entries faster.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="example">Example (optional)</Label>
-                  <Input
-                    id="example"
-                    value={example}
-                    onChange={(event) => setExample(event.target.value)}
-                    placeholder="Use it in a sentence"
-                    maxLength={500}
-                  />
-                </div>
-                {showConfirmation ? (
-                  <div className="flex gap-2">
-                    <Button type="submit" className="flex-1" disabled={loading}>
-                      {loading ? "Submitting..." : "Yes, Submit Anyway"}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => {
-                        setShowConfirmation(false);
-                        setExistingTerms([]);
-                      }}
-                      disabled={loading}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                ) : (
-                  <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Checking..." : "Submit"}
-                  </Button>
-                )}
-              </form>
-            </TabsContent>
+              </TabsContent>
 
-            <TabsContent value="lesson" className="space-y-4">
-              <div className="p-8 text-center text-muted-foreground">
-                <h2 className="text-xl font-semibold mb-2">Add Lesson</h2>
-                <p>The lesson submission feature is coming soon.</p>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              <TabsContent value="lesson" className="mt-0">
+                <Card className="border-border/60">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg">Lesson Draft</CardTitle>
+                    <CardDescription>
+                      Create a new lesson step-by-step and send it into the review flow.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <LessonForm />
+                  </CardContent>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

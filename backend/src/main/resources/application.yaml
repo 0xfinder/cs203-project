@@ -4,9 +4,10 @@ spring:
   application:
     name: app
   datasource:
-    url: ${SUPABASE_DB_URL}
-    username: ${SUPABASE_DB_USERNAME}
-    password: ${SUPABASE_DB_PASSWORD}
+    # Fallback to in-memory H2 for local development if SUPABASE env vars are not set
+    url: ${SUPABASE_DB_URL:jdbc:h2:mem:dev;DB_CLOSE_DELAY=-1;MODE=PostgreSQL}
+    username: ${SUPABASE_DB_USERNAME:sa}
+    password: ${SUPABASE_DB_PASSWORD:}
     hikari:
       maximum-pool-size: 2
       minimum-idle: 0
@@ -22,6 +23,12 @@ spring:
           jws-algorithms: ${SUPABASE_JWS_ALGORITHMS:ES256}
   jpa:
     hibernate:
-      ddl-auto: update
+      # Use 'update' by default to allow schema creation in local dev H2 fallback
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     show-sql: true
     open-in-view: false
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  moderation:
+    enabled: ${OPENAI_MODERATION_ENABLED:true}

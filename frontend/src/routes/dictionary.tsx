@@ -1,18 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
-import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { useMemo, useState, useEffect } from "react";
+import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash, Plus } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   useApprovedContentsWithVotes,
   useCastContentVote,
   useClearContentVote,
+  useDeleteContent,
   type ContentVoteType,
   type ContentWithVotesResponse,
 } from "@/features/content/useContentData";
 import { requireOnboardingCompleted } from "@/lib/auth";
+import { getMe } from "@/lib/me";
+import { api } from "@/lib/api";
+import Dialog, { DialogTrigger, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/dictionary")({
@@ -50,7 +56,10 @@ function buildTermGroups(items: ContentWithVotesResponse[]): TermGroup[] {
     }
   }
 
-  return Array.from(groups.values()).sort((a, b) => a.term.localeCompare(b.term));
+  // exclude any unwanted terms (e.g. 'test') from the public dictionary
+  return Array.from(groups.values())
+    .filter((g) => normalizeTerm(g.term) !== "test")
+    .sort((a, b) => a.term.localeCompare(b.term));
 }
 
 function groupByLetter(groups: TermGroup[]): Record<string, TermGroup[]> {
@@ -66,6 +75,7 @@ function groupByLetter(groups: TermGroup[]): Record<string, TermGroup[]> {
 }
 
 function DictionaryPage() {
+  const queryClient = useQueryClient();
   const { data: contents, isLoading, error } = useApprovedContentsWithVotes();
   const castVote = useCastContentVote();
   const clearVote = useClearContentVote();
@@ -73,6 +83,69 @@ function DictionaryPage() {
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
   const termGroups = useMemo(() => (contents ? buildTermGroups(contents) : []), [contents]);
+  const deleteMutation = useDeleteContent();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isContributor, setIsContributor] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    void import("@/lib/me").then(({ getMe }) => {
+      void getMe()
+        .then((me) => {
+          if (!mounted) return;
+          setIsAdmin(me.role === "ADMIN" || me.role === "MODERATOR");
+          setIsContributor(
+            me.role === "CONTRIBUTOR" || me.role === "ADMIN" || me.role === "MODERATOR",
+          );
+        })
+        .catch(() => {
+          /* ignore */
+        });
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Add lingo form state (contributors only)
+  const [termInput, setTermInput] = useState("");
+  const [defInput, setDefInput] = useState("");
+  const [exampleInput, setExampleInput] = useState("");
+  const [submitLoading, setSubmitLoading] = useState(false);
+  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const handleLingoSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitError(null);
+    setSubmitSuccess(null);
+    setSubmitLoading(true);
+    try {
+      const me = await getMe();
+      const payload = {
+        term: termInput.trim(),
+        definition: defInput.trim(),
+        example: exampleInput.trim() || null,
+        submittedBy: me.email ?? "",
+      };
+      await api.post("contents", { json: payload }).json();
+      await queryClient.invalidateQueries({ queryKey: ["contents", "approved-with-votes"] });
+      await queryClient.invalidateQueries({ queryKey: ["contents"] });
+      setSubmitSuccess(
+        me.role === "ADMIN" || me.role === "MODERATOR"
+          ? "Added and live."
+          : "Submitted — pending review.",
+      );
+      setTermInput("");
+      setDefInput("");
+      setExampleInput("");
+    } catch (err) {
+      console.error(err);
+      setSubmitError("Failed to submit term.");
+    } finally {
+      setSubmitLoading(false);
+    }
+  };
 
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -120,14 +193,75 @@ function DictionaryPage() {
 
       {/* search bar + stats */}
       <div className="mb-6 space-y-3">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search terms, definitions, or examples…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-9"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search terms, definitions, or examples…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+
+          {isContributor && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full px-3 shadow-sm flex items-center gap-2 text-primary border-primary/20"
+                >
+                  <Plus className="size-3" />
+                  Add Lingo
+                </Button>
+              </DialogTrigger>
+              <DialogContent
+                title="Add Lingo"
+                description="Submit a new dictionary term for review"
+              >
+                <form onSubmit={handleLingoSubmit} className="space-y-3">
+                  <div>
+                    <Label htmlFor="dict-term">Term</Label>
+                    <Input
+                      id="dict-term"
+                      name="term"
+                      value={termInput}
+                      onChange={(e) => setTermInput(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="dict-definition">Definition</Label>
+                    <Input
+                      id="dict-definition"
+                      name="definition"
+                      value={defInput}
+                      onChange={(e) => setDefInput(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="dict-example">Example (optional)</Label>
+                    <Input
+                      id="dict-example"
+                      name="example"
+                      value={exampleInput}
+                      onChange={(e) => setExampleInput(e.target.value)}
+                    />
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      type="submit"
+                      disabled={submitLoading || !termInput.trim() || !defInput.trim()}
+                    >
+                      {submitLoading ? "Submitting…" : "Submit"}
+                    </Button>
+                  </div>
+                  {submitSuccess && <p className="text-sm text-green-600">{submitSuccess}</p>}
+                  {submitError && <p className="text-sm text-destructive">{submitError}</p>}
+                </form>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {!isLoading && contents && (
@@ -140,6 +274,8 @@ function DictionaryPage() {
           </div>
         )}
       </div>
+
+      {/* (Add Lingo is available in the search bar for contributors) */}
 
       {/* alphabet rail */}
       {!isLoading && availableLetters.length > 0 && (
@@ -285,6 +421,33 @@ function DictionaryPage() {
                                   <ThumbsDown className="size-3" />
                                   <span>{entry.thumbsDown}</span>
                                 </Button>
+                                {isAdmin && (
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="xs"
+                                    onClick={async () => {
+                                      if (
+                                        !confirm(
+                                          `Delete "${entry.content.term}" definition by ${entry.submittedByDisplayName}?`,
+                                        )
+                                      )
+                                        return;
+                                      try {
+                                        await deleteMutation.mutateAsync({ id: entry.content.id });
+                                      } catch (err) {
+                                        const msg =
+                                          err instanceof Error ? err.message : String(err);
+                                        alert(`Failed to delete: ${msg}`);
+                                      }
+                                    }}
+                                    className="ml-2"
+                                    aria-label={`Delete ${entry.content.term}`}
+                                    title="Delete"
+                                  >
+                                    <Trash className="size-3" />
+                                  </Button>
+                                )}
                               </div>
                             </div>
 

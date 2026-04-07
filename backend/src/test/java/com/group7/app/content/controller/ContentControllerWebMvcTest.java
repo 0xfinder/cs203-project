@@ -14,6 +14,7 @@ import com.group7.app.config.SecurityConfig;
 import com.group7.app.content.model.Content;
 import com.group7.app.content.service.ContentService;
 import com.group7.app.support.TestJwtFactory;
+import com.group7.app.user.UserService;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,8 @@ class ContentControllerWebMvcTest {
   @Autowired private MockMvc mockMvc;
 
   @MockitoBean private ContentService contentService;
+
+  @MockitoBean private UserService userService;
 
   @MockitoBean private JwtDecoder jwtDecoder;
 

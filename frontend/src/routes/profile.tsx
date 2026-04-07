@@ -14,7 +14,9 @@ import { requireAuth, useAuth } from "@/lib/auth";
 import { patchMe, type MeResponse, type RoleIntent, type UserRole } from "@/lib/me";
 import { queryClient } from "@/lib/query-client";
 import { supabase } from "@/lib/supabase";
+import { api } from "@/lib/api";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 
 const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 const MAX_AVATAR_MB = 5;
@@ -90,9 +92,16 @@ function ProfilePage() {
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [meAvatarUrl, setMeAvatarUrl] = useState<string | null>(loaderData.avatarUrl);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(loaderData.avatarUrl);
+  const [avatarRemoved, setAvatarRemoved] = useState(false);
   const [userRole, setUserRole] = useState<UserRole | null>(initialProfile.role);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dark, setDark] = useState<boolean>(() => getStoredTheme() === "dark");
+  const [rolePanelOpen, setRolePanelOpen] = useState(false);
+  const [roleChanging, setRoleChanging] = useState(false);
+  const allowDevRoleChange = import.meta.env.VITE_ALLOW_DEV_ROLE_CHANGE === "true";
+  const availableRoles: UserRole[] = allowDevRoleChange
+    ? ["LEARNER", "CONTRIBUTOR", "ADMIN"]
+    : ["LEARNER", "CONTRIBUTOR"];
 
   useEffect(() => {
     applyTheme(dark ? "dark" : "light");
@@ -103,6 +112,13 @@ function ProfilePage() {
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setAvatarFile(null);
+    setAvatarPreview(null);
+    setAvatarRemoved(true);
+    resetAvatarInput();
   };
 
   const handleSignOut = async () => {
@@ -146,34 +162,6 @@ function ProfilePage() {
     };
   };
 
-  const handleRemoveAvatar = async () => {
-    setSaveError(null);
-    setSaveSuccess(null);
-    setSaving(true);
-
-    try {
-      const payload = buildPatchPayload(null);
-      const updated = await patchMe(payload);
-
-      setMeProfile(updated);
-      setUserRole(updated.role);
-      setProfile(toProfileState(updated));
-      setMeAvatarUrl(null);
-      setAvatarPreview(null);
-      setCurrentUserViewCache(queryClient, {
-        profile: updated,
-        avatarUrl: null,
-      });
-      resetAvatarInput();
-      setSaveSuccess("Avatar removed");
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Failed to remove avatar";
-      setSaveError(message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const handleSave = async () => {
     if (!user) {
       setSaveError("Not authenticated");
@@ -185,46 +173,18 @@ function ProfilePage() {
     setSaving(true);
 
     try {
-      let avatarPath = meProfile.avatarPath ?? null;
-      let nextAvatarUrl = meAvatarUrl;
+      // reuse avatar upload logic so role changes and saves behave the same
+      let avatarPath = avatarRemoved ? null : (meProfile.avatarPath ?? null);
+      let nextAvatarUrl = avatarRemoved ? null : meAvatarUrl;
 
       if (avatarFile) {
-        if (!avatarFile.type.startsWith("image/")) {
-          setSaveError("Please select an image file");
-          return;
-        }
-
-        if (avatarFile.size > MAX_AVATAR_MB * 1024 * 1024) {
-          setSaveError(`File too large (max ${MAX_AVATAR_MB}MB)`);
-          return;
-        }
-
-        const ext = avatarFile.name.split(".").pop() || "png";
-        avatarPath = `uploads/${user.id}/${Date.now()}_avatar.${ext}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from(AVATAR_BUCKET)
-          .upload(avatarPath, avatarFile, {
-            upsert: true,
-            contentType: avatarFile.type,
-          });
-
-        if (uploadError) {
-          if ((uploadError.message || "").toLowerCase().includes("bucket")) {
-            setSaveError(
-              `Storage bucket "${AVATAR_BUCKET}" not found. Create it in Supabase Storage or set VITE_SUPABASE_AVATAR_BUCKET.`,
-            );
-          } else {
-            setSaveError(uploadError.message || "Failed to upload avatar");
-          }
-          return;
-        }
-
-        nextAvatarUrl = await resolveAvatarSignedUrl(avatarPath);
+        const uploadResult = await uploadAvatarIfNeeded();
+        avatarPath = uploadResult.avatarPath;
+        nextAvatarUrl = uploadResult.nextAvatarUrl;
       }
 
       const payload = buildPatchPayload(avatarPath);
-      const updated = await patchMe(payload);
+      const updated = await patchMe(payload as any);
 
       if (!updated.avatarPath) {
         nextAvatarUrl = null;
@@ -233,6 +193,27 @@ function ProfilePage() {
       setMeProfile(updated);
       setUserRole(updated.role);
       setProfile(toProfileState(updated));
+
+      const updateData: Record<string, string | null> = {
+        full_name: profile.name,
+        bio: profile.bio,
+        age: profile.age,
+        gender: profile.gender,
+        avatar_color: profile.avatarColor || null,
+      };
+
+      if (avatarPath) {
+        updateData.avatar_path = avatarPath;
+      }
+
+      const { error } = await supabase.auth.updateUser({ data: updateData });
+
+      if (error) {
+        setSaveError(error.message || "Failed to save profile");
+        setSaving(false);
+        return;
+      }
+
       setMeAvatarUrl(nextAvatarUrl);
       setAvatarPreview(nextAvatarUrl);
       setCurrentUserViewCache(queryClient, {
@@ -241,6 +222,7 @@ function ProfilePage() {
       });
 
       resetAvatarInput();
+      setAvatarRemoved(false);
       setEditing(false);
       setSaveSuccess("Profile saved");
     } catch (error) {
@@ -248,6 +230,96 @@ function ProfilePage() {
       setSaveError(message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const uploadAvatarIfNeeded = async (): Promise<{
+    avatarPath: string | null;
+    nextAvatarUrl: string | null;
+  }> => {
+    if (!user) throw new Error("Not authenticated");
+    if (!avatarFile) {
+      return { avatarPath: meProfile.avatarPath ?? null, nextAvatarUrl: meAvatarUrl };
+    }
+
+    if (!avatarFile.type.startsWith("image/")) {
+      throw new Error("Please select an image file");
+    }
+
+    if (avatarFile.size > MAX_AVATAR_MB * 1024 * 1024) {
+      throw new Error(`File too large (max ${MAX_AVATAR_MB}MB)`);
+    }
+
+    const ext = avatarFile.name.split(".").pop() || "png";
+    const avatarPath = `uploads/${user.id}/${Date.now()}_avatar.${ext}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(avatarPath, avatarFile, {
+        upsert: true,
+        contentType: avatarFile.type,
+      });
+
+    if (uploadError) {
+      if ((uploadError.message || "").toLowerCase().includes("bucket")) {
+        throw new Error(
+          `Storage bucket "${AVATAR_BUCKET}" not found. Create it in Supabase Storage or set VITE_SUPABASE_AVATAR_BUCKET.`,
+        );
+      }
+      throw new Error(uploadError.message || "Failed to upload avatar");
+    }
+
+    const nextAvatarUrl = await resolveAvatarSignedUrl(avatarPath);
+    return { avatarPath, nextAvatarUrl };
+  };
+
+  const changeRole = async (r: UserRole) => {
+    setSaveError(null);
+    setSaveSuccess(null);
+    setRoleChanging(true);
+    try {
+      let avatarPath = avatarRemoved ? null : (meProfile.avatarPath ?? null);
+      let nextAvatarUrl = avatarRemoved ? null : meAvatarUrl;
+
+      if (avatarFile) {
+        const uploadResult = await uploadAvatarIfNeeded();
+        avatarPath = uploadResult.avatarPath;
+        nextAvatarUrl = uploadResult.nextAvatarUrl;
+      }
+
+      if (r === "ADMIN") {
+        // persist profile fields first, then request dev-role change
+        const payload = buildPatchPayload(avatarPath);
+        await patchMe(payload as any);
+
+        const updated = await api
+          .post("users/me/dev-role", { searchParams: { role: r } })
+          .json<MeResponse>();
+        setMeProfile(updated);
+        setUserRole(updated.role);
+        setCurrentUserViewCache(queryClient, { profile: updated, avatarUrl: nextAvatarUrl });
+        setSaveSuccess(`Role updated to ${updated.role} (dev)`);
+        setMeAvatarUrl(nextAvatarUrl);
+        setAvatarPreview(nextAvatarUrl);
+      } else {
+        const payload = buildPatchPayload(avatarPath);
+        payload.roleIntent = r === "CONTRIBUTOR" ? "CONTRIBUTOR" : "LEARNER";
+        const updated = await patchMe(payload as any);
+        setMeProfile(updated);
+        setUserRole(updated.role);
+        setCurrentUserViewCache(queryClient, { profile: updated, avatarUrl: nextAvatarUrl });
+        setSaveSuccess(`Role updated to ${updated.role}`);
+        setMeAvatarUrl(nextAvatarUrl);
+        setAvatarPreview(nextAvatarUrl);
+      }
+      resetAvatarInput();
+      setAvatarRemoved(false);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSaveError(`Failed to set role: ${msg}`);
+    } finally {
+      setRoleChanging(false);
+      setRolePanelOpen(false);
     }
   };
 
@@ -291,163 +363,268 @@ function ProfilePage() {
           </div>
         )}
 
-        <div className="flex flex-col gap-4 rounded-lg bg-muted/20 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-sm font-semibold text-white">
-              {avatarPreview ? (
-                <img
-                  src={avatarPreview}
-                  alt="avatar preview"
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <span
-                  style={{ backgroundColor: avatarColor }}
-                  className="flex h-full w-full items-center justify-center"
-                >
-                  {initials}
-                </span>
-              )}
-            </div>
-            <div>
-              <p className="font-medium">{displayName}</p>
-              <p className="text-sm text-muted-foreground">{user?.email ?? "unknown user"}</p>
-              <RoleBadge role={userRole} className="mt-1" />
-            </div>
-          </div>
+        <Card className="px-4 py-3">
+          <CardContent className="p-0">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-center">
+              <div className="flex items-center gap-4">
+                <div className="h-20 w-20 shrink-0 overflow-hidden rounded-full bg-muted text-sm font-semibold text-white shadow">
+                  {avatarPreview ? (
+                    <img
+                      src={avatarPreview}
+                      alt="avatar preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <span
+                      style={{ backgroundColor: avatarColor }}
+                      className="flex h-full w-full items-center justify-center text-lg"
+                    >
+                      {initials}
+                    </span>
+                  )}
+                </div>
+                <div className="flex h-20 min-w-0 flex-col justify-center gap-1">
+                  <p className="text-lg font-semibold">{displayName}</p>
+                  <p className="text-sm text-muted-foreground">{user?.email ?? "unknown user"}</p>
+                  <RoleBadge role={userRole} className="w-fit" />
+                </div>
+              </div>
 
-          {editing && (
-            <div className="flex items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(event) => {
-                  const nextFile = event.target.files?.[0] ?? null;
-                  setAvatarFile(nextFile);
-                  if (nextFile) {
-                    const localPreview = URL.createObjectURL(nextFile);
-                    setAvatarPreview(localPreview);
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" onClick={() => fileInputRef.current?.click()}>
-                <Upload className="h-4 w-4" />
-                <span>Choose avatar</span>
-              </Button>
-              {(avatarPreview || meProfile.avatarPath) && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={saving}
-                  onClick={() => void handleRemoveAvatar()}
-                >
-                  Remove
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
+              <div />
 
-        {!editing ? (
-          <div className="space-y-4">
-            {profile.bio && <p className="text-sm text-muted-foreground">{profile.bio}</p>}
-            <div className="grid gap-3 text-sm sm:grid-cols-2">
-              <div className="rounded-md bg-muted/30 p-3">Age: {profile.age || "—"}</div>
-              <div className="rounded-md bg-muted/30 p-3">Gender: {profile.gender || "—"}</div>
-            </div>
-            <div className="flex items-center justify-between pt-2">
-              <Button type="button" onClick={() => setEditing(true)}>
-                Edit profile
-              </Button>
-              <Button type="button" variant="outline" onClick={() => void handleSignOut()}>
-                Sign out
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <Label htmlFor="profile-name">Name</Label>
-                <Input
-                  id="profile-name"
-                  value={profile.name}
-                  onChange={(event) =>
-                    setProfile((current) => ({ ...current, name: event.target.value }))
-                  }
+              <div className="flex items-center justify-end gap-3">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const nextFile = event.target.files?.[0] ?? null;
+                    setAvatarFile(nextFile);
+                    if (nextFile) {
+                      const localPreview = URL.createObjectURL(nextFile);
+                      setAvatarPreview(localPreview);
+                      setAvatarRemoved(false);
+                    }
+                  }}
                 />
-              </div>
-              <div className="sm:col-span-2">
-                <Label htmlFor="profile-bio">Bio</Label>
-                <Input
-                  id="profile-bio"
-                  value={profile.bio}
-                  onChange={(event) =>
-                    setProfile((current) => ({ ...current, bio: event.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="profile-age">Age</Label>
-                <Input
-                  id="profile-age"
-                  type="number"
-                  value={profile.age}
-                  onChange={(event) =>
-                    setProfile((current) => ({ ...current, age: event.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="profile-gender">Gender</Label>
-                <Input
-                  id="profile-gender"
-                  value={profile.gender}
-                  onChange={(event) =>
-                    setProfile((current) => ({ ...current, gender: event.target.value }))
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor="profile-avatar-color">Avatar color</Label>
-                <Input
-                  id="profile-avatar-color"
-                  type="color"
-                  value={profile.avatarColor || "#475569"}
-                  className="h-10 w-16 p-1"
-                  onChange={(event) =>
-                    setProfile((current) => ({ ...current, avatarColor: event.target.value }))
-                  }
-                />
+                {editing ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4" />
+                      <span>Choose avatar</span>
+                    </Button>
+                    {(avatarPreview || meProfile.avatarPath) && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={saving}
+                        onClick={() => void handleRemoveAvatar()}
+                      >
+                        Remove
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <></>
+                )}
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            <div className="flex items-center justify-between gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setEditing(false);
-                  setProfile(toProfileState(meProfile));
-                  setAvatarPreview(meAvatarUrl);
-                  resetAvatarInput();
-                }}
-              >
-                Cancel
-              </Button>
+        <Card className="mt-6">
+          <CardContent>
+            {profile.bio && <p className="text-sm text-muted-foreground mb-4">{profile.bio}</p>}
+
+            {editing ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Label htmlFor="profile-name">Name</Label>
+                  <Input
+                    id="profile-name"
+                    value={profile.name}
+                    onChange={(event) =>
+                      setProfile((current) => ({ ...current, name: event.target.value }))
+                    }
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label htmlFor="profile-bio">Bio</Label>
+                  <Input
+                    id="profile-bio"
+                    value={profile.bio}
+                    onChange={(event) =>
+                      setProfile((current) => ({ ...current, bio: event.target.value }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="profile-age">Age</Label>
+                  <Input
+                    id="profile-age"
+                    type="number"
+                    value={profile.age}
+                    onChange={(event) =>
+                      setProfile((current) => ({ ...current, age: event.target.value }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="profile-gender">Gender</Label>
+                  <Input
+                    id="profile-gender"
+                    value={profile.gender}
+                    onChange={(event) =>
+                      setProfile((current) => ({ ...current, gender: event.target.value }))
+                    }
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="profile-avatar-color">Avatar color</Label>
+                  <Input
+                    id="profile-avatar-color"
+                    type="color"
+                    value={profile.avatarColor || "#475569"}
+                    className="h-10 w-16 p-1"
+                    onChange={(event) =>
+                      setProfile((current) => ({ ...current, avatarColor: event.target.value }))
+                    }
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-md bg-muted/30 p-4">
+                  <p className="text-xs text-muted-foreground">Age</p>
+                  <p className="mt-1 font-medium">{profile.age || "—"}</p>
+                </div>
+                <div className="rounded-md bg-muted/30 p-4">
+                  <p className="text-xs text-muted-foreground">Gender</p>
+                  <p className="mt-1 font-medium">{profile.gender || "—"}</p>
+                </div>
+              </div>
+            )}
+          </CardContent>
+          <CardFooter className="justify-between">
+            {!editing ? (
               <div className="flex items-center gap-2">
-                <Button type="button" disabled={saving} onClick={() => void handleSave()}>
-                  {saving ? "Saving..." : "Save"}
+                <div className="relative">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setRolePanelOpen((v) => !v)}
+                  >
+                    Change role
+                  </Button>
+                  {rolePanelOpen && (
+                    <div className="absolute left-0 z-20 bottom-full mb-2 w-72 rounded-lg border border-border bg-card p-3 shadow-lg">
+                      <p className="mb-2 text-sm font-medium">Choose role</p>
+                      <div className="grid gap-2">
+                        {availableRoles.map((r) => (
+                          <Button
+                            key={r}
+                            type="button"
+                            variant={userRole === r ? "secondary" : "outline"}
+                            className="h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left"
+                            onClick={() => void changeRole(r)}
+                            disabled={roleChanging}
+                          >
+                            <p className="font-medium">{r[0] + r.slice(1).toLowerCase()}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {r === "LEARNER"
+                                ? "Focus on lessons and review drills"
+                                : r === "CONTRIBUTOR"
+                                  ? "Submit and help improve community entries"
+                                  : "Admin (testing only)"}
+                            </p>
+                          </Button>
+                        ))}
+                      </div>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Admin option is intended for testing only.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                <Button type="button" onClick={() => setEditing(true)}>
+                  Edit profile
                 </Button>
-                <Button type="button" variant="outline" onClick={() => void handleSignOut()}>
+                <Button type="button" variant="ghost" onClick={() => void handleSignOut()}>
                   Sign out
                 </Button>
               </div>
-            </div>
-          </div>
-        )}
+            ) : (
+              <div className="flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setRolePanelOpen((v) => !v)}
+                    >
+                      Change role
+                    </Button>
+                    {rolePanelOpen && (
+                      <div className="absolute left-0 z-20 bottom-full mb-2 w-72 rounded-lg border border-border bg-card p-3 shadow-lg">
+                        <p className="mb-2 text-sm font-medium">Choose role</p>
+                        <div className="grid gap-2">
+                          {availableRoles.map((r) => (
+                            <Button
+                              key={r}
+                              type="button"
+                              variant={userRole === r ? "secondary" : "outline"}
+                              className="h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left"
+                              onClick={() => void changeRole(r)}
+                              disabled={roleChanging}
+                            >
+                              <p className="font-medium">{r[0] + r.slice(1).toLowerCase()}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {r === "LEARNER"
+                                  ? "Focus on lessons and review drills"
+                                  : r === "CONTRIBUTOR"
+                                    ? "Submit and help improve community entries"
+                                    : "Admin (testing only)"}
+                              </p>
+                            </Button>
+                          ))}
+                        </div>
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          Admin option is intended for testing only.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setEditing(false);
+                      setProfile(toProfileState(meProfile));
+                      setAvatarPreview(meAvatarUrl);
+                      setAvatarRemoved(false);
+                      resetAvatarInput();
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button type="button" disabled={saving} onClick={() => void handleSave()}>
+                    {saving ? "Saving..." : "Save"}
+                  </Button>
+                  <Button type="button" variant="ghost" onClick={() => void handleSignOut()}>
+                    Sign out
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardFooter>
+        </Card>
       </div>
     </div>
   );

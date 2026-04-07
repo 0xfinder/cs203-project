@@ -47,7 +47,9 @@ function LoginPage() {
         if (hash === "#signup") return "signup";
         if (params.get("tab") === "signup") return "signup";
       }
-    } catch {}
+    } catch (e) {
+      console.error("failed to read url params for initial tab:", e);
+    }
     return "login";
   });
 
@@ -112,17 +114,11 @@ function LoginPage() {
                 ? "Log in to your AlphaLingo account"
                 : "Sign up to start learning Gen-Alpha culture"}
             </CardDescription>
-            <TabsList className="mt-3 w-full gap-0 border-2 border-primary/40 bg-card/80 p-1 shadow-sm">
-              <TabsTrigger
-                value="login"
-                className="flex-1 rounded-r-none border-r border-primary/35 data-[state=active]:bg-primary/20 data-[state=active]:text-foreground"
-              >
+            <TabsList className="mt-3 grid w-full grid-cols-2 rounded-xl bg-muted/70 p-1 sm:w-[360px]">
+              <TabsTrigger value="login" className="rounded-lg">
                 Sign In
               </TabsTrigger>
-              <TabsTrigger
-                value="signup"
-                className="flex-1 rounded-l-none data-[state=active]:bg-primary/20 data-[state=active]:text-foreground"
-              >
+              <TabsTrigger value="signup" className="rounded-lg">
                 Sign Up
               </TabsTrigger>
             </TabsList>

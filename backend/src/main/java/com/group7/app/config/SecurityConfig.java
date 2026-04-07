@@ -1,5 +1,7 @@
 package com.group7.app.config;
 
+import com.group7.app.user.UserService;
+import java.util.*;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,6 +18,12 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 @Configuration
 public class SecurityConfig {
+
+  private final UserService userService;
+
+  public SecurityConfig(UserService userService) {
+    this.userService = userService;
+  }
 
   @Bean
   public SecurityFilterChain filterChain(
