@@ -493,6 +493,7 @@ function ForumPage() {
   const authorName = displayLabel(profile);
   const onboardingDone = Boolean(profile?.displayName?.trim());
   const canPost = Boolean(profile) && onboardingDone;
+  const canModerate = profile?.role === "MODERATOR" || profile?.role === "ADMIN";
 
   /* -- post question ------------------------------------------------------ */
   const handlePostQuestion = async () => {
@@ -631,8 +632,9 @@ function ForumPage() {
     }
   };
 
-  /* -- ownership check ---------------------------------------------------- */
-  const isOwner = (authorInfo: AuthorInfo) => canPost && profile && authorInfo.id === profile.id;
+  /* -- permission checks -------------------------------------------------- */
+  const canDeleteContent = (authorInfo: AuthorInfo) =>
+    Boolean(profile) && (authorInfo.id === profile?.id || canModerate);
 
   /* -- render ------------------------------------------------------------- */
   return (
@@ -806,7 +808,7 @@ function ForumPage() {
         <div className="space-y-4">
           {questions.map((q) => {
             const isExpanded = expandedId === q.id;
-            const qIsOwner = isOwner(q.authorInfo);
+            const canDeleteQuestion = canDeleteContent(q.authorInfo);
 
             return (
               <Card
@@ -831,7 +833,7 @@ function ForumPage() {
                       />
                     )}
                     <span className="text-muted-foreground/60">{timeAgo(q.createdAt)}</span>
-                    {qIsOwner && (
+                    {canDeleteQuestion && (
                       <Button
                         variant="ghost"
                         size="icon-xs"
@@ -909,7 +911,7 @@ function ForumPage() {
                                 <span className="text-xs text-muted-foreground/60">
                                   {timeAgo(a.createdAt)}
                                 </span>
-                                {isOwner(a.authorInfo) && (
+                                {canDeleteContent(a.authorInfo) && (
                                   <button
                                     onClick={() => handleDeleteAnswer(a.id)}
                                     className="ml-auto hidden text-muted-foreground transition-colors hover:text-destructive group-hover:block"
