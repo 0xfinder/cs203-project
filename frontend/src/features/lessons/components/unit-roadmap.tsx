@@ -36,81 +36,7 @@ export function UnitRoadmap({
     currentLessonId,
     allowAllUnlocked ?? false,
   );
-
-  // Merge any client-side placeholder lessons created for this real unit
-  let mergedUnit = unit;
-  if (typeof window !== "undefined") {
-    try {
-      const placeholders: any[] = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i) || "";
-        if (!key.startsWith("tempPlaceholderUnit:")) continue;
-        try {
-          const raw = localStorage.getItem(key);
-          if (!raw) continue;
-          const parsed = JSON.parse(raw);
-          if (parsed?.originalUnitId && parsed.originalUnitId === unit.id) {
-            if (Array.isArray(parsed.lessons)) {
-              placeholders.push(...parsed.lessons);
-            }
-          }
-        } catch (e) {
-          console.error("failed to parse temp placeholder unit:", e);
-          // ignore malformed
-        }
-      }
-      if (placeholders.length > 0) {
-        mergedUnit = {
-          ...unit,
-          lessons: [...(unit.lessons ?? []), ...placeholders],
-        } as typeof unit;
-      }
-    } catch (e) {
-      console.error("failed to access local storage for unit placeholders:", e);
-      // ignore storage access
-    }
-  }
-
-  const isPlaceholderLesson = (lesson: any) => {
-    if (!lesson) return false;
-    const title = String(lesson.title ?? "");
-    const slug = String(lesson.slug ?? "");
-    return (
-      title.startsWith("Placeholder Lesson") ||
-      slug.startsWith("placeholder-") ||
-      title === "Coming soon"
-    );
-  };
-
-  // Recompute roadmap using merged unit if placeholders exist
-  const effectiveRoadmap =
-    mergedUnit === unit
-      ? roadmap
-      : getUnitRoadmap(mergedUnit, progressByLessonId, currentLessonId, allowAllUnlocked ?? false);
-  const displayItems = effectiveRoadmap.items.filter((item) => {
-    if (!item.lesson) return false;
-    // Filter out placeholder lessons
-    if (isPlaceholderLesson(item.lesson)) return false;
-    // Filter out wrapper lessons (those with targetSubunitId set)
-    if (item.lesson.targetSubunitId) return false;
-    // Additional safety: filter out lessons that are APPROVED but have no order_index or are very new
-    // This catches wrapper lessons that might have been created recently
-    if (item.lesson.status === "APPROVED" && item.lesson.publishedAt) {
-      const now = new Date();
-      const published = new Date(item.lesson.publishedAt);
-      const ageSeconds = (now.getTime() - published.getTime()) / 1000;
-      // If APPROVED less than 5 seconds ago and has a generic title, it's likely a wrapper
-      if (
-        ageSeconds < 5 &&
-        (String(item.lesson.title ?? "").includes("Understand") ||
-          String(item.lesson.title ?? "").includes("Recognize") ||
-          String(item.lesson.title ?? "").includes("Identify"))
-      ) {
-        return false;
-      }
-    }
-    return true;
-  });
+  const displayItems = roadmap.items.filter((item) => !!item.lesson);
 
   // Compute counts and percent using only non-placeholder lessons so placeholders
   // do not affect the displayed lesson counts or progress.
@@ -212,8 +138,8 @@ export function UnitRoadmap({
                       e.preventDefault();
                       onDeleteLesson(item.lesson.id);
                     }}
-                    title="Delete subunit"
-                    aria-label="Delete subunit"
+                    title="Delete lesson"
+                    aria-label="Delete lesson"
                     className="inline-flex items-center justify-center rounded-full p-2 bg-destructive text-destructive-foreground hover:scale-105 transition-transform"
                   >
                     <Trash className="size-4" />

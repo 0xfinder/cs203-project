@@ -104,8 +104,7 @@ public class LessonController {
                 request.description(),
                 request.learningObjective(),
                 request.estimatedMinutes(),
-                request.orderIndex(),
-                request.targetSubunitId()));
+                request.orderIndex()));
 
     return ResponseEntity.created(URI.create("/api/lessons/" + lesson.getId()))
         .body(toDetail(lesson, List.of()));
@@ -209,8 +208,7 @@ public class LessonController {
         lesson.getEstimatedMinutes(),
         lesson.getOrderIndex(),
         lesson.getStatus(),
-        submittedBy,
-        lesson.getTargetSubunitId());
+        submittedBy);
   }
 
   private LessonDetailResponse toDetail(Lesson lesson, List<StepResponse> steps) {
@@ -225,7 +223,6 @@ public class LessonController {
         lesson.getStatus(),
         lesson.getReviewComment(),
         lesson.getPublishedAt(),
-        lesson.getTargetSubunitId(),
         steps);
   }
 
@@ -374,8 +371,7 @@ public class LessonController {
       @NotBlank String description,
       String learningObjective,
       Integer estimatedMinutes,
-      Integer orderIndex,
-      Long targetSubunitId) {}
+      Integer orderIndex) {}
 
   public record PatchLessonRequest(
       Long unitId,
@@ -414,8 +410,7 @@ public class LessonController {
       Integer estimatedMinutes,
       Integer orderIndex,
       LessonStatus status,
-      String submittedBy,
-      Long targetSubunitId) {}
+      String submittedBy) {}
 
   public record LessonDetailResponse(
       Long id,
@@ -428,7 +423,6 @@ public class LessonController {
       LessonStatus status,
       String reviewComment,
       java.time.Instant publishedAt,
-      Long targetSubunitId,
       List<StepResponse> steps) {}
 
   public record LessonPlayResponse(LessonSummaryResponse lesson, List<StepResponse> steps) {}

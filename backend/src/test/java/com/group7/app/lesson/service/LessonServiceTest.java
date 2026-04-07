@@ -57,6 +57,57 @@ class LessonServiceTest {
   }
 
   @Test
+  void createUnitAllowsModeratorAndAppendsOrder() {
+    User moderator = user(Role.MODERATOR);
+    Unit existing = new Unit("Existing", "existing", "desc", 2);
+    when(unitRepository.findAllByOrderByOrderIndexAsc()).thenReturn(List.of(existing));
+    when(unitRepository.save(any(Unit.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(unitRepository.existsBySlug("fresh-unit")).thenReturn(false);
+
+    Unit created =
+        lessonService.createUnit(
+            moderator, new LessonService.UnitCreateInput("  Fresh Unit  ", "  new material  "));
+
+    assertThat(created.getTitle()).isEqualTo("Fresh Unit");
+    assertThat(created.getSlug()).isEqualTo("fresh-unit");
+    assertThat(created.getDescription()).isEqualTo("new material");
+    assertThat(created.getOrderIndex()).isEqualTo(3);
+  }
+
+  @Test
+  void patchUnitRenamesAndReslugsUnit() {
+    User admin = user(Role.ADMIN);
+    Unit unit = new Unit("Old Unit", "old-unit", "desc", 1);
+    ReflectionTestUtils.setField(unit, "id", 9L);
+    when(unitRepository.findById(9L)).thenReturn(Optional.of(unit));
+    when(unitRepository.existsBySlug("fresh-name")).thenReturn(false);
+    when(unitRepository.save(unit)).thenReturn(unit);
+
+    Unit updated =
+        lessonService.patchUnit(
+            admin, 9L, new LessonService.UnitPatchInput(" Fresh Name ", " sharper desc "));
+
+    assertThat(updated.getTitle()).isEqualTo("Fresh Name");
+    assertThat(updated.getSlug()).isEqualTo("fresh-name");
+    assertThat(updated.getDescription()).isEqualTo("sharper desc");
+  }
+
+  @Test
+  void deleteUnitRejectsUnitWithLessons() {
+    Unit unit = new Unit("Unit", "unit", "desc", 1);
+    ReflectionTestUtils.setField(unit, "id", 10L);
+    when(unitRepository.findById(10L)).thenReturn(Optional.of(unit));
+    when(lessonRepository.findByUnitIdOrderByOrderIndexAsc(10L))
+        .thenReturn(List.of(lesson(LessonStatus.APPROVED, UUID.randomUUID())));
+
+    assertThatThrownBy(() -> lessonService.deleteUnit(user(Role.ADMIN), 10L))
+        .isInstanceOf(ResponseStatusException.class)
+        .hasMessageContaining("cannot delete a unit that still has lessons");
+
+    verify(unitRepository, never()).delete(any(Unit.class));
+  }
+
+  @Test
   void createLessonSanitizesFieldsAndGeneratesSlug() {
     User contributor = user(Role.CONTRIBUTOR);
     Unit unit = new Unit("Slang", "slang", "desc", 1);
@@ -69,13 +120,7 @@ class LessonServiceTest {
         lessonService.createLesson(
             contributor,
             new LessonService.LessonDraftInput(
-                10L,
-                "  Crème de la Rizz  ",
-                "  Intro lesson  ",
-                "  learn the basics  ",
-                7,
-                1,
-                null));
+                10L, "  Crème de la Rizz  ", "  Intro lesson  ", "  learn the basics  ", 7, 1));
 
     assertThat(lesson.getTitle()).isEqualTo("Crème de la Rizz");
     assertThat(lesson.getSlug()).isEqualTo("creme-de-la-rizz");
@@ -90,9 +135,29 @@ class LessonServiceTest {
             () ->
                 lessonService.createLesson(
                     user(Role.LEARNER),
-                    new LessonService.LessonDraftInput(1L, "Title", "Desc", null, 5, 1, null)))
+                    new LessonService.LessonDraftInput(1L, "Title", "Desc", null, 5, 1)))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("insufficient role permissions");
+  }
+
+  @Test
+  void patchLessonSubmitsDraftLessonForReview() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Lesson lesson = lesson(LessonStatus.DRAFT, contributor.getId());
+    lesson.setReviewComment("old comment");
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
+    when(lessonRepository.save(lesson)).thenReturn(lesson);
+
+    Lesson updated =
+        lessonService.patchLesson(
+            contributor,
+            55L,
+            new LessonService.LessonPatchInput(
+                null, null, null, null, null, null, LessonStatus.PENDING_REVIEW, null));
+
+    assertThat(updated.getStatus()).isEqualTo(LessonStatus.PENDING_REVIEW);
+    assertThat(updated.getReviewComment()).isNull();
+    assertThat(updated.getReviewedBy()).isNull();
   }
 
   @Test
@@ -115,6 +180,25 @@ class LessonServiceTest {
   }
 
   @Test
+  void patchLessonBlocksContributorApproval() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Lesson lesson = lesson(LessonStatus.PENDING_REVIEW, contributor.getId());
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
+
+    assertThatThrownBy(
+            () ->
+                lessonService.patchLesson(
+                    contributor,
+                    55L,
+                    new LessonService.LessonPatchInput(
+                        null, null, null, null, null, null, LessonStatus.APPROVED, null)))
+        .isInstanceOf(ResponseStatusException.class)
+        .hasMessageContaining("only moderators/admin can review lessons");
+
+    verify(lessonRepository, never()).save(any(Lesson.class));
+  }
+
+  @Test
   void patchLessonRequiresReviewCommentWhenRejecting() {
     Lesson lesson = lesson(LessonStatus.PENDING_REVIEW, user(Role.CONTRIBUTOR).getId());
     when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
@@ -128,6 +212,25 @@ class LessonServiceTest {
                         null, null, null, null, null, null, LessonStatus.REJECTED, "  ")))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("reviewComment is required when rejecting");
+  }
+
+  @Test
+  void patchLessonReturnsRejectedLessonToDraft() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Lesson lesson = lesson(LessonStatus.REJECTED, contributor.getId());
+    lesson.setReviewComment("needs work");
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
+    when(lessonRepository.save(lesson)).thenReturn(lesson);
+
+    Lesson updated =
+        lessonService.patchLesson(
+            contributor,
+            55L,
+            new LessonService.LessonPatchInput(
+                null, null, null, null, null, null, LessonStatus.DRAFT, null));
+
+    assertThat(updated.getStatus()).isEqualTo(LessonStatus.DRAFT);
+    assertThat(updated.getReviewComment()).isNull();
   }
 
   @Test

@@ -50,6 +50,47 @@ public class LessonService {
     return unitRepository.findAllByOrderByOrderIndexAsc();
   }
 
+  public Unit createUnit(User actor, UnitCreateInput input) {
+    requireRole(actor, Role.ADMIN, Role.MODERATOR);
+
+    String title = sanitize(input.title());
+    Unit unit =
+        new Unit(
+            title,
+            uniqueUnitSlugForTitle(title, null),
+            trimToNull(input.description()),
+            nextUnitOrderIndex());
+    return unitRepository.save(unit);
+  }
+
+  public Unit patchUnit(User actor, Long unitId, UnitPatchInput input) {
+    requireRole(actor, Role.ADMIN, Role.MODERATOR);
+    Unit unit = requireUnit(unitId);
+
+    if (input.title() != null) {
+      String title = sanitize(input.title());
+      unit.setTitle(title);
+      unit.setSlug(uniqueUnitSlugForTitle(title, unit.getId()));
+    }
+
+    if (input.description() != null) {
+      unit.setDescription(trimToNull(input.description()));
+    }
+
+    return unitRepository.save(unit);
+  }
+
+  public void deleteUnit(User actor, Long unitId) {
+    requireRole(actor, Role.ADMIN, Role.MODERATOR);
+    Unit unit = requireUnit(unitId);
+    if (!lessonRepository.findByUnitIdOrderByOrderIndexAsc(unitId).isEmpty()) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "cannot delete a unit that still has lessons");
+    }
+    unitRepository.delete(unit);
+    normalizeUnitOrder();
+  }
+
   public Lesson createLesson(User actor, LessonDraftInput input) {
     requireRole(actor, Role.CONTRIBUTOR, Role.ADMIN);
     Unit unit =
@@ -81,7 +122,6 @@ public class LessonService {
             orderIndex,
             actor.getId());
     lesson.setStatus(LessonStatus.DRAFT);
-    lesson.setTargetSubunitId(input.targetSubunitId());
     return lessonRepository.save(lesson);
   }
 
@@ -93,6 +133,23 @@ public class LessonService {
       candidate = base + "-" + suffix;
       suffix++;
     }
+    return candidate;
+  }
+
+  private String uniqueUnitSlugForTitle(String title, Long currentUnitId) {
+    String base = slugify(title);
+    String candidate = base;
+    int suffix = 1;
+    String currentSlug =
+        currentUnitId == null
+            ? null
+            : unitRepository.findById(currentUnitId).map(Unit::getSlug).orElse(null);
+
+    while (unitRepository.existsBySlug(candidate) && !candidate.equals(currentSlug)) {
+      candidate = base + "-" + suffix;
+      suffix++;
+    }
+
     return candidate;
   }
 
@@ -297,27 +354,6 @@ public class LessonService {
       lesson.setReviewComment(isBlank(reviewComment) ? null : reviewComment.trim());
       if (targetStatus == LessonStatus.APPROVED) {
         lesson.setPublishedAt(Instant.now());
-        // Copy steps to target subunit if specified
-        if (lesson.getTargetSubunitId() != null) {
-          try {
-            System.out.println(
-                "Copying steps from lesson "
-                    + lesson.getId()
-                    + " to target subunit "
-                    + lesson.getTargetSubunitId());
-            copyStepsToTargetSubunit(lesson);
-            System.out.println(
-                "Successfully copied steps from lesson " + lesson.getId() + " to target subunit");
-          } catch (Exception e) {
-            System.err.println(
-                "Error copying steps to target subunit for lesson "
-                    + lesson.getId()
-                    + ": "
-                    + e.getMessage());
-            e.printStackTrace();
-            // Still save the lesson as approved even if step copying fails
-          }
-        }
       }
       return;
     }
@@ -331,36 +367,6 @@ public class LessonService {
 
     throw new ResponseStatusException(
         HttpStatus.BAD_REQUEST, "invalid status transition: " + current + " -> " + targetStatus);
-  }
-
-  private void copyStepsToTargetSubunit(Lesson sourceLessonWithSteps) {
-    // Get the target subunit (parent lesson/subunit where we'll add these steps)
-    Lesson targetSubunit =
-        lessonRepository
-            .findById(sourceLessonWithSteps.getTargetSubunitId())
-            .orElseThrow(
-                () ->
-                    new ResponseStatusException(HttpStatus.NOT_FOUND, "target subunit not found"));
-
-    // Get the highest order index in the target subunit
-    List<LessonStep> existingSteps =
-        lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(targetSubunit.getId());
-    int nextOrderIndex = existingSteps.isEmpty() ? 1 : existingSteps.size() + 1;
-
-    // Get all steps from the source lesson
-    List<LessonStep> sourceSteps =
-        lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(sourceLessonWithSteps.getId());
-
-    // Copy each step to the target subunit
-    for (LessonStep sourceStep : sourceSteps) {
-      LessonStep newStep = new LessonStep(targetSubunit, nextOrderIndex, sourceStep.getStepType());
-      newStep.setVocabItem(sourceStep.getVocabItem());
-      newStep.setPayload(sourceStep.getPayload());
-      lessonStepRepository.save(newStep);
-      nextOrderIndex++;
-    }
-
-    // NOTE: Do NOT delete the source lesson here - it will be deleted after patchLesson saves it
   }
 
   private void applyStepPayload(LessonStep step, StepWriteInput input) {
@@ -441,6 +447,37 @@ public class LessonService {
     return lessonRepository
         .findById(lessonId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "lesson not found"));
+  }
+
+  private Unit requireUnit(Long unitId) {
+    return unitRepository
+        .findById(unitId)
+        .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "unit not found"));
+  }
+
+  private int nextUnitOrderIndex() {
+    return unitRepository.findAllByOrderByOrderIndexAsc().stream()
+            .map(Unit::getOrderIndex)
+            .filter(i -> i != null)
+            .max(Comparator.naturalOrder())
+            .orElse(0)
+        + 1;
+  }
+
+  private void normalizeUnitOrder() {
+    List<Unit> units =
+        unitRepository.findAllByOrderByOrderIndexAsc().stream()
+            .sorted(Comparator.comparing(Unit::getOrderIndex).thenComparing(Unit::getId))
+            .toList();
+
+    int i = 1;
+    for (Unit unit : units) {
+      if (!unit.getOrderIndex().equals(i)) {
+        unit.setOrderIndex(i);
+        unitRepository.save(unit);
+      }
+      i++;
+    }
   }
 
   private void ensureCanViewLesson(User actor, Lesson lesson) {
@@ -560,8 +597,11 @@ public class LessonService {
       String description,
       String learningObjective,
       Integer estimatedMinutes,
-      Integer orderIndex,
-      Long targetSubunitId) {}
+      Integer orderIndex) {}
+
+  public record UnitCreateInput(String title, String description) {}
+
+  public record UnitPatchInput(String title, String description) {}
 
   public record LessonPatchInput(
       Long unitId,

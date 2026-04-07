@@ -12,7 +12,6 @@ export interface LessonSummary {
   orderIndex: number;
   status: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
   publishedAt?: string | null;
-  targetSubunitId?: number | null;
 }
 
 export interface UnitData {
@@ -23,6 +22,11 @@ export interface UnitData {
   orderIndex: number;
   lessons: LessonSummary[];
   tempKey?: string | null;
+}
+
+export interface UnitWriteInput {
+  title: string;
+  description?: string | null;
 }
 
 export interface ChoicePayload {
@@ -144,6 +148,40 @@ export function useUnits() {
   });
 }
 
+export function useCreateUnit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: UnitWriteInput) => api.post("units", { json: body }).json<UnitData>(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: UNITS_KEY });
+    },
+  });
+}
+
+export function useUpdateUnit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ unitId, body }: { unitId: number; body: UnitWriteInput }) =>
+      api.patch(`units/${unitId}`, { json: body }).json<UnitData>(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: UNITS_KEY });
+    },
+  });
+}
+
+export function useDeleteUnit() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (unitId: number) => api.delete(`units/${unitId}`),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: UNITS_KEY });
+    },
+  });
+}
+
 export function usePendingLessons() {
   const queryClient = useQueryClient();
   return useQuery({
@@ -171,8 +209,6 @@ export function usePendingLessons() {
           if (match) {
             return {
               ...item,
-              ...(match.subunitTitle ? { subunitTitle: match.subunitTitle } : {}),
-              ...(match.subunitId ? { subunitId: match.subunitId } : {}),
               ...(match.firstStepType ? { firstStepType: match.firstStepType } : {}),
               ...(match.firstQuestionType ? { firstQuestionType: match.firstQuestionType } : {}),
               ...(match.firstStepPrompt ? { firstStepPrompt: match.firstStepPrompt } : {}),
@@ -182,8 +218,6 @@ export function usePendingLessons() {
           if (stored) {
             return {
               ...item,
-              ...(stored.subunitTitle ? { subunitTitle: stored.subunitTitle } : {}),
-              ...(stored.subunitId ? { subunitId: stored.subunitId } : {}),
               ...(stored.firstStepType ? { firstStepType: stored.firstStepType } : {}),
               ...(stored.firstQuestionType ? { firstQuestionType: stored.firstQuestionType } : {}),
               ...(stored.firstStepPrompt ? { firstStepPrompt: stored.firstStepPrompt } : {}),
@@ -214,8 +248,6 @@ export function useLessonPlay(lessonId: number) {
   return useQuery({
     queryKey: [...LESSONS_KEY, "play", lessonId],
     queryFn: () => api.get(`lessons/${lessonId}/content`).json<LessonPlayResponse>(),
-    // Only fetch for positive, server-backed lesson IDs. Client-only temp lessons use negative ids
-    // or `temp-` routes and should be loaded from localStorage by the route component.
     enabled: Number.isInteger(lessonId) && lessonId > 0,
     // avoid long loading states on not-found/unauthorized responses
     retry: false,
@@ -226,8 +258,6 @@ export function useLessonForEdit(lessonId: number) {
   return useQuery({
     queryKey: [...LESSONS_KEY, "edit", lessonId],
     queryFn: () => api.get(`lessons/${lessonId}`).json<LessonPlayResponse>(),
-    // Only fetch for positive, server-backed lesson IDs. Client-only temp lessons use negative ids
-    // or `temp-` routes and should be loaded from localStorage by the route component.
     enabled: Number.isInteger(lessonId) && lessonId > 0,
     // avoid long loading states on not-found/unauthorized responses
     retry: false,
@@ -240,19 +270,19 @@ export function useSubmitLessonAttempt() {
   return useMutation({
     mutationFn: ({
       lessonId,
-      answers,
       startedAt,
+      answers,
     }: {
       lessonId: number;
-      answers: Array<{ stepId: number; answer: LessonAnswer }>;
       startedAt?: string;
+      answers: Array<{ stepId: number; answer: LessonAnswer }>;
     }) =>
       api
         .post("lesson-attempts", {
           json: {
             lessonId,
-            answers,
             startedAt,
+            answers,
           },
         })
         .json<AttemptResult>(),
