@@ -1,8 +1,6 @@
 package com.group7.app.forum.dto;
 
-import java.util.List;
-
-public record QuestionResponse(
+public record QuestionListItemResponse(
     Long id,
     String title,
     String content,
@@ -10,5 +8,4 @@ public record QuestionResponse(
     AuthorInfo authorInfo,
     String createdAt,
     long answerCount,
-    List<AnswerResponse> answers,
     VoteSummary votes) {}

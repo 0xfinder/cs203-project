@@ -34,7 +34,7 @@ public class Question {
       mappedBy = "question",
       cascade = CascadeType.ALL,
       orphanRemoval = true,
-      fetch = FetchType.EAGER)
+      fetch = FetchType.LAZY)
   @JsonManagedReference
   private List<Answer> answers = new ArrayList<>();
 

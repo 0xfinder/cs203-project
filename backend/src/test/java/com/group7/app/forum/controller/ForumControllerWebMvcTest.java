@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.group7.app.config.DatabaseRoleJwtAuthenticationConverter;
 import com.group7.app.config.SecurityConfig;
 import com.group7.app.forum.dto.AuthorInfo;
+import com.group7.app.forum.dto.QuestionListItemResponse;
 import com.group7.app.forum.dto.QuestionResponse;
 import com.group7.app.forum.dto.VoteSummary;
 import com.group7.app.forum.model.Question;
@@ -28,6 +29,7 @@ import com.group7.app.user.Role;
 import com.group7.app.user.User;
 import com.group7.app.user.UserService;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -69,24 +73,28 @@ class ForumControllerWebMvcTest {
   void getQuestionsAllowsAnonymousAccess() throws Exception {
     Question question = new Question("What is skibidi?", "Explain it", "Kai");
     ReflectionTestUtils.setField(question, "id", 1L);
-    QuestionResponse response =
-        new QuestionResponse(
+    QuestionListItemResponse response =
+        new QuestionListItemResponse(
             1L,
             "What is skibidi?",
             "Explain it",
             "Kai",
             new AuthorInfo(null, "Kai", null, null, null),
             "2026-01-01T10:00:00",
-            List.of(),
+            0L,
             new VoteSummary(0, 0, null));
 
-    when(questionService.getAllQuestions()).thenReturn(List.of(question));
-    when(forumMappingService.toQuestionResponse(question, null)).thenReturn(response);
+    when(questionService.getQuestions(PageRequest.of(0, 10)))
+        .thenReturn(new PageImpl<>(List.of(question), PageRequest.of(0, 10), 1));
+    when(answerService.getAnswerCounts(List.of(1L))).thenReturn(Map.of(1L, 0L));
+    when(forumMappingService.toQuestionListItemResponses(List.of(question), null, Map.of(1L, 0L)))
+        .thenReturn(List.of(response));
 
     mockMvc
         .perform(get("/api/forum/questions"))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$[0].title").value("What is skibidi?"));
+        .andExpect(jsonPath("$.items[0].title").value("What is skibidi?"))
+        .andExpect(jsonPath("$.totalItems").value(1));
   }
 
   @Test
@@ -127,6 +135,7 @@ class ForumControllerWebMvcTest {
             "Kai",
             new AuthorInfo(userId.toString(), "Kai", null, null, "LEARNER"),
             "2026-01-01T10:00:00",
+            0L,
             List.of(),
             new VoteSummary(0, 0, null));
 

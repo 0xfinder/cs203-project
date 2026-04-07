@@ -2,9 +2,10 @@ package com.group7.app.forum.service;
 
 import com.group7.app.forum.model.Question;
 import com.group7.app.forum.repository.QuestionRepository;
-import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -21,13 +22,22 @@ public class QuestionService {
     this.moderationService = moderationService;
   }
 
-  public List<Question> getAllQuestions() {
-    return repository.findAllByOrderByCreatedAtDesc(); // newest first
+  public Page<Question> getQuestions(Pageable pageable) {
+    return repository.findAllByOrderByCreatedAtDesc(pageable);
   }
 
   public Question getQuestion(Long id) {
     return repository
         .findById(id)
+        .orElseThrow(
+            () ->
+                new ResponseStatusException(
+                    HttpStatus.NOT_FOUND, "Question not found with id: " + id));
+  }
+
+  public Question getQuestionWithAnswers(Long id) {
+    return repository
+        .findWithAnswersById(id)
         .orElseThrow(
             () ->
                 new ResponseStatusException(

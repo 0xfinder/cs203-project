@@ -11,6 +11,7 @@ import com.group7.app.user.User;
 import com.group7.app.user.UserRepository;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -62,18 +63,19 @@ class ForumMappingServiceTest {
     answer.setCreatedAt(LocalDateTime.of(2026, 1, 1, 10, 5));
     question.setAnswers(List.of(answer));
 
-    when(userRepository.findById(questionAuthorId)).thenReturn(Optional.of(questionAuthor));
-    when(userRepository.findById(answerAuthorId)).thenReturn(Optional.of(answerAuthor));
-    when(forumVoteService.getQuestionVoteSummary(1L, viewerId))
-        .thenReturn(new VoteSummary(3, 1, "THUMBS_UP"));
-    when(forumVoteService.getAnswerVoteSummary(2L, viewerId))
-        .thenReturn(new VoteSummary(1, 0, null));
+    when(userRepository.findAllById(org.mockito.ArgumentMatchers.anyIterable()))
+        .thenReturn(List.of(questionAuthor, answerAuthor));
+    when(forumVoteService.getQuestionVoteSummaries(List.of(1L), viewerId))
+        .thenReturn(Map.of(1L, new VoteSummary(3, 1, "THUMBS_UP")));
+    when(forumVoteService.getAnswerVoteSummaries(List.of(2L), viewerId))
+        .thenReturn(Map.of(2L, new VoteSummary(1, 0, null)));
 
     var response = forumMappingService.toQuestionResponse(question, viewerId);
 
     assertThat(response.authorInfo().displayName()).isEqualTo("Kai");
     assertThat(response.authorInfo().avatarPath()).isEqualTo("uploads/kai.png");
     assertThat(response.authorInfo().role()).isEqualTo("CONTRIBUTOR");
+    assertThat(response.answerCount()).isEqualTo(1);
     assertThat(response.answers()).hasSize(1);
     assertThat(response.answers().get(0).authorInfo().displayName()).isEqualTo("Luna");
     assertThat(response.votes().thumbsUp()).isEqualTo(3);
@@ -90,8 +92,8 @@ class ForumMappingServiceTest {
 
     when(userRepository.findFirstByDisplayNameIgnoreCase("OldName"))
         .thenReturn(Optional.of(legacyUser));
-    when(forumVoteService.getQuestionVoteSummary(5L, viewerId))
-        .thenReturn(new VoteSummary(0, 0, null));
+    when(forumVoteService.getQuestionVoteSummaries(List.of(5L), viewerId))
+        .thenReturn(Map.of(5L, new VoteSummary(0, 0, null)));
 
     var response = forumMappingService.toQuestionResponse(question, viewerId);
 

@@ -54,6 +54,7 @@ class ForumVoteServiceTest {
   void castQuestionVoteUpdatesExistingVoteAndReturnsSummary() {
     UUID userId = UUID.randomUUID();
     Question question = new Question("title", "content", "author");
+    org.springframework.test.util.ReflectionTestUtils.setField(question, "id", 7L);
     User user = new User(userId, "user@example.com");
     QuestionVote existingVote = new QuestionVote(question, user, QuestionVote.VoteType.THUMBS_DOWN);
 
@@ -63,10 +64,20 @@ class ForumVoteServiceTest {
         .thenReturn(Optional.of(existingVote));
     when(questionVoteRepository.save(any(QuestionVote.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
-    when(questionVoteRepository.countByQuestionIdAndVoteType(7L, QuestionVote.VoteType.THUMBS_UP))
-        .thenReturn(4L);
-    when(questionVoteRepository.countByQuestionIdAndVoteType(7L, QuestionVote.VoteType.THUMBS_DOWN))
-        .thenReturn(1L);
+    QuestionVoteRepository.QuestionVoteCountView upCount =
+        org.mockito.Mockito.mock(QuestionVoteRepository.QuestionVoteCountView.class);
+    when(upCount.getQuestionId()).thenReturn(7L);
+    when(upCount.getVoteType()).thenReturn(QuestionVote.VoteType.THUMBS_UP);
+    when(upCount.getVoteCount()).thenReturn(4L);
+    QuestionVoteRepository.QuestionVoteCountView downCount =
+        org.mockito.Mockito.mock(QuestionVoteRepository.QuestionVoteCountView.class);
+    when(downCount.getQuestionId()).thenReturn(7L);
+    when(downCount.getVoteType()).thenReturn(QuestionVote.VoteType.THUMBS_DOWN);
+    when(downCount.getVoteCount()).thenReturn(1L);
+    when(questionVoteRepository.summarizeByQuestionIds(java.util.List.of(7L)))
+        .thenReturn(java.util.List.of(upCount, downCount));
+    when(questionVoteRepository.findAllByQuestionIdInAndUserId(java.util.List.of(7L), userId))
+        .thenReturn(java.util.List.of(existingVote));
 
     var summary = forumVoteService.castQuestionVote(7L, userId, QuestionVote.VoteType.THUMBS_UP);
 
@@ -79,11 +90,15 @@ class ForumVoteServiceTest {
   @Test
   void clearAnswerVoteReturnsSummaryWithoutUserVote() {
     UUID userId = UUID.randomUUID();
-    when(answerVoteRepository.countByAnswerIdAndVoteType(9L, AnswerVote.VoteType.THUMBS_UP))
-        .thenReturn(2L);
-    when(answerVoteRepository.countByAnswerIdAndVoteType(9L, AnswerVote.VoteType.THUMBS_DOWN))
-        .thenReturn(0L);
-    when(answerVoteRepository.findByAnswerIdAndUserId(9L, userId)).thenReturn(Optional.empty());
+    AnswerVoteRepository.AnswerVoteCountView upCount =
+        org.mockito.Mockito.mock(AnswerVoteRepository.AnswerVoteCountView.class);
+    when(upCount.getAnswerId()).thenReturn(9L);
+    when(upCount.getVoteType()).thenReturn(AnswerVote.VoteType.THUMBS_UP);
+    when(upCount.getVoteCount()).thenReturn(2L);
+    when(answerVoteRepository.summarizeByAnswerIds(java.util.List.of(9L)))
+        .thenReturn(java.util.List.of(upCount));
+    when(answerVoteRepository.findAllByAnswerIdInAndUserId(java.util.List.of(9L), userId))
+        .thenReturn(java.util.List.of());
 
     var summary = forumVoteService.clearAnswerVote(9L, userId);
 

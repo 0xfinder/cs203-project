@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MessageCircle,
   MessageCircleMore,
@@ -34,47 +34,28 @@ import { api } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { AppPageShell } from "@/components/app-page-shell";
-// duplicate imports removed
+import {
+  type AnswerResp,
+  type AuthorInfo,
+  FORUM_QUERY_KEY,
+  forumAnswersQueryOptions,
+  forumQuestionsQueryOptions,
+  type ForumQuestionPageResp,
+  type QuestionListItemResp,
+  type VoteSummary,
+} from "@/features/forum/useForumData";
+
+const FORUM_PAGE_SIZE = 10;
 
 export const Route = createFileRoute("/forum")({
-  loader: () => queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
+  loader: async () => {
+    await Promise.all([
+      queryClient.ensureQueryData(optionalCurrentUserViewQueryOptions()),
+      queryClient.ensureQueryData(forumQuestionsQueryOptions(0, FORUM_PAGE_SIZE)),
+    ]);
+  },
   component: ForumPage,
 });
-
-/* -- Types ----------------------------------------------------------------- */
-type AuthorInfo = {
-  id: string | null;
-  displayName: string | null;
-  avatarPath: string | null;
-  avatarColor: string | null;
-  role: string | null;
-};
-
-type VoteSummary = {
-  thumbsUp: number;
-  thumbsDown: number;
-  userVote: "THUMBS_UP" | "THUMBS_DOWN" | null;
-};
-
-type AnswerResp = {
-  id: number;
-  content: string;
-  author: string;
-  authorInfo: AuthorInfo;
-  createdAt: string;
-  votes: VoteSummary;
-};
-
-type QuestionResp = {
-  id: number;
-  title: string;
-  content: string;
-  author: string;
-  authorInfo: AuthorInfo;
-  createdAt: string;
-  answers: AnswerResp[];
-  votes: VoteSummary;
-};
 
 type UserProfile = MeResponse;
 
@@ -108,6 +89,14 @@ function timeAgo(iso: string) {
 function displayLabel(profile: UserProfile | null): string {
   if (!profile) return "Guest";
   return profile.displayName?.trim() || profile.email.split("@")[0];
+}
+
+function forumQuestionsKey(page: number, size: number) {
+  return [...FORUM_QUERY_KEY, "questions", page, size] as const;
+}
+
+function forumAnswersKey(questionId: number) {
+  return [...FORUM_QUERY_KEY, "answers", questionId] as const;
 }
 
 /* -- Sub-components -------------------------------------------------------- */
@@ -442,15 +431,336 @@ function MarkdownTextarea({
   );
 }
 
+function QuestionCard({
+  question,
+  isExpanded,
+  onToggle,
+  profile,
+  canPost,
+  canModerate,
+  onboardingDone,
+  onError,
+  currentPage,
+  pageSize,
+}: {
+  question: QuestionListItemResp;
+  isExpanded: boolean;
+  onToggle: () => void;
+  profile: UserProfile | null;
+  canPost: boolean;
+  canModerate: boolean;
+  onboardingDone: boolean;
+  onError: (message: string) => void;
+  currentPage: number;
+  pageSize: number;
+}) {
+  const queryClient = useQueryClient();
+  const [answerDraft, setAnswerDraft] = useState("");
+  const [postingAnswer, setPostingAnswer] = useState(false);
+  const answersQuery = useQuery({
+    ...forumAnswersQueryOptions(question.id),
+    enabled: isExpanded,
+  });
+
+  const answers = answersQuery.data ?? [];
+  const canDeleteContent = (authorInfo: AuthorInfo) =>
+    Boolean(profile) && (authorInfo.id === profile?.id || canModerate);
+
+  const handleDeleteAnswer = async (answerId: number) => {
+    try {
+      await api.delete(`forum/answers/${answerId}`);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: forumAnswersKey(question.id) }),
+        queryClient.invalidateQueries({ queryKey: [...FORUM_QUERY_KEY, "questions"] }),
+      ]);
+    } catch (e) {
+      console.error("failed to delete answer:", e);
+      onError("Failed to delete answer");
+    }
+  };
+
+  const handlePostAnswer = async () => {
+    const content = answerDraft.trim();
+    if (!content || !canPost) return;
+    setPostingAnswer(true);
+    try {
+      await api
+        .post(`forum/questions/${question.id}/answers`, {
+          json: { content },
+        })
+        .json();
+      setAnswerDraft("");
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: forumAnswersKey(question.id) }),
+        queryClient.invalidateQueries({ queryKey: [...FORUM_QUERY_KEY, "questions"] }),
+      ]);
+    } catch (e) {
+      onError(await extractErrorMessage(e, "Failed to post answer"));
+    } finally {
+      setPostingAnswer(false);
+    }
+  };
+
+  const handleAnswerVote = async (answerId: number, type: "THUMBS_UP" | "THUMBS_DOWN") => {
+    if (!canPost) return;
+    try {
+      const updated = await api
+        .post(`forum/answers/${answerId}/votes`, {
+          json: { voteType: type },
+        })
+        .json<VoteSummary>();
+      queryClient.setQueryData<AnswerResp[]>(forumAnswersKey(question.id), (prev) =>
+        (prev ?? []).map((answer) =>
+          answer.id === answerId ? { ...answer, votes: updated } : answer,
+        ),
+      );
+    } catch (e) {
+      console.error("failed to vote on answer:", e);
+      onError("Failed to vote");
+    }
+  };
+
+  const handleClearAnswerVote = async (answerId: number) => {
+    if (!canPost) return;
+    try {
+      const updated = await api.delete(`forum/answers/${answerId}/votes`).json<VoteSummary>();
+      queryClient.setQueryData<AnswerResp[]>(forumAnswersKey(question.id), (prev) =>
+        (prev ?? []).map((answer) =>
+          answer.id === answerId ? { ...answer, votes: updated } : answer,
+        ),
+      );
+    } catch (e) {
+      console.error("failed to clear answer vote:", e);
+      onError("Failed to clear vote");
+    }
+  };
+
+  const handleDeleteQuestion = async () => {
+    if (!confirm("Delete this question and all its answers?")) return;
+    try {
+      await api.delete(`forum/questions/${question.id}`);
+      await queryClient.invalidateQueries({ queryKey: [...FORUM_QUERY_KEY, "questions"] });
+      queryClient.removeQueries({ queryKey: forumAnswersKey(question.id) });
+    } catch (e) {
+      console.error("failed to delete question:", e);
+      onError("Failed to delete question");
+    }
+  };
+
+  const handleQuestionVote = async (type: "THUMBS_UP" | "THUMBS_DOWN") => {
+    if (!canPost) return;
+    try {
+      const updated = await api
+        .post(`forum/questions/${question.id}/votes`, {
+          json: { voteType: type },
+        })
+        .json<VoteSummary>();
+      queryClient.setQueryData<ForumQuestionPageResp>(
+        forumQuestionsKey(currentPage, pageSize),
+        (prev) =>
+          prev
+            ? {
+                ...prev,
+                items: prev.items.map((item) =>
+                  item.id === question.id ? { ...item, votes: updated } : item,
+                ),
+              }
+            : prev,
+      );
+    } catch (e) {
+      console.error("failed to vote on question:", e);
+      onError("Failed to vote");
+    }
+  };
+
+  const handleClearQuestionVote = async () => {
+    if (!canPost) return;
+    try {
+      const updated = await api.delete(`forum/questions/${question.id}/votes`).json<VoteSummary>();
+      queryClient.setQueryData<ForumQuestionPageResp>(
+        forumQuestionsKey(currentPage, pageSize),
+        (prev) =>
+          prev
+            ? {
+                ...prev,
+                items: prev.items.map((item) =>
+                  item.id === question.id ? { ...item, votes: updated } : item,
+                ),
+              }
+            : prev,
+      );
+    } catch (e) {
+      console.error("failed to clear question vote:", e);
+      onError("Failed to clear vote");
+    }
+  };
+
+  return (
+    <Card className="overflow-hidden transition-colors hover:border-primary/30">
+      <CardContent className="pb-0">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <UserAvatar
+            name={question.authorInfo.displayName ?? question.author}
+            avatarPath={question.authorInfo.avatarPath}
+            avatarColor={question.authorInfo.avatarColor}
+          />
+          <span className="font-medium text-foreground">
+            {question.authorInfo.displayName ?? question.author}
+          </span>
+          {question.authorInfo.role && (
+            <RoleBadge role={question.authorInfo.role as any} className="text-muted-foreground" />
+          )}
+          <span className="text-muted-foreground/60">{timeAgo(question.createdAt)}</span>
+          {canDeleteContent(question.authorInfo) && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={handleDeleteQuestion}
+              title="Delete question"
+              className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="size-3.5" />
+            </Button>
+          )}
+        </div>
+
+        <div className="mt-2 flex gap-3">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-base font-bold leading-snug">{question.title}</h3>
+            <div className="mt-1.5 text-muted-foreground">
+              <MarkdownContent content={question.content} />
+            </div>
+          </div>
+          <VoteButtons
+            votes={question.votes}
+            onVote={handleQuestionVote}
+            onClear={handleClearQuestionVote}
+            disabled={!canPost}
+          />
+        </div>
+
+        <div className="mt-3 flex items-center gap-3 pb-4">
+          <AnswerBadge count={question.answerCount} />
+          <button
+            onClick={onToggle}
+            className="ml-auto flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80"
+          >
+            {isExpanded ? (
+              <>
+                Hide answers <ChevronUp className="size-3.5" />
+              </>
+            ) : (
+              <>
+                View answers <ChevronDown className="size-3.5" />
+              </>
+            )}
+          </button>
+        </div>
+      </CardContent>
+
+      {isExpanded && (
+        <div className="space-y-4 border-t bg-muted/30 px-6 py-4">
+          {answersQuery.isLoading ? (
+            <p className="text-sm text-muted-foreground">Loading answers...</p>
+          ) : answers.length === 0 ? (
+            <p className="text-sm italic text-muted-foreground">
+              his thread needs a lore drop immediately
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {answers.map((answer) => (
+                <li key={answer.id} className="group flex gap-3">
+                  <UserAvatar
+                    name={answer.authorInfo.displayName ?? answer.author}
+                    avatarPath={answer.authorInfo.avatarPath}
+                    avatarColor={answer.authorInfo.avatarColor}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold">
+                        {answer.authorInfo.displayName ?? answer.author}
+                      </span>
+                      {answer.authorInfo.role && (
+                        <RoleBadge
+                          role={answer.authorInfo.role as any}
+                          className="text-muted-foreground"
+                        />
+                      )}
+                      <span className="text-xs text-muted-foreground/60">
+                        {timeAgo(answer.createdAt)}
+                      </span>
+                      {canDeleteContent(answer.authorInfo) && (
+                        <button
+                          onClick={() => handleDeleteAnswer(answer.id)}
+                          className="ml-auto hidden text-muted-foreground transition-colors hover:text-destructive group-hover:block"
+                          title="Delete answer"
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      )}
+                    </div>
+                    <div className="mt-0.5 text-muted-foreground">
+                      <MarkdownContent content={answer.content} />
+                    </div>
+                  </div>
+                  <VoteButtons
+                    votes={answer.votes}
+                    onVote={(type) => handleAnswerVote(answer.id, type)}
+                    onClear={() => handleClearAnswerVote(answer.id)}
+                    disabled={!canPost}
+                  />
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {canPost ? (
+            <div className="space-y-2 pt-1">
+              <MarkdownTextarea
+                value={answerDraft}
+                onChange={setAnswerDraft}
+                placeholder="Go ahead and cook..."
+                rows={2}
+                userId={profile?.id}
+              />
+              <div className="flex justify-end">
+                <Button
+                  size="sm"
+                  onClick={handlePostAnswer}
+                  disabled={postingAnswer || !answerDraft.trim()}
+                >
+                  {postingAnswer ? "..." : "Post Reply"}
+                </Button>
+              </div>
+            </div>
+          ) : profile && !onboardingDone ? (
+            <p className="text-xs italic text-chart-4">
+              <Link to="/profile" className="underline">
+                Set a display name
+              </Link>{" "}
+              to post answers.
+            </p>
+          ) : (
+            <p className="text-xs italic text-muted-foreground">
+              <Link to="/login" className="font-medium underline hover:opacity-80">
+                Log in
+              </Link>{" "}
+              to post an answer.
+            </p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 /* -- Main component -------------------------------------------------------- */
 function ForumPage() {
-  const [questions, setQuestions] = useState<QuestionResp[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  // subscribe to the shared current-user-view so this page updates when
-  // the user signs in/out or edits their profile (cache updated elsewhere)
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
+  const forumQuestionsQuery = useQuery(forumQuestionsQueryOptions(page, FORUM_PAGE_SIZE));
   const profile = (currentUserViewQuery.data && currentUserViewQuery.data.profile) || null;
   const currentUserAvatarUrl = currentUserViewQuery.data?.avatarUrl ?? null;
 
@@ -458,36 +768,21 @@ function ForumPage() {
   const [newTitle, setNewTitle] = useState("");
   const [newContent, setNewContent] = useState("");
   const [posting, setPosting] = useState(false);
-
-  const [answerDraft, setAnswerDraft] = useState<Record<number, string>>({});
-  const [postingAnswer, setPostingAnswer] = useState<number | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-
-  /* -- fetch questions ---------------------------------------------------- */
-  const fetchQuestions = async () => {
-    try {
-      let data: QuestionResp[];
-      if (profile) {
-        data = await api.get("forum/questions").json<QuestionResp[]>();
-      } else {
-        const res = await fetch(
-          `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080/api"}/forum/questions`,
-        );
-        if (!res.ok) throw new Error(`Server error: ${res.status}`);
-        data = await res.json();
-      }
-      setQuestions(data);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to load questions");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const questions = forumQuestionsQuery.data?.items ?? [];
+  const pagination = forumQuestionsQuery.data;
 
   useEffect(() => {
-    void fetchQuestions();
-  }, []);
+    if (!pagination?.hasNext) return;
+    void queryClient.prefetchQuery(forumQuestionsQueryOptions(page + 1, FORUM_PAGE_SIZE));
+  }, [page, pagination?.hasNext, queryClient]);
+
+  useEffect(() => {
+    if (!forumQuestionsQuery.isSuccess) return;
+    if (questions.length === 0 && page > 0 && pagination && pagination.totalPages <= page) {
+      setPage(Math.max(0, pagination.totalPages - 1));
+    }
+  }, [forumQuestionsQuery.isSuccess, page, pagination, questions.length]);
 
   /* -- derived state ------------------------------------------------------ */
   const authorName = displayLabel(profile);
@@ -511,130 +806,15 @@ function ForumPage() {
       setNewTitle("");
       setNewContent("");
       setShowAskForm(false);
-      await fetchQuestions();
+      setPage(0);
+      await queryClient.invalidateQueries({ queryKey: [...FORUM_QUERY_KEY, "questions"] });
+      setError(null);
     } catch (e) {
       setError(await extractErrorMessage(e, "Failed to post"));
     } finally {
       setPosting(false);
     }
   };
-
-  /* -- post answer -------------------------------------------------------- */
-  const handlePostAnswer = async (qId: number) => {
-    let content = answerDraft[qId]?.trim();
-    if (!content || !canPost) return;
-    setPostingAnswer(qId);
-    try {
-      await api
-        .post(`forum/questions/${qId}/answers`, {
-          json: { content },
-        })
-        .json();
-      setAnswerDraft((prev) => ({ ...prev, [qId]: "" }));
-      await fetchQuestions();
-    } catch (e) {
-      setError(await extractErrorMessage(e, "Failed to post answer"));
-    } finally {
-      setPostingAnswer(null);
-    }
-  };
-
-  /* -- deletes ------------------------------------------------------------ */
-  const handleDeleteQuestion = async (qId: number) => {
-    if (!confirm("Delete this question and all its answers?")) return;
-    try {
-      await api.delete(`forum/questions/${qId}`);
-      await fetchQuestions();
-    } catch (e) {
-      console.error("failed to delete question:", e);
-      setError("Failed to delete question");
-    }
-  };
-
-  const handleDeleteAnswer = async (aId: number) => {
-    try {
-      await api.delete(`forum/answers/${aId}`);
-      await fetchQuestions();
-    } catch (e) {
-      console.error("failed to delete answer:", e);
-      setError("Failed to delete answer");
-    }
-  };
-
-  /* -- voting ------------------------------------------------------------- */
-  const handleQuestionVote = async (qId: number, type: "THUMBS_UP" | "THUMBS_DOWN") => {
-    if (!canPost) return;
-    try {
-      const updated = await api
-        .post(`forum/questions/${qId}/votes`, {
-          json: { voteType: type },
-        })
-        .json<VoteSummary>();
-      setQuestions((prev) => prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)));
-    } catch (e) {
-      console.error("failed to vote on question:", e);
-      setError("Failed to vote");
-    }
-  };
-
-  const handleClearQuestionVote = async (qId: number) => {
-    if (!canPost) return;
-    try {
-      const updated = await api.delete(`forum/questions/${qId}/votes`).json<VoteSummary>();
-      setQuestions((prev) => prev.map((q) => (q.id === qId ? { ...q, votes: updated } : q)));
-    } catch (e) {
-      console.error("failed to clear question vote:", e);
-      setError("Failed to clear vote");
-    }
-  };
-
-  const handleAnswerVote = async (qId: number, aId: number, type: "THUMBS_UP" | "THUMBS_DOWN") => {
-    if (!canPost) return;
-    try {
-      const updated = await api
-        .post(`forum/answers/${aId}/votes`, {
-          json: { voteType: type },
-        })
-        .json<VoteSummary>();
-      setQuestions((prev) =>
-        prev.map((q) =>
-          q.id === qId
-            ? {
-                ...q,
-                answers: q.answers.map((a) => (a.id === aId ? { ...a, votes: updated } : a)),
-              }
-            : q,
-        ),
-      );
-    } catch (e) {
-      console.error("failed to vote on answer:", e);
-      setError("Failed to vote");
-    }
-  };
-
-  const handleClearAnswerVote = async (qId: number, aId: number) => {
-    if (!canPost) return;
-    try {
-      const updated = await api.delete(`forum/answers/${aId}/votes`).json<VoteSummary>();
-      setQuestions((prev) =>
-        prev.map((q) =>
-          q.id === qId
-            ? {
-                ...q,
-                answers: q.answers.map((a) => (a.id === aId ? { ...a, votes: updated } : a)),
-              }
-            : q,
-        ),
-      );
-    } catch (e) {
-      console.error("failed to clear answer vote:", e);
-      setError("Failed to clear vote");
-    }
-  };
-
-  /* -- permission checks -------------------------------------------------- */
-  const canDeleteContent = (authorInfo: AuthorInfo) =>
-    Boolean(profile) && (authorInfo.id === profile?.id || canModerate);
 
   /* -- render ------------------------------------------------------------- */
   return (
@@ -778,7 +958,7 @@ function ForumPage() {
       )}
 
       {/* loading skeleton */}
-      {loading && (
+      {forumQuestionsQuery.isLoading && !pagination && (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse">
@@ -793,7 +973,7 @@ function ForumPage() {
       )}
 
       {/* empty state */}
-      {!loading && questions.length === 0 && (
+      {forumQuestionsQuery.isSuccess && questions.length === 0 && (
         <div className="py-20 text-center">
           <p className="mb-4 text-5xl">?</p>
           <p className="text-lg font-semibold">No questions yet</p>
@@ -804,182 +984,58 @@ function ForumPage() {
       )}
 
       {/* question cards */}
-      {!loading && (
+      {forumQuestionsQuery.isError && (
+        <div className="py-20 text-center text-destructive">
+          Error loading forum:{" "}
+          {forumQuestionsQuery.error instanceof Error
+            ? forumQuestionsQuery.error.message
+            : "Unknown error"}
+        </div>
+      )}
+
+      {forumQuestionsQuery.isSuccess && questions.length > 0 && (
         <div className="space-y-4">
-          {questions.map((q) => {
-            const isExpanded = expandedId === q.id;
-            const canDeleteQuestion = canDeleteContent(q.authorInfo);
+          {questions.map((question) => (
+            <QuestionCard
+              key={question.id}
+              question={question}
+              isExpanded={expandedId === question.id}
+              onToggle={() => setExpandedId(expandedId === question.id ? null : question.id)}
+              profile={profile}
+              canPost={canPost}
+              canModerate={canModerate}
+              onboardingDone={onboardingDone}
+              onError={setError}
+              currentPage={page}
+              pageSize={FORUM_PAGE_SIZE}
+            />
+          ))}
 
-            return (
-              <Card
-                key={q.id}
-                className="overflow-hidden transition-colors hover:border-primary/30"
-              >
-                <CardContent className="pb-0">
-                  {/* author row */}
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <UserAvatar
-                      name={q.authorInfo.displayName ?? q.author}
-                      avatarPath={q.authorInfo.avatarPath}
-                      avatarColor={q.authorInfo.avatarColor}
-                    />
-                    <span className="font-medium text-foreground">
-                      {q.authorInfo.displayName ?? q.author}
-                    </span>
-                    {q.authorInfo.role && (
-                      <RoleBadge
-                        role={q.authorInfo.role as any}
-                        className="text-muted-foreground"
-                      />
-                    )}
-                    <span className="text-muted-foreground/60">{timeAgo(q.createdAt)}</span>
-                    {canDeleteQuestion && (
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        onClick={() => handleDeleteQuestion(q.id)}
-                        title="Delete question"
-                        className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
-
-                  {/* title + content with votes on the right */}
-                  <div className="mt-2 flex gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-base font-bold leading-snug">{q.title}</h3>
-                      <div className="mt-1.5 text-muted-foreground">
-                        <MarkdownContent content={q.content} />
-                      </div>
-                    </div>
-                    <VoteButtons
-                      votes={q.votes}
-                      onVote={(type) => handleQuestionVote(q.id, type)}
-                      onClear={() => handleClearQuestionVote(q.id)}
-                      disabled={!canPost}
-                    />
-                  </div>
-
-                  {/* footer: answer count + expand */}
-                  <div className="mt-3 flex items-center gap-3 pb-4">
-                    <AnswerBadge count={q.answers?.length ?? 0} />
-                    <button
-                      onClick={() => setExpandedId(isExpanded ? null : q.id)}
-                      className="ml-auto flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80"
-                    >
-                      {isExpanded ? (
-                        <>
-                          Hide answers <ChevronUp className="size-3.5" />
-                        </>
-                      ) : (
-                        <>
-                          View answers <ChevronDown className="size-3.5" />
-                        </>
-                      )}
-                    </button>
-                  </div>
-                </CardContent>
-
-                {isExpanded && (
-                  <div className="space-y-4 border-t bg-muted/30 px-6 py-4">
-                    {(q.answers?.length ?? 0) === 0 ? (
-                      <p className="text-sm italic text-muted-foreground">
-                        his thread needs a lore drop immediately
-                      </p>
-                    ) : (
-                      <ul className="space-y-3">
-                        {q.answers.map((a) => (
-                          <li key={a.id} className="group flex gap-3">
-                            <UserAvatar
-                              name={a.authorInfo.displayName ?? a.author}
-                              avatarPath={a.authorInfo.avatarPath}
-                              avatarColor={a.authorInfo.avatarColor}
-                            />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold">
-                                  {a.authorInfo.displayName ?? a.author}
-                                </span>
-                                {a.authorInfo.role && (
-                                  <RoleBadge
-                                    role={a.authorInfo.role as any}
-                                    className="text-muted-foreground"
-                                  />
-                                )}
-                                <span className="text-xs text-muted-foreground/60">
-                                  {timeAgo(a.createdAt)}
-                                </span>
-                                {canDeleteContent(a.authorInfo) && (
-                                  <button
-                                    onClick={() => handleDeleteAnswer(a.id)}
-                                    className="ml-auto hidden text-muted-foreground transition-colors hover:text-destructive group-hover:block"
-                                    title="Delete answer"
-                                  >
-                                    <X className="size-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                              <div className="mt-0.5 text-muted-foreground">
-                                <MarkdownContent content={a.content} />
-                              </div>
-                            </div>
-                            <VoteButtons
-                              votes={a.votes}
-                              onVote={(type) => handleAnswerVote(q.id, a.id, type)}
-                              onClear={() => handleClearAnswerVote(q.id, a.id)}
-                              disabled={!canPost}
-                            />
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-
-                    {canPost ? (
-                      <div className="space-y-2 pt-1">
-                        <MarkdownTextarea
-                          value={answerDraft[q.id] ?? ""}
-                          onChange={(v) =>
-                            setAnswerDraft((prev) => ({
-                              ...prev,
-                              [q.id]: v,
-                            }))
-                          }
-                          placeholder="Go ahead and cook..."
-                          rows={2}
-                          userId={profile?.id}
-                        />
-                        <div className="flex justify-end">
-                          <Button
-                            size="sm"
-                            onClick={() => handlePostAnswer(q.id)}
-                            disabled={postingAnswer === q.id || !answerDraft[q.id]?.trim()}
-                          >
-                            {postingAnswer === q.id ? "..." : "Post Reply"}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : profile && !onboardingDone ? (
-                      <p className="text-xs italic text-chart-4">
-                        <Link to="/profile" className="underline">
-                          Set a display name
-                        </Link>{" "}
-                        to post answers.
-                      </p>
-                    ) : (
-                      <p className="text-xs italic text-muted-foreground">
-                        <Link to="/login" className="font-medium underline hover:opacity-80">
-                          Log in
-                        </Link>{" "}
-                        to post an answer.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </Card>
-            );
-          })}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between rounded-xl border bg-card px-4 py-3">
+              <p className="text-sm text-muted-foreground">
+                Page {pagination.page + 1} of {Math.max(1, pagination.totalPages)}
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((value) => Math.max(0, value - 1))}
+                  disabled={page === 0}
+                >
+                  Previous
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((value) => value + 1)}
+                  disabled={!pagination.hasNext}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </AppPageShell>

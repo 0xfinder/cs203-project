@@ -16,6 +16,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -51,13 +53,31 @@ public class ForumController {
 
   @GetMapping("/questions")
   @Operation(summary = "Get all questions with answers, author info, and vote summaries")
-  public ResponseEntity<List<QuestionResponse>> getAllQuestions(@AuthenticationPrincipal Jwt jwt) {
+  public ResponseEntity<ForumQuestionPageResponse> getAllQuestions(
+      @AuthenticationPrincipal Jwt jwt,
+      @RequestParam(defaultValue = "0") int page,
+      @RequestParam(defaultValue = "10") int size) {
+    if (page < 0 || size < 1 || size > 50) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "page must be >= 0 and size must be between 1 and 50");
+    }
+
     UUID userId = jwt != null ? parseUserId(jwt) : null;
-    List<QuestionResponse> result =
-        questionService.getAllQuestions().stream()
-            .map(q -> mappingService.toQuestionResponse(q, userId))
-            .toList();
-    return ResponseEntity.ok(result);
+    Page<Question> resultPage = questionService.getQuestions(PageRequest.of(page, size));
+    List<Question> questions = resultPage.getContent();
+    var answerCounts =
+        answerService.getAnswerCounts(questions.stream().map(Question::getId).toList());
+    List<QuestionListItemResponse> items =
+        mappingService.toQuestionListItemResponses(questions, userId, answerCounts);
+
+    return ResponseEntity.ok(
+        new ForumQuestionPageResponse(
+            items,
+            resultPage.getNumber(),
+            resultPage.getSize(),
+            resultPage.getTotalElements(),
+            resultPage.getTotalPages(),
+            resultPage.hasNext()));
   }
 
   @GetMapping("/questions/{id}")
@@ -65,7 +85,7 @@ public class ForumController {
   public ResponseEntity<QuestionResponse> getQuestion(
       @PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
     UUID userId = jwt != null ? parseUserId(jwt) : null;
-    Question q = questionService.getQuestion(id);
+    Question q = questionService.getQuestionWithAnswers(id);
     return ResponseEntity.ok(mappingService.toQuestionResponse(q, userId));
   }
 
@@ -110,9 +130,7 @@ public class ForumController {
       @PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
     UUID userId = jwt != null ? parseUserId(jwt) : null;
     List<AnswerResponse> result =
-        answerService.getAnswersForQuestion(id).stream()
-            .map(a -> mappingService.toAnswerResponse(a, userId, new java.util.HashMap<>()))
-            .toList();
+        mappingService.toAnswerResponses(answerService.getAnswersForQuestion(id), userId);
     return ResponseEntity.ok(result);
   }
 
@@ -131,7 +149,7 @@ public class ForumController {
     a.setAuthorId(user.getId());
     Answer created = answerService.postAnswer(id, a);
     return ResponseEntity.status(HttpStatus.CREATED)
-        .body(mappingService.toAnswerResponse(created, user.getId(), new java.util.HashMap<>()));
+        .body(mappingService.toAnswerResponse(created, user.getId()));
   }
 
   @DeleteMapping("/answers/{answerId}")

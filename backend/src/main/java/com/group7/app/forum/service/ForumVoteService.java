@@ -11,6 +11,10 @@ import com.group7.app.forum.repository.QuestionRepository;
 import com.group7.app.forum.repository.QuestionVoteRepository;
 import com.group7.app.user.User;
 import com.group7.app.user.UserRepository;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -76,23 +80,17 @@ public class ForumVoteService {
 
   @Transactional(readOnly = true)
   public VoteSummary getQuestionVoteSummary(Long questionId, UUID userId) {
-    return buildQuestionVoteSummary(questionId, userId);
+    return getQuestionVoteSummaries(List.of(questionId), userId)
+        .getOrDefault(questionId, new VoteSummary(0, 0, null));
+  }
+
+  @Transactional(readOnly = true)
+  public Map<Long, VoteSummary> getQuestionVoteSummaries(List<Long> questionIds, UUID userId) {
+    return buildQuestionVoteSummaries(questionIds, userId);
   }
 
   private VoteSummary buildQuestionVoteSummary(Long questionId, UUID userId) {
-    long up =
-        questionVoteRepo.countByQuestionIdAndVoteType(questionId, QuestionVote.VoteType.THUMBS_UP);
-    long down =
-        questionVoteRepo.countByQuestionIdAndVoteType(
-            questionId, QuestionVote.VoteType.THUMBS_DOWN);
-    String userVote =
-        userId == null
-            ? null
-            : questionVoteRepo
-                .findByQuestionIdAndUserId(questionId, userId)
-                .map(v -> v.getVoteType().name())
-                .orElse(null);
-    return new VoteSummary(up, down, userVote);
+    return getQuestionVoteSummary(questionId, userId);
   }
 
   // ── Answer votes ────────────────────────────────────────────────────────
@@ -131,20 +129,88 @@ public class ForumVoteService {
 
   @Transactional(readOnly = true)
   public VoteSummary getAnswerVoteSummary(Long answerId, UUID userId) {
-    return buildAnswerVoteSummary(answerId, userId);
+    return getAnswerVoteSummaries(List.of(answerId), userId)
+        .getOrDefault(answerId, new VoteSummary(0, 0, null));
+  }
+
+  @Transactional(readOnly = true)
+  public Map<Long, VoteSummary> getAnswerVoteSummaries(List<Long> answerIds, UUID userId) {
+    return buildAnswerVoteSummaries(answerIds, userId);
   }
 
   private VoteSummary buildAnswerVoteSummary(Long answerId, UUID userId) {
-    long up = answerVoteRepo.countByAnswerIdAndVoteType(answerId, AnswerVote.VoteType.THUMBS_UP);
-    long down =
-        answerVoteRepo.countByAnswerIdAndVoteType(answerId, AnswerVote.VoteType.THUMBS_DOWN);
-    String userVote =
-        userId == null
-            ? null
-            : answerVoteRepo
-                .findByAnswerIdAndUserId(answerId, userId)
-                .map(v -> v.getVoteType().name())
-                .orElse(null);
-    return new VoteSummary(up, down, userVote);
+    return getAnswerVoteSummary(answerId, userId);
+  }
+
+  private Map<Long, VoteSummary> buildQuestionVoteSummaries(
+      Collection<Long> questionIds, UUID userId) {
+    if (questionIds.isEmpty()) {
+      return Map.of();
+    }
+
+    Map<Long, Long> upCounts = new HashMap<>();
+    Map<Long, Long> downCounts = new HashMap<>();
+
+    for (var row : questionVoteRepo.summarizeByQuestionIds(questionIds)) {
+      if (row.getVoteType() == QuestionVote.VoteType.THUMBS_UP) {
+        upCounts.put(row.getQuestionId(), row.getVoteCount());
+      } else if (row.getVoteType() == QuestionVote.VoteType.THUMBS_DOWN) {
+        downCounts.put(row.getQuestionId(), row.getVoteCount());
+      }
+    }
+
+    Map<Long, String> userVotes = new HashMap<>();
+    if (userId != null) {
+      for (QuestionVote vote :
+          questionVoteRepo.findAllByQuestionIdInAndUserId(questionIds, userId)) {
+        userVotes.put(vote.getQuestion().getId(), vote.getVoteType().name());
+      }
+    }
+
+    Map<Long, VoteSummary> summaries = new HashMap<>();
+    for (Long questionId : questionIds) {
+      summaries.put(
+          questionId,
+          new VoteSummary(
+              upCounts.getOrDefault(questionId, 0L),
+              downCounts.getOrDefault(questionId, 0L),
+              userVotes.get(questionId)));
+    }
+    return summaries;
+  }
+
+  private Map<Long, VoteSummary> buildAnswerVoteSummaries(Collection<Long> answerIds, UUID userId) {
+    if (answerIds.isEmpty()) {
+      return Map.of();
+    }
+
+    Map<Long, Long> upCounts = new HashMap<>();
+    Map<Long, Long> downCounts = new HashMap<>();
+
+    for (var row : answerVoteRepo.summarizeByAnswerIds(answerIds)) {
+      if (row.getVoteType() == AnswerVote.VoteType.THUMBS_UP) {
+        upCounts.put(row.getAnswerId(), row.getVoteCount());
+      } else if (row.getVoteType() == AnswerVote.VoteType.THUMBS_DOWN) {
+        downCounts.put(row.getAnswerId(), row.getVoteCount());
+      }
+    }
+
+    Map<Long, String> userVotes = new HashMap<>();
+    if (userId != null) {
+      for (AnswerVote vote : answerVoteRepo.findAllByAnswerIdInAndUserId(answerIds, userId)) {
+        userVotes.put(vote.getAnswer().getId(), vote.getVoteType().name());
+      }
+    }
+
+    Map<Long, VoteSummary> summaries = new HashMap<>();
+    for (Long answerId : answerIds) {
+      summaries.put(
+          answerId,
+          new VoteSummary(
+              upCounts.getOrDefault(answerId, 0L),
+              downCounts.getOrDefault(answerId, 0L),
+              userVotes.get(answerId)));
+    }
+    return summaries;
   }
 }

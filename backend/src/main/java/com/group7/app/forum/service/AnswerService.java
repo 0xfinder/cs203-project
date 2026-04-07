@@ -4,7 +4,10 @@ import com.group7.app.forum.model.Answer;
 import com.group7.app.forum.model.Question;
 import com.group7.app.forum.repository.AnswerRepository;
 import com.group7.app.forum.repository.QuestionRepository;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -27,6 +30,18 @@ public class AnswerService {
 
   public List<Answer> getAnswersForQuestion(Long questionId) {
     return answerRepository.findByQuestionIdOrderByCreatedAtAsc(questionId);
+  }
+
+  public Map<Long, Long> getAnswerCounts(Collection<Long> questionIds) {
+    if (questionIds.isEmpty()) {
+      return Map.of();
+    }
+
+    Map<Long, Long> counts = new HashMap<>();
+    for (var row : answerRepository.countByQuestionIds(questionIds)) {
+      counts.put(row.getQuestionId(), row.getAnswerCount());
+    }
+    return counts;
   }
 
   public Answer getAnswer(Long answerId) {
