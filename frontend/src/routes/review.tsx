@@ -18,7 +18,7 @@ import { api } from "@/lib/api";
 
 function ReviewPage() {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(0);
+  const [page] = useState(0);
   const [activeTab, setActiveTab] = useState("content");
   const [contentSubTab, setContentSubTab] = useState("term");
   useEffect(() => {
@@ -37,7 +37,7 @@ function ReviewPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [reviewData, setReviewData] = useState<Record<number, { comment?: string }>>({});
   const pageSize = 10;
-  const { data: response, isLoading, error } = usePendingContentsPaginated(page, pageSize);
+  const { data: response, isLoading } = usePendingContentsPaginated(page, pageSize);
   const approveMutation = useApproveContent();
   const rejectMutation = useRejectContent();
   const approveLessonMutation = useApproveLesson();
@@ -47,7 +47,6 @@ function ReviewPage() {
   const newContents = pendingContents.filter((c: any) => !(typeof c.term === "string" && c.term.startsWith("Appeal:")));
   // pending contents endpoint currently returns submitted term/content items only
   const termItems = newContents;
-  const quizItems: any[] = [];
   const { data: pendingLessons } = usePendingLessons();
   const [appendedUnitLessons, setAppendedUnitLessons] = useState<any[]>([]);
   const lessonItems: any[] = [
@@ -56,7 +55,9 @@ function ReviewPage() {
   ];
   const { data: units } = useUnits();
   const [appendedUnitsCache, setAppendedUnitsCache] = useState<any[]>([]);
-  const [firstStepMap, setFirstStepMap] = useState<Record<number, { stepType?: string; questionType?: string }>>({});
+  const [firstStepMap, setFirstStepMap] = useState<
+    Record<number, { stepType?: string; questionType?: string | null; prompt?: string | null }>
+  >({});
   const [pendingMetaMap, setPendingMetaMap] = useState<Record<number, any> | null>(null);
   const [debugInfo, setDebugInfo] = useState<{ serverPendingCount?: number; serverAllCount?: number } | null>(null);
   const [modalLesson, setModalLesson] = useState<any | null>(null);

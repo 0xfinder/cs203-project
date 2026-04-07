@@ -30,17 +30,6 @@ function AddLessonPage() {
     { type: "TEXT", content: "" },
   ]);
 
-  // Quiz fields
-  const [quizTitle, setQuizTitle] = useState("");
-  const [quizDescription, setQuizDescription] = useState("");
-  const [questions, setQuestions] = useState<
-    Array<{
-      prompt: string;
-      questionType: "MCQ" | "SHORT_ANSWER";
-      choices: Array<{ text: string; isCorrect?: boolean }>;
-    }>
-  >([]);
-
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -55,12 +44,6 @@ function AddLessonPage() {
   const removeStep = (idx: number) => setSteps((s) => s.filter((_, i) => i !== idx));
   const updateStep = (idx: number, patch: Partial<{ type: string; content: string }>) =>
     setSteps((s) => s.map((st, i) => (i === idx ? { ...st, ...patch } : st)));
-
-  const addQuestion = () =>
-    setQuestions((q) => [...q, { prompt: "", questionType: "MCQ", choices: [{ text: "", isCorrect: false }] }]);
-  const removeQuestion = (idx: number) => setQuestions((q) => q.filter((_, i) => i !== idx));
-  const updateQuestion = (idx: number, patch: Partial<any>) =>
-    setQuestions((q) => q.map((qq, i) => (i === idx ? { ...qq, ...patch } : qq)));
 
   const handleSubmitLesson = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,40 +81,6 @@ function AddLessonPage() {
     } catch (err) {
       console.error(err);
       setError("Failed to submit lesson. Try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSubmitQuiz = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-    setLoading(true);
-
-    try {
-      const me = await getMe();
-      const payload = {
-        unitId,
-        title: quizTitle.trim(),
-        description: quizDescription.trim() || undefined,
-        questions: questions.map((q, i) => ({
-          orderIndex: i,
-          prompt: q.prompt,
-          questionType: q.questionType,
-          choices: q.choices.map((c, idx) => ({ orderIndex: idx, text: c.text, isCorrect: !!c.isCorrect })),
-        })),
-        submittedBy: me.email ?? null,
-      };
-
-      await api.post("quizzes", { json: payload }).json();
-      setSuccess("Quiz submitted — it will appear after review.");
-      setQuizTitle("");
-      setQuizDescription("");
-      setQuestions([]);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to submit quiz. Try again.");
     } finally {
       setLoading(false);
     }

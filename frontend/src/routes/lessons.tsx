@@ -5,17 +5,15 @@ import { api } from "@/lib/api";
 import type { CSSProperties } from "react";
 import { Trophy, Flame, Star, Lock, ChevronRight, Lightbulb, Trash } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { requireOnboardingCompleted, requireContributorOrOnboarded } from "@/lib/auth";
+import { requireContributorOrOnboarded } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 import { getUnitRoadmap, getVisibleUnits, progressMap } from "@/features/lessons/lesson-roadmap";
 import { useQuery } from "@tanstack/react-query";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import { useLessonProgress, useUnits } from "@/features/lessons/useLessonsApi";
-import { LessonForm } from "@/components/lesson-quiz-forms";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { UnitData } from "@/features/lessons/useLessonsApi";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import Dialog, { DialogTrigger, DialogContent, DialogClose } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -134,45 +132,6 @@ function LearnPage() {
     return unlocked && !completed;
   })?.id;
 
-
-  const addAppendedUnit = () => {
-    const maxIndex = Math.max(0, ...(visibleUnits.map((u) => u.orderIndex)), ...(appendedUnits.map((u) => u.orderIndex)));
-    const nextIndex = maxIndex + 1;
-    const tempKey = String(Date.now()) + Math.floor(Math.random() * 1000);
-    const newUnit: UnitData & { tempKey?: string } = {
-      id: -(Date.now()),
-      title: `New Section`,
-      slug: `new-section-${nextIndex}`,
-      description: `Coming soon`,
-      orderIndex: nextIndex,
-      lessons: [],
-      tempKey,
-    } as any;
-
-    try {
-      // For new client-side units we no longer create placeholder lessons.
-      // Store an empty lessons/steps payload and let the user add subunits.
-      const payload = {
-        id: newUnit.id,
-        title: newUnit.title,
-        description: newUnit.description,
-        orderIndex: newUnit.orderIndex,
-        lessons: [],
-        steps: [],
-      };
-      localStorage.setItem(`tempUnit:${tempKey}`, JSON.stringify(payload));
-    } catch (e) {
-      // ignore localStorage errors
-    }
-
-    setAppendedUnits((s) => [...s, newUnit]);
-    // scroll to bottom so user sees the new section
-    setTimeout(() => {
-      const el = document.querySelector("[data-appended-last]");
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 100);
-  };
-
   const queryClient = useQueryClient();
 
   const deleteUnit = async (id: number) => {
@@ -186,24 +145,6 @@ function LearnPage() {
       alert("Failed to delete unit. Ensure you have permission and try again.");
     }
   };
-
-  const deleteLastAppendedUnit = () => {
-    if (!appendedUnits || appendedUnits.length === 0) return;
-    // simple confirmation before deleting
-    // eslint-disable-next-line no-restricted-globals
-    if (!window.confirm("Remove the last added section?")) return;
-    setAppendedUnits((s) => {
-      const last = s[s.length - 1];
-      try {
-        const key = (last as any).tempKey;
-        if (key) localStorage.removeItem(`tempUnit:${key}`);
-      } catch (e) {
-        // ignore
-      }
-      return s.slice(0, -1);
-    });
-  };
-
   const deleteAppendedUnitById = (id: number) => {
     if (!appendedUnits || appendedUnits.length === 0) return;
     // eslint-disable-next-line no-restricted-globals

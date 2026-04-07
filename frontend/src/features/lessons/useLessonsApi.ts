@@ -11,6 +11,7 @@ export interface LessonSummary {
   estimatedMinutes: number | null;
   orderIndex: number;
   status: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  publishedAt?: string | null;
   targetSubunitId?: number | null;
 }
 
@@ -21,6 +22,7 @@ export interface UnitData {
   description: string | null;
   orderIndex: number;
   lessons: LessonSummary[];
+  tempKey?: string | null;
 }
 
 export interface ChoicePayload {

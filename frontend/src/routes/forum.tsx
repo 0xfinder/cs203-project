@@ -75,7 +75,6 @@ type QuestionResp = {
 
 type UserProfile = MeResponse;
 
-const API = "forum";
 const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 const FORUM_MEDIA_BUCKET = import.meta.env.VITE_SUPABASE_FORUM_BUCKET?.trim() || "forum-media";
 const MAX_IMAGE_MB = 5;
@@ -114,90 +113,6 @@ function getInitials(name: string) {
       .join("")
       .toUpperCase() || "U"
   );
-}
-
-// Render content: convert markdown image/video links and plain URLs into <img> or <video>
-function renderContent(content: string) {
-  if (!content) return null;
-
-  type Part = { type: "text" | "img" | "video"; value: string };
-  const parts: Part[] = [];
-  const mdLink = /!\[\]\(([^)]+)\)/g;
-  let lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = mdLink.exec(content)) !== null) {
-    if (m.index > lastIndex) {
-      parts.push({ type: "text", value: content.slice(lastIndex, m.index) });
-    }
-    const url = m[1];
-    const isVideo = /\.(mp4|webm|ogg|mov)(?:\?|$)/i.test(url);
-    parts.push({ type: isVideo ? "video" : "img", value: url });
-    lastIndex = mdLink.lastIndex;
-  }
-  if (lastIndex < content.length) {
-    parts.push({ type: "text", value: content.slice(lastIndex) });
-  }
-
-  // Split text parts further into text + URL parts so plain links render as media
-  const urlRegex = /(https?:\/\/[\w\-./?=%&+#:,]+(?:\.(?:png|jpg|jpeg|gif|svg|mp4|webm|ogg|mov))(?:\?[^\s]*)?)/gi;
-  const rendered: JSX.Element[] = [];
-  parts.forEach((p, idx) => {
-    if (p.type === "img") {
-      rendered.push(
-        <div key={`img-${idx}`} className="my-2">
-          <img src={p.value} alt="attachment" className="max-h-48 w-auto rounded-md" />
-        </div>
-      );
-      return;
-    }
-    if (p.type === "video") {
-      rendered.push(
-        <div key={`vid-${idx}`} className="my-2">
-          <video src={p.value} controls className="max-h-56 w-auto rounded-md" />
-        </div>
-      );
-      return;
-    }
-
-    // for text parts, detect inline URLs that point to images/videos and split
-    const text = p.value;
-    let last = 0;
-    let um: RegExpExecArray | null;
-    while ((um = urlRegex.exec(text)) !== null) {
-      if (um.index > last) {
-        rendered.push(
-          <p key={`t-${idx}-${last}`} className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-            {text.slice(last, um.index)}
-          </p>
-        );
-      }
-      const url = um[1];
-      const isVideo = /\.(mp4|webm|ogg|mov)(?:\?|$)/i.test(url);
-      if (isVideo) {
-        rendered.push(
-          <div key={`vt-${idx}-${um.index}`} className="my-2">
-            <video src={url} controls className="max-h-56 w-auto rounded-md" />
-          </div>
-        );
-      } else {
-        rendered.push(
-          <div key={`it-${idx}-${um.index}`} className="my-2">
-            <img src={url} alt="attachment" className="max-h-48 w-auto rounded-md" />
-          </div>
-        );
-      }
-      last = urlRegex.lastIndex;
-    }
-    if (last < text.length) {
-      rendered.push(
-        <p key={`t-${idx}-end`} className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
-          {text.slice(last)}
-        </p>
-      );
-    }
-  });
-
-  return <div>{rendered}</div>;
 }
 
 // deterministic palette of hex colors to match profile styling
@@ -601,7 +516,6 @@ function MarkdownTextarea({
 
 /* -- Main component -------------------------------------------------------- */
 function ForumPage() {
-  const loaderData = Route.useLoaderData();
   const [questions, setQuestions] = useState<QuestionResp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -610,10 +524,6 @@ function ForumPage() {
   // the user signs in/out or edits their profile (cache updated elsewhere)
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
   const profile = (currentUserViewQuery.data && currentUserViewQuery.data.profile) || null;
-  const currentUserAvatarUrl = (currentUserViewQuery.data && currentUserViewQuery.data.avatarUrl) || null;
-  const [currentUserAvatarColor, setCurrentUserAvatarColor] = useState<string | null>(null);
-  // loaderData.profile is available via loader, but we rely on the shared
-  // `currentUserViewQuery` for the up-to-date `profile` value.
 
   const [showAskForm, setShowAskForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
