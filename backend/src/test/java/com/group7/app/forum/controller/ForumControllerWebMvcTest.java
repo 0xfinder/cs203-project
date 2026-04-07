@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -93,6 +94,7 @@ class ForumControllerWebMvcTest {
     mockMvc
         .perform(
             post("/api/forum/questions")
+                .with(csrf())
                 .contentType("application/json")
                 .content(
                     """
@@ -135,6 +137,7 @@ class ForumControllerWebMvcTest {
     mockMvc
         .perform(
             post("/api/forum/questions")
+                .with(csrf())
                 .with(
                     jwt()
                         .jwt(
@@ -182,6 +185,7 @@ class ForumControllerWebMvcTest {
     mockMvc
         .perform(
             delete("/api/forum/questions/7")
+                .with(csrf())
                 .with(
                     jwt()
                         .jwt(
@@ -197,6 +201,7 @@ class ForumControllerWebMvcTest {
     mockMvc
         .perform(
             post("/api/forum/questions")
+                .with(csrf())
                 .with(
                     jwt()
                         .jwt(
@@ -228,6 +233,7 @@ class ForumControllerWebMvcTest {
     mockMvc
         .perform(
             post("/api/forum/questions/7/votes")
+                .with(csrf())
                 .with(
                     jwt()
                         .jwt(

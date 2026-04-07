@@ -3,6 +3,7 @@ package com.group7.app.config;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -68,6 +69,7 @@ class SecurityRoleMappingIntegrationTest {
     mockMvc
         .perform(
             post("/api/contents")
+                .with(csrf())
                 .with(
                     jwt()
                         .jwt(
@@ -106,6 +108,7 @@ class SecurityRoleMappingIntegrationTest {
     mockMvc
         .perform(
             post("/api/contents")
+                .with(csrf())
                 .header("Authorization", "Bearer contributor-token")
                 .contentType("application/json")
                 .content(

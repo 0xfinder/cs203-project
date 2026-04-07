@@ -6,6 +6,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -97,6 +98,7 @@ class UserControllerWebMvcTest {
     mockMvc
         .perform(
             patch("/api/users/me")
+                .with(csrf())
                 .with(
                     jwt()
                         .jwt(
@@ -134,6 +136,7 @@ class UserControllerWebMvcTest {
     mockMvc
         .perform(
             patch("/api/users/me")
+                .with(csrf())
                 .with(
                     jwt()
                         .jwt(

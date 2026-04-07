@@ -1,5 +1,6 @@
 package com.group7.app.lesson;
 
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
@@ -110,6 +111,7 @@ class LessonSchemaV2E2ETest {
         mockMvc
             .perform(
                 post("/api/lessons")
+                    .with(csrf())
                     .with(auth(contributor))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsBytes(createLesson)))
@@ -126,6 +128,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             post("/api/lessons/{lessonId}/steps", lessonId)
+                .with(csrf())
                 .with(auth(contributor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
@@ -137,6 +140,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             post("/api/lessons/{lessonId}/steps", lessonId)
+                .with(csrf())
                 .with(auth(contributor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
@@ -156,6 +160,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             post("/api/lessons/{lessonId}/steps", lessonId)
+                .with(csrf())
                 .with(auth(contributor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
@@ -171,6 +176,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             post("/api/lessons/{lessonId}/steps", lessonId)
+                .with(csrf())
                 .with(auth(contributor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(matchStepRequest(4))))
@@ -181,6 +187,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             post("/api/lessons/{lessonId}/steps", lessonId)
+                .with(csrf())
                 .with(auth(contributor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(shortAnswerStepRequest(5))))
@@ -190,6 +197,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             post("/api/lessons/{lessonId}/steps", lessonId)
+                .with(csrf())
                 .with(auth(contributor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(recapStepRequest(6))))
@@ -202,6 +210,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             patch("/api/lessons/{lessonId}", lessonId)
+                .with(csrf())
                 .with(auth(contributor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(submitForReview)))
@@ -213,6 +222,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             patch("/api/lessons/{lessonId}", lessonId)
+                .with(csrf())
                 .with(auth(moderator))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(approveLesson)))
@@ -272,6 +282,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             post("/api/lesson-attempts")
+                .with(csrf())
                 .with(auth(learner))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(submission)))
@@ -314,6 +325,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             post("/api/revise-attempts")
+                .with(csrf())
                 .with(auth(learner))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(reviseSubmission)))
@@ -346,6 +358,7 @@ class LessonSchemaV2E2ETest {
         mockMvc
             .perform(
                 post("/api/lessons")
+                    .with(csrf())
                     .with(auth(contributor))
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(objectMapper.writeValueAsBytes(createLesson)))
@@ -366,6 +379,7 @@ class LessonSchemaV2E2ETest {
     mockMvc
         .perform(
             post("/api/lessons/{lessonId}/steps", lessonId)
+                .with(csrf())
                 .with(auth(contributor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsBytes(invalidRecap)))

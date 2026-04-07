@@ -10,6 +10,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
@@ -34,9 +35,9 @@ public class SecurityConfig {
     http
         // Enable CORS using our CorsConfigurationSource bean
         .cors(Customizer.withDefaults())
-
-        // Disable CSRF for stateless APIs
-        .csrf(csrf -> csrf.disable())
+        .sessionManagement(
+            session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .csrf(Customizer.withDefaults())
 
         // Configure endpoint security
         .authorizeHttpRequests(

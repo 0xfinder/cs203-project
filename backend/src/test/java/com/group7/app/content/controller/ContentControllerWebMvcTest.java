@@ -3,6 +3,7 @@ package com.group7.app.content.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -55,6 +56,7 @@ class ContentControllerWebMvcTest {
     mockMvc
         .perform(
             post("/api/contents")
+                .with(csrf())
                 .with(
                     TestJwtFactory.jwt(UUID.randomUUID(), "contributor@example.com", "CONTRIBUTOR"))
                 .contentType("application/json")
@@ -77,6 +79,7 @@ class ContentControllerWebMvcTest {
     mockMvc
         .perform(
             post("/api/contents")
+                .with(csrf())
                 .with(
                     org.springframework.security.test.web.servlet.request
                         .SecurityMockMvcRequestPostProcessors.jwt()
@@ -103,6 +106,7 @@ class ContentControllerWebMvcTest {
     mockMvc
         .perform(
             put("/api/contents/5/review")
+                .with(csrf())
                 .with(TestJwtFactory.jwt(UUID.randomUUID(), "moderator@example.com", "MODERATOR"))
                 .param("decision", "REJECT"))
         .andExpect(status().isBadRequest());
@@ -120,6 +124,7 @@ class ContentControllerWebMvcTest {
     mockMvc
         .perform(
             put("/api/contents/5/review")
+                .with(csrf())
                 .with(TestJwtFactory.jwt(UUID.randomUUID(), "moderator@example.com", "MODERATOR"))
                 .param("decision", "APPROVE"))
         .andExpect(status().isOk())
