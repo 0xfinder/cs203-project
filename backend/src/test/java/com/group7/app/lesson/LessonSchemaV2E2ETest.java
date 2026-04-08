@@ -389,6 +389,70 @@ class LessonSchemaV2E2ETest {
   }
 
   @Test
+  void rejectedLessonLeavesModerationQueueAndReturnsToContributorWorkspace() throws Exception {
+    User contributor = saveUser("lesson-writer@example.com", Role.CONTRIBUTOR);
+    User moderator = saveUser("lesson-reviewer@example.com", Role.MODERATOR);
+
+    long unitId =
+        createUnit(moderator, "Contributor Unit", "Pending and rejected lesson workflow coverage.");
+    long lessonId =
+        createLesson(
+            contributor,
+            unitId,
+            "Rejected Lesson",
+            "Lesson that should come back to the contributor with feedback.",
+            1);
+
+    createStep(
+        contributor,
+        lessonId,
+        dialogueStepRequest(1, "A: that post ate.\nB: fr, the comments went wild."));
+
+    submitForReview(contributor, lessonId);
+
+    mockMvc
+        .perform(get("/api/lessons").with(auth(moderator)).param("status", "PENDING_REVIEW"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(lessonId));
+
+    ObjectNode reject = objectMapper.createObjectNode();
+    reject.put("status", "REJECTED");
+    reject.put("reviewComment", "Clarify the learning objective and tighten the dialogue tone.");
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}", lessonId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(reject)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("REJECTED"))
+        .andExpect(
+            jsonPath("$.reviewComment")
+                .value("Clarify the learning objective and tighten the dialogue tone."));
+
+    mockMvc
+        .perform(get("/api/lessons").with(auth(moderator)).param("status", "PENDING_REVIEW"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$").isEmpty());
+
+    mockMvc
+        .perform(get("/api/lessons").with(auth(contributor)).param("mine", "true"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(lessonId))
+        .andExpect(jsonPath("$[0].status").value("REJECTED"));
+
+    mockMvc
+        .perform(get("/api/lessons/{lessonId}", lessonId).with(auth(contributor)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("REJECTED"))
+        .andExpect(
+            jsonPath("$.reviewComment")
+                .value("Clarify the learning objective and tighten the dialogue tone."));
+  }
+
+  @Test
   void moderatorCanReorderUnitsLessonsAndStepsForApprovedCurriculum() throws Exception {
     User moderator = saveUser("curriculum-mod@example.com", Role.MODERATOR);
     User learner = saveUser("curriculum-learner@example.com", Role.LEARNER);
