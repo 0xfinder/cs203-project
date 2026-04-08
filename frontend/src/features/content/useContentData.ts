@@ -42,6 +42,18 @@ export interface PaginatedResponse<T> {
 const CONTENTS_KEY = ["contents"] as const;
 const CONTENTS_WITH_VOTES_KEY = ["contents", "approved-with-votes"] as const;
 
+function updateContentVoteSummary(
+  items: ContentWithVotesResponse[] | undefined,
+  contentId: number,
+  updater: (item: ContentWithVotesResponse) => ContentWithVotesResponse,
+) {
+  if (!items) {
+    return items;
+  }
+
+  return items.map((item) => (item.content.id === contentId ? updater(item) : item));
+}
+
 export function useContents() {
   return useQuery({
     queryKey: CONTENTS_KEY,
@@ -170,8 +182,57 @@ export function useCastContentVote() {
       api
         .post(`contents/${contentId}/votes`, { json: { voteType } })
         .json<ContentVoteSummaryResponse>(),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+    onMutate: async ({ contentId, voteType }) => {
+      await queryClient.cancelQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+
+      const previousWithVotes =
+        queryClient.getQueryData<ContentWithVotesResponse[]>(CONTENTS_WITH_VOTES_KEY);
+
+      queryClient.setQueryData<ContentWithVotesResponse[] | undefined>(
+        CONTENTS_WITH_VOTES_KEY,
+        (current) =>
+          updateContentVoteSummary(current, contentId, (item) => {
+            const previousVote = item.userVote;
+
+            if (previousVote === voteType) {
+              return item;
+            }
+
+            return {
+              ...item,
+              thumbsUp:
+                item.thumbsUp +
+                (voteType === "THUMBS_UP" ? 1 : 0) -
+                (previousVote === "THUMBS_UP" ? 1 : 0),
+              thumbsDown:
+                item.thumbsDown +
+                (voteType === "THUMBS_DOWN" ? 1 : 0) -
+                (previousVote === "THUMBS_DOWN" ? 1 : 0),
+              userVote: voteType,
+            };
+          }),
+      );
+
+      return { previousWithVotes };
+    },
+    onError: (_error, _vars, context) => {
+      if (!context?.previousWithVotes) {
+        return;
+      }
+
+      queryClient.setQueryData(CONTENTS_WITH_VOTES_KEY, context.previousWithVotes);
+    },
+    onSuccess: (summary) => {
+      queryClient.setQueryData<ContentWithVotesResponse[] | undefined>(
+        CONTENTS_WITH_VOTES_KEY,
+        (current) =>
+          updateContentVoteSummary(current, summary.contentId, (item) => ({
+            ...item,
+            thumbsUp: summary.thumbsUp,
+            thumbsDown: summary.thumbsDown,
+            userVote: summary.userVote,
+          })),
+      );
     },
   });
 }
@@ -182,8 +243,43 @@ export function useClearContentVote() {
   return useMutation({
     mutationFn: ({ contentId }: { contentId: number }) =>
       api.delete(`contents/${contentId}/votes`).json<ContentVoteSummaryResponse>(),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+    onMutate: async ({ contentId }) => {
+      await queryClient.cancelQueries({ queryKey: CONTENTS_WITH_VOTES_KEY });
+
+      const previousWithVotes =
+        queryClient.getQueryData<ContentWithVotesResponse[]>(CONTENTS_WITH_VOTES_KEY);
+
+      queryClient.setQueryData<ContentWithVotesResponse[] | undefined>(
+        CONTENTS_WITH_VOTES_KEY,
+        (current) =>
+          updateContentVoteSummary(current, contentId, (item) => ({
+            ...item,
+            thumbsUp: Math.max(0, item.thumbsUp - (item.userVote === "THUMBS_UP" ? 1 : 0)),
+            thumbsDown: Math.max(0, item.thumbsDown - (item.userVote === "THUMBS_DOWN" ? 1 : 0)),
+            userVote: null,
+          })),
+      );
+
+      return { previousWithVotes };
+    },
+    onError: (_error, _vars, context) => {
+      if (!context?.previousWithVotes) {
+        return;
+      }
+
+      queryClient.setQueryData(CONTENTS_WITH_VOTES_KEY, context.previousWithVotes);
+    },
+    onSuccess: (summary) => {
+      queryClient.setQueryData<ContentWithVotesResponse[] | undefined>(
+        CONTENTS_WITH_VOTES_KEY,
+        (current) =>
+          updateContentVoteSummary(current, summary.contentId, (item) => ({
+            ...item,
+            thumbsUp: summary.thumbsUp,
+            thumbsDown: summary.thumbsDown,
+            userVote: summary.userVote,
+          })),
+      );
     },
   });
 }

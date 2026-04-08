@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
 import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,7 +31,14 @@ const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
 
 interface TermGroup {
   term: string;
+  letter: string;
+  searchText: string;
   entries: ContentWithVotesResponse[];
+}
+
+interface LetterSection {
+  letter: string;
+  groups: TermGroup[];
 }
 
 function letterKey(term: string): string {
@@ -47,12 +54,20 @@ function buildTermGroups(items: ContentWithVotesResponse[]): TermGroup[] {
   const groups = new Map<string, TermGroup>();
 
   for (const item of items) {
-    const key = normalizeTerm(item.content.term);
+    const trimmedTerm = item.content.term.trim();
+    const normalizedTerm = normalizeTerm(trimmedTerm);
+    const key = normalizedTerm;
     const existing = groups.get(key);
     if (existing) {
       existing.entries.push(item);
+      existing.searchText += `\n${item.content.definition.toLowerCase()}\n${item.content.example?.toLowerCase() ?? ""}`;
     } else {
-      groups.set(key, { term: item.content.term.trim(), entries: [item] });
+      groups.set(key, {
+        term: trimmedTerm,
+        letter: letterKey(trimmedTerm),
+        searchText: `${normalizedTerm}\n${item.content.definition.toLowerCase()}\n${item.content.example?.toLowerCase() ?? ""}`,
+        entries: [item],
+      });
     }
   }
 
@@ -65,14 +80,222 @@ function buildTermGroups(items: ContentWithVotesResponse[]): TermGroup[] {
 function groupByLetter(groups: TermGroup[]): Record<string, TermGroup[]> {
   const grouped: Record<string, TermGroup[]> = {};
   for (const group of groups) {
-    const key = letterKey(group.term);
-    (grouped[key] ??= []).push(group);
+    (grouped[group.letter] ??= []).push(group);
   }
   for (const key of Object.keys(grouped)) {
     grouped[key].sort((a, b) => a.term.localeCompare(b.term));
   }
   return grouped;
 }
+
+const AlphabetRail = memo(function AlphabetRail({
+  activeLetter,
+  availableLetterSet,
+  onLetterSelect,
+}: {
+  activeLetter: string | null;
+  availableLetterSet: Set<string>;
+  onLetterSelect: (letter: string) => void;
+}) {
+  return (
+    <div className="mb-6 flex flex-wrap gap-1">
+      {ALPHABET.map((letter) => {
+        const hasContent = availableLetterSet.has(letter);
+        return (
+          <button
+            key={letter}
+            onClick={() => hasContent && onLetterSelect(letter)}
+            disabled={!hasContent}
+            className={cn(
+              "flex size-8 items-center justify-center rounded-lg text-xs font-bold transition-colors",
+              hasContent && activeLetter === letter
+                ? "bg-primary text-primary-foreground"
+                : hasContent
+                  ? "bg-secondary text-secondary-foreground hover:bg-accent"
+                  : "cursor-default text-muted-foreground/30",
+            )}
+          >
+            {letter}
+          </button>
+        );
+      })}
+    </div>
+  );
+});
+
+const DictionaryEntryCard = memo(function DictionaryEntryCard({
+  entry,
+  canVote,
+  isAdmin,
+  votePendingContentId,
+  deletePendingId,
+  onVote,
+  onDelete,
+}: {
+  entry: ContentWithVotesResponse;
+  canVote: boolean;
+  isAdmin: boolean;
+  votePendingContentId: number | null;
+  deletePendingId: number | null;
+  onVote: (entry: ContentWithVotesResponse, voteType: ContentVoteType) => void;
+  onDelete: (entry: ContentWithVotesResponse) => Promise<void>;
+}) {
+  const userVote = entry.userVote;
+  const voteBusy = !canVote || votePendingContentId === entry.content.id;
+  const deleteBusy = deletePendingId === entry.content.id;
+
+  return (
+    <div className="space-y-2 rounded-lg border border-border/60 bg-background/60 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Badge variant="secondary" className="shrink-0 capitalize">
+          {entry.submittedByDisplayName}
+        </Badge>
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant={userVote === "THUMBS_UP" ? "secondary" : "ghost"}
+            size="xs"
+            onClick={() => onVote(entry, "THUMBS_UP")}
+            disabled={voteBusy}
+            className="gap-1"
+            title={canVote ? "Vote helpful" : "Log in to vote"}
+          >
+            <ThumbsUp className="size-3" />
+            <span>{entry.thumbsUp}</span>
+          </Button>
+          <Button
+            type="button"
+            variant={userVote === "THUMBS_DOWN" ? "secondary" : "ghost"}
+            size="xs"
+            onClick={() => onVote(entry, "THUMBS_DOWN")}
+            disabled={voteBusy}
+            className="gap-1"
+            title={canVote ? "Vote unhelpful" : "Log in to vote"}
+          >
+            <ThumbsDown className="size-3" />
+            <span>{entry.thumbsDown}</span>
+          </Button>
+          {isAdmin ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => void onDelete(entry)}
+              disabled={deleteBusy}
+              className="ml-2"
+              aria-label={`Delete ${entry.content.term}`}
+              title="Delete"
+            >
+              <Trash className="size-3" />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      <p className="text-sm leading-relaxed text-muted-foreground">{entry.content.definition}</p>
+
+      {entry.content.example ? (
+        <div className="flex gap-2 rounded-lg bg-muted/50 px-3 py-2">
+          <Quote className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
+          <p className="text-sm italic text-muted-foreground">{entry.content.example}</p>
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
+const DictionaryTermCard = memo(function DictionaryTermCard({
+  group,
+  canVote,
+  isAdmin,
+  votePendingContentId,
+  deletePendingId,
+  onVote,
+  onDelete,
+}: {
+  group: TermGroup;
+  canVote: boolean;
+  isAdmin: boolean;
+  votePendingContentId: number | null;
+  deletePendingId: number | null;
+  onVote: (entry: ContentWithVotesResponse, voteType: ContentVoteType) => void;
+  onDelete: (entry: ContentWithVotesResponse) => Promise<void>;
+}) {
+  return (
+    <Card className="transition-colors hover:border-primary/20">
+      <CardContent className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="text-lg font-bold leading-tight">{group.term}</h3>
+          <Badge variant="secondary" className="shrink-0">
+            {group.entries.length} {group.entries.length === 1 ? "definition" : "definitions"}
+          </Badge>
+        </div>
+
+        <div className="space-y-3">
+          {group.entries.map((entry) => (
+            <DictionaryEntryCard
+              key={entry.content.id}
+              entry={entry}
+              canVote={canVote}
+              isAdmin={isAdmin}
+              votePendingContentId={votePendingContentId}
+              deletePendingId={deletePendingId}
+              onVote={onVote}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+});
+
+const DictionaryLetterSection = memo(function DictionaryLetterSection({
+  section,
+  canVote,
+  isAdmin,
+  votePendingContentId,
+  deletePendingId,
+  onVote,
+  onDelete,
+}: {
+  section: LetterSection;
+  canVote: boolean;
+  isAdmin: boolean;
+  votePendingContentId: number | null;
+  deletePendingId: number | null;
+  onVote: (entry: ContentWithVotesResponse, voteType: ContentVoteType) => void;
+  onDelete: (entry: ContentWithVotesResponse) => Promise<void>;
+}) {
+  return (
+    <section id={`letter-${section.letter}`} className="mb-8">
+      <div className="sticky top-0 z-10 mb-3 flex items-center gap-2 bg-background/95 py-2 backdrop-blur-sm">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
+          {section.letter}
+        </span>
+        <div className="h-px flex-1 bg-border" />
+        <span className="text-xs text-muted-foreground">
+          {section.groups.length} {section.groups.length === 1 ? "term" : "terms"}
+        </span>
+      </div>
+
+      <div className="space-y-3">
+        {section.groups.map((group) => (
+          <DictionaryTermCard
+            key={group.term}
+            group={group}
+            canVote={canVote}
+            isAdmin={isAdmin}
+            votePendingContentId={votePendingContentId}
+            deletePendingId={deletePendingId}
+            onVote={onVote}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
+    </section>
+  );
+});
 
 function DictionaryPage() {
   const queryClient = useQueryClient();
@@ -81,7 +304,10 @@ function DictionaryPage() {
   const castVote = useCastContentVote();
   const clearVote = useClearContentVote();
   const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  const [votePendingContentId, setVotePendingContentId] = useState<number | null>(null);
+  const [deletePendingId, setDeletePendingId] = useState<number | null>(null);
 
   const termGroups = useMemo(() => (contents ? buildTermGroups(contents) : []), [contents]);
   const deleteMutation = useDeleteContent();
@@ -89,6 +315,7 @@ function DictionaryPage() {
   const isAdmin = profile?.role === "ADMIN" || profile?.role === "MODERATOR";
   const isContributor =
     profile?.role === "CONTRIBUTOR" || profile?.role === "ADMIN" || profile?.role === "MODERATOR";
+  const canVote = Boolean(profile);
 
   // Add lingo form state (contributors only)
   const [termInput, setTermInput] = useState("");
@@ -131,31 +358,68 @@ function DictionaryPage() {
   };
 
   const filteredGroups = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     if (!q) return termGroups;
-    return termGroups.filter((group) => {
-      if (group.term.toLowerCase().includes(q)) return true;
-      return group.entries.some((entry) => {
-        const definitionMatch = entry.content.definition.toLowerCase().includes(q);
-        const exampleMatch = entry.content.example?.toLowerCase().includes(q);
-        return definitionMatch || exampleMatch;
-      });
-    });
-  }, [termGroups, search]);
+    return termGroups.filter((group) => group.searchText.includes(q));
+  }, [deferredSearch, termGroups]);
 
   const grouped = useMemo(() => groupByLetter(filteredGroups), [filteredGroups]);
 
-  // letters that actually have content
-  const availableLetters = useMemo(() => {
-    const set = new Set(Object.keys(grouped));
-    return ALPHABET.filter((l) => set.has(l));
+  const letterSections = useMemo(() => {
+    return ALPHABET.flatMap((letter) => {
+      const groups = grouped[letter];
+      return groups ? [{ letter, groups }] : [];
+    });
   }, [grouped]);
 
-  const scrollToLetter = (letter: string) => {
+  const availableLetterSet = useMemo(
+    () => new Set(letterSections.map((section) => section.letter)),
+    [letterSections],
+  );
+
+  const scrollToLetter = useCallback((letter: string) => {
     setActiveLetter(letter);
     const el = document.getElementById(`letter-${letter}`);
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
+  }, []);
+
+  const handleVote = useCallback(
+    (entry: ContentWithVotesResponse, voteType: ContentVoteType) => {
+      if (!canVote) return;
+
+      setVotePendingContentId(entry.content.id);
+      const mutation =
+        entry.userVote === voteType
+          ? clearVote.mutateAsync({ contentId: entry.content.id })
+          : castVote.mutateAsync({ contentId: entry.content.id, voteType });
+
+      void mutation.finally(() => {
+        setVotePendingContentId((current) => (current === entry.content.id ? null : current));
+      });
+    },
+    [canVote, castVote, clearVote],
+  );
+
+  const handleDelete = useCallback(
+    async (entry: ContentWithVotesResponse) => {
+      if (
+        !confirm(`Delete "${entry.content.term}" definition by ${entry.submittedByDisplayName}?`)
+      ) {
+        return;
+      }
+
+      try {
+        setDeletePendingId(entry.content.id);
+        await deleteMutation.mutateAsync({ id: entry.content.id });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        alert(`Failed to delete: ${msg}`);
+      } finally {
+        setDeletePendingId((current) => (current === entry.content.id ? null : current));
+      }
+    },
+    [deleteMutation],
+  );
 
   return (
     <AppPageShell contentClassName="max-w-3xl">
@@ -272,29 +536,12 @@ function DictionaryPage() {
       </div>
 
       {/* alphabet rail */}
-      {!isLoading && availableLetters.length > 0 && (
-        <div className="mb-6 flex flex-wrap gap-1">
-          {ALPHABET.map((letter) => {
-            const hasContent = availableLetters.includes(letter);
-            return (
-              <button
-                key={letter}
-                onClick={() => hasContent && scrollToLetter(letter)}
-                disabled={!hasContent}
-                className={cn(
-                  "flex size-8 items-center justify-center rounded-lg text-xs font-bold transition-colors",
-                  hasContent && activeLetter === letter
-                    ? "bg-primary text-primary-foreground"
-                    : hasContent
-                      ? "bg-secondary text-secondary-foreground hover:bg-accent"
-                      : "text-muted-foreground/30 cursor-default",
-                )}
-              >
-                {letter}
-              </button>
-            );
-          })}
-        </div>
+      {!isLoading && availableLetterSet.size > 0 && (
+        <AlphabetRail
+          activeLetter={activeLetter}
+          availableLetterSet={availableLetterSet}
+          onLetterSelect={scrollToLetter}
+        />
       )}
 
       {/* loading skeleton */}
@@ -346,130 +593,17 @@ function DictionaryPage() {
       {/* grouped term cards */}
       {!isLoading &&
         !error &&
-        ALPHABET.filter((l) => grouped[l]).map((letter) => (
-          <section key={letter} id={`letter-${letter}`} className="mb-8">
-            <div className="sticky top-0 z-10 mb-3 flex items-center gap-2 bg-background/95 py-2 backdrop-blur-sm">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
-                {letter}
-              </span>
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-xs text-muted-foreground">
-                {grouped[letter].length} {grouped[letter].length === 1 ? "term" : "terms"}
-              </span>
-            </div>
-
-            <div className="space-y-3">
-              {grouped[letter].map((group) => (
-                <Card key={group.term} className="transition-colors hover:border-primary/20">
-                  <CardContent className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className="text-lg font-bold leading-tight">{group.term}</h3>
-                      <Badge variant="secondary" className="shrink-0">
-                        {group.entries.length}{" "}
-                        {group.entries.length === 1 ? "definition" : "definitions"}
-                      </Badge>
-                    </div>
-
-                    <div className="space-y-3">
-                      {group.entries.map((entry) => {
-                        const userVote = entry.userVote;
-                        const canVote = Boolean(profile);
-                        const voteBusy = !canVote || castVote.isPending || clearVote.isPending;
-
-                        const handleVote = (voteType: ContentVoteType) => {
-                          if (!canVote) return;
-                          if (userVote === voteType) {
-                            clearVote.mutate({ contentId: entry.content.id });
-                          } else {
-                            castVote.mutate({ contentId: entry.content.id, voteType });
-                          }
-                        };
-
-                        return (
-                          <div
-                            key={entry.content.id}
-                            className="space-y-2 rounded-lg border border-border/60 bg-background/60 p-3"
-                          >
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <Badge variant="secondary" className="shrink-0 capitalize">
-                                {entry.submittedByDisplayName}
-                              </Badge>
-                              <div className="flex items-center gap-1">
-                                <Button
-                                  type="button"
-                                  variant={userVote === "THUMBS_UP" ? "secondary" : "ghost"}
-                                  size="xs"
-                                  onClick={() => handleVote("THUMBS_UP")}
-                                  disabled={voteBusy}
-                                  className="gap-1"
-                                  title={canVote ? "Vote helpful" : "Log in to vote"}
-                                >
-                                  <ThumbsUp className="size-3" />
-                                  <span>{entry.thumbsUp}</span>
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant={userVote === "THUMBS_DOWN" ? "secondary" : "ghost"}
-                                  size="xs"
-                                  onClick={() => handleVote("THUMBS_DOWN")}
-                                  disabled={voteBusy}
-                                  className="gap-1"
-                                  title={canVote ? "Vote unhelpful" : "Log in to vote"}
-                                >
-                                  <ThumbsDown className="size-3" />
-                                  <span>{entry.thumbsDown}</span>
-                                </Button>
-                                {isAdmin && (
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="xs"
-                                    onClick={async () => {
-                                      if (
-                                        !confirm(
-                                          `Delete "${entry.content.term}" definition by ${entry.submittedByDisplayName}?`,
-                                        )
-                                      )
-                                        return;
-                                      try {
-                                        await deleteMutation.mutateAsync({ id: entry.content.id });
-                                      } catch (err) {
-                                        const msg =
-                                          err instanceof Error ? err.message : String(err);
-                                        alert(`Failed to delete: ${msg}`);
-                                      }
-                                    }}
-                                    className="ml-2"
-                                    aria-label={`Delete ${entry.content.term}`}
-                                    title="Delete"
-                                  >
-                                    <Trash className="size-3" />
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
-
-                            <p className="text-sm leading-relaxed text-muted-foreground">
-                              {entry.content.definition}
-                            </p>
-
-                            {entry.content.example && (
-                              <div className="flex gap-2 rounded-lg bg-muted/50 px-3 py-2">
-                                <Quote className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60" />
-                                <p className="text-sm italic text-muted-foreground">
-                                  {entry.content.example}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </section>
+        letterSections.map((section) => (
+          <DictionaryLetterSection
+            key={section.letter}
+            section={section}
+            canVote={canVote}
+            isAdmin={isAdmin}
+            votePendingContentId={votePendingContentId}
+            deletePendingId={deletePendingId}
+            onVote={handleVote}
+            onDelete={handleDelete}
+          />
         ))}
     </AppPageShell>
   );
