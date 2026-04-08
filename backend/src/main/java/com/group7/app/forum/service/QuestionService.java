@@ -26,9 +26,7 @@ public class QuestionService {
 
   public Page<Question> getQuestions(Pageable pageable, String search) {
     if (search != null && !search.isBlank()) {
-      return repository
-          .findByTitleContainingIgnoreCaseOrContentContainingIgnoreCaseOrderByCreatedAtDesc(
-              search, search, pageable);
+      return repository.searchIncludingAnswers(search, pageable);
     }
     return repository.findAllByOrderByCreatedAtDesc(pageable);
   }

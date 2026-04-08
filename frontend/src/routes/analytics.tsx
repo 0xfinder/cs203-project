@@ -145,9 +145,16 @@ function AnalyticsPage() {
   const hasAnyXp = last14.some((d) => d.xp > 0);
   const hasAnyWeekly = weeklyData.some((d) => d.passed + d.failed > 0);
 
-  const unitsSorted = [...(data?.unitAccuracy ?? [])].sort((a, b) => a.accuracyPct - b.accuracyPct);
-  const weakestUnits = unitsSorted.slice(0, 3);
-  const strongestUnits = [...(data?.unitAccuracy ?? [])].sort((a, b) => b.accuracyPct - a.accuracyPct).slice(0, 3);
+  const STRONG_THRESHOLD = 80; // >= 80% → strong, < 80% → needs work
+  const allUnits = data?.unitAccuracy ?? [];
+  const weakestUnits = [...allUnits]
+    .filter((u) => u.accuracyPct < STRONG_THRESHOLD)
+    .sort((a, b) => a.accuracyPct - b.accuracyPct)
+    .slice(0, 3);
+  const strongestUnits = [...allUnits]
+    .filter((u) => u.accuracyPct >= STRONG_THRESHOLD)
+    .sort((a, b) => b.accuracyPct - a.accuracyPct)
+    .slice(0, 3);
 
   return (
     <AppPageShell contentClassName="max-w-2xl">
@@ -299,53 +306,65 @@ function AnalyticsPage() {
       </Card>
 
       {/* Weakest / Strongest categories */}
-      {(data?.unitAccuracy ?? []).length > 0 && (
+      {allUnits.length > 0 && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mb-6">
           <Card className="border-red-200 dark:border-red-900/40">
             <CardHeader className="pb-2 pt-4 px-4">
               <CardTitle className="text-sm font-semibold text-red-600 dark:text-red-400">
-                Needs Work 📉
+                This ain’t it chief 💀
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-3">
-              {weakestUnits.map((u) => (
-                <div key={u.unitTitle}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="font-medium truncate mr-2">{u.unitTitle}</span>
-                    <span className="text-muted-foreground shrink-0">{u.accuracyPct}%</span>
+              {weakestUnits.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-1">
+                  No weak spots yet — you're hitting above 80% on everything!
+                </p>
+              ) : (
+                weakestUnits.map((u) => (
+                  <div key={u.unitTitle}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-medium truncate mr-2">{u.unitTitle}</span>
+                      <span className="text-muted-foreground shrink-0">{u.accuracyPct}%</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-red-400 transition-all"
+                        style={{ width: `${u.accuracyPct}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-red-400 transition-all"
-                      style={{ width: `${u.accuracyPct}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
 
           <Card className="border-green-200 dark:border-green-900/40">
             <CardHeader className="pb-2 pt-4 px-4">
               <CardTitle className="text-sm font-semibold text-green-600 dark:text-green-400">
-                You're Slay 📈
+                You're Slaying 😍
               </CardTitle>
             </CardHeader>
             <CardContent className="px-4 pb-4 space-y-3">
-              {strongestUnits.map((u) => (
-                <div key={u.unitTitle}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="font-medium truncate mr-2">{u.unitTitle}</span>
-                    <span className="text-muted-foreground shrink-0">{u.accuracyPct}%</span>
+              {strongestUnits.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-1">
+                  Keep going — score 80%+ on a unit to see your strengths here.
+                </p>
+              ) : (
+                strongestUnits.map((u) => (
+                  <div key={u.unitTitle}>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="font-medium truncate mr-2">{u.unitTitle}</span>
+                      <span className="text-muted-foreground shrink-0">{u.accuracyPct}%</span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-green-500 transition-all"
+                        style={{ width: `${u.accuracyPct}%` }}
+                      />
+                    </div>
                   </div>
-                  <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                    <div
-                      className="h-full rounded-full bg-green-500 transition-all"
-                      style={{ width: `${u.accuracyPct}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
           </Card>
         </div>
