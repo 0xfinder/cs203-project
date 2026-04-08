@@ -83,7 +83,7 @@ cd backend && ./gradlew build
 
 ## Deploying
 
-Deployment is managed with docker compose, site starts at port 80, with /api requests routed to backend at 8080 by nginx
+Deployment is managed with docker compose, site starts at port 80, with `/api` requests routed to backend at 8080 by nginx. Swagger UI is also proxied publicly at `/swagger-ui.html`.
 
 ### Requirements
 
