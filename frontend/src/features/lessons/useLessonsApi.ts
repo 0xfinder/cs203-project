@@ -27,6 +27,16 @@ export interface UnitData {
 export interface UnitWriteInput {
   title: string;
   description?: string | null;
+  orderIndex?: number;
+}
+
+export interface CreateLessonInput {
+  unitId: number;
+  title: string;
+  description: string;
+  learningObjective?: string | null;
+  estimatedMinutes?: number | null;
+  orderIndex?: number;
 }
 
 export interface ChoicePayload {
@@ -75,6 +85,47 @@ export interface LessonStepPayload {
 export interface LessonPlayResponse {
   lesson: LessonSummary;
   steps: LessonStepPayload[];
+}
+
+export interface LessonDetail {
+  id: number;
+  unitId: number;
+  title: string;
+  description: string;
+  learningObjective: string | null;
+  estimatedMinutes: number | null;
+  orderIndex: number;
+  status: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  reviewComment: string | null;
+  publishedAt?: string | null;
+  steps: LessonStepPayload[];
+}
+
+export interface LessonPatchInput {
+  unitId?: number;
+  title?: string;
+  description?: string;
+  learningObjective?: string | null;
+  estimatedMinutes?: number | null;
+  orderIndex?: number;
+  status?: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
+  reviewComment?: string;
+}
+
+export interface StepWriteInput {
+  orderIndex: number;
+  stepType: "TEACH" | "QUESTION" | "DIALOGUE" | "RECAP";
+  vocabItemId?: number | null;
+  questionId?: number | null;
+  questionType?: "MCQ" | "MATCH" | "SHORT_ANSWER";
+  prompt?: string;
+  explanation?: string | null;
+  options?: string[] | null;
+  correctOptionIndex?: number | null;
+  acceptedAnswers?: string[] | null;
+  matchPairs?: Array<{ left: string; right: string }> | null;
+  dialogueText?: string | null;
+  payload?: Record<string, unknown> | null;
 }
 
 export type LessonAnswer = string | Record<string, string>;
@@ -183,6 +234,19 @@ export function useDeleteUnit() {
   });
 }
 
+export function useCreateLesson() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (body: CreateLessonInput) =>
+      api.post("lessons", { json: body }).json<LessonDetail>(),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: UNITS_KEY });
+      void queryClient.invalidateQueries({ queryKey: LESSONS_KEY });
+    },
+  });
+}
+
 export function usePendingLessons() {
   const queryClient = useQueryClient();
   return useQuery({
@@ -258,10 +322,25 @@ export function useLessonPlay(lessonId: number) {
 export function useLessonForEdit(lessonId: number) {
   return useQuery({
     queryKey: [...LESSONS_KEY, "edit", lessonId],
-    queryFn: () => api.get(`lessons/${lessonId}`).json<LessonPlayResponse>(),
+    queryFn: () => api.get(`lessons/${lessonId}`).json<LessonDetail>(),
     enabled: Number.isInteger(lessonId) && lessonId > 0,
     // avoid long loading states on not-found/unauthorized responses
     retry: false,
+  });
+}
+
+export function usePatchLesson() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ lessonId, body }: { lessonId: number; body: LessonPatchInput }) =>
+      api.patch(`lessons/${lessonId}`, { json: body }).json<LessonDetail>(),
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: UNITS_KEY });
+      void queryClient.invalidateQueries({ queryKey: LESSONS_KEY });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "edit", vars.lessonId] });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "play", vars.lessonId] });
+    },
   });
 }
 
@@ -355,7 +434,24 @@ export function useDeleteStep() {
     onSuccess: (_data, vars) => {
       // invalidate the lesson play and lesson list so UI refreshes
       void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "play", vars.lessonId] });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "edit", vars.lessonId] });
       void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY] });
+      void queryClient.invalidateQueries({ queryKey: UNITS_KEY });
+    },
+  });
+}
+
+export function useCreateStep() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ lessonId, body }: { lessonId: number; body: StepWriteInput }) =>
+      api.post(`lessons/${lessonId}/steps`, { json: body }).json<LessonStepPayload>(),
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "play", vars.lessonId] });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "edit", vars.lessonId] });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY] });
+      void queryClient.invalidateQueries({ queryKey: UNITS_KEY });
     },
   });
 }
@@ -364,16 +460,25 @@ export function usePatchStep() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ lessonId, stepId, body }: { lessonId: number; stepId: number; body: any }) =>
+    mutationFn: ({
+      lessonId,
+      stepId,
+      body,
+    }: {
+      lessonId: number;
+      stepId: number;
+      body: StepWriteInput;
+    }) =>
       api
         .patch(`lessons/${lessonId}/steps/${stepId}`, {
           json: body,
         })
-        .json(),
+        .json<LessonStepPayload>(),
     onSuccess: (_data, vars) => {
       void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "play", vars.lessonId] });
       void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "edit", vars.lessonId] });
       void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY] });
+      void queryClient.invalidateQueries({ queryKey: UNITS_KEY });
     },
   });
 }
@@ -383,10 +488,12 @@ export function useDeleteLesson() {
 
   return useMutation({
     mutationFn: (lessonId: number) => api.delete(`lessons/${lessonId}`).then(() => null),
-    onSuccess: () => {
+    onSuccess: (_data, lessonId) => {
       // Invalidate units and lessons queries so UI refreshes
       void queryClient.invalidateQueries({ queryKey: UNITS_KEY });
       void queryClient.invalidateQueries({ queryKey: LESSONS_KEY });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "edit", lessonId] });
+      void queryClient.invalidateQueries({ queryKey: [...LESSONS_KEY, "play", lessonId] });
     },
   });
 }

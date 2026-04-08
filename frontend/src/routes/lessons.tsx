@@ -278,7 +278,10 @@ function LearnPage() {
   );
 
   return (
-    <AppPageShell contentClassName="max-w-2xl">
+    <AppPageShell
+      className={isAdmin && activeTab === "units" ? "px-4 py-6 lg:px-6" : undefined}
+      contentClassName={isAdmin && activeTab === "units" ? "max-w-none" : "max-w-2xl"}
+    >
       {isAdmin ? (
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 rounded-2xl bg-muted/70 p-1">

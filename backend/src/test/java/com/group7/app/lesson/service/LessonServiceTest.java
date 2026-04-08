@@ -85,11 +85,33 @@ class LessonServiceTest {
 
     Unit updated =
         lessonService.patchUnit(
-            admin, 9L, new LessonService.UnitPatchInput(" Fresh Name ", " sharper desc "));
+            admin, 9L, new LessonService.UnitPatchInput(" Fresh Name ", " sharper desc ", null));
 
     assertThat(updated.getTitle()).isEqualTo("Fresh Name");
     assertThat(updated.getSlug()).isEqualTo("fresh-name");
     assertThat(updated.getDescription()).isEqualTo("sharper desc");
+  }
+
+  @Test
+  void patchUnitReordersUnitsWhenOrderIndexChanges() {
+    User admin = user(Role.ADMIN);
+    Unit first = new Unit("First", "first", "desc", 1);
+    Unit second = new Unit("Second", "second", "desc", 2);
+    Unit third = new Unit("Third", "third", "desc", 3);
+    ReflectionTestUtils.setField(first, "id", 1L);
+    ReflectionTestUtils.setField(second, "id", 2L);
+    ReflectionTestUtils.setField(third, "id", 3L);
+
+    when(unitRepository.findById(3L)).thenReturn(Optional.of(third));
+    when(unitRepository.findAllByOrderByOrderIndexAsc()).thenReturn(List.of(first, second, third));
+    when(unitRepository.save(any(Unit.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    Unit updated =
+        lessonService.patchUnit(admin, 3L, new LessonService.UnitPatchInput(null, null, 1));
+
+    assertThat(updated.getOrderIndex()).isEqualTo(1);
+    assertThat(first.getOrderIndex()).isEqualTo(2);
+    assertThat(second.getOrderIndex()).isEqualTo(3);
   }
 
   @Test

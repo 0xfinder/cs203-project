@@ -86,7 +86,8 @@ public class UnitController {
         lessonService.patchUnit(
             actor,
             unitId,
-            new LessonService.UnitPatchInput(request.title(), request.description()));
+            new LessonService.UnitPatchInput(
+                request.title(), request.description(), request.orderIndex()));
     List<LessonSummaryResponse> lessons =
         lessonService.listLessons(actor, unit.getId(), null).stream()
             .filter(lesson -> lesson.getUnit().getId().equals(unit.getId()))
@@ -166,5 +167,5 @@ public class UnitController {
 
   public record CreateUnitRequest(@NotBlank String title, String description) {}
 
-  public record PatchUnitRequest(String title, String description) {}
+  public record PatchUnitRequest(String title, String description, Integer orderIndex) {}
 }

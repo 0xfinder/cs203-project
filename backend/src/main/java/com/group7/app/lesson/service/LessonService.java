@@ -77,6 +77,11 @@ public class LessonService {
       unit.setDescription(trimToNull(input.description()));
     }
 
+    if (input.orderIndex() != null) {
+      reorderUnit(unit, input.orderIndex());
+      return unit;
+    }
+
     return unitRepository.save(unit);
   }
 
@@ -480,6 +485,29 @@ public class LessonService {
     }
   }
 
+  private void reorderUnit(Unit unit, int requestedOrderIndex) {
+    List<Unit> units =
+        unitRepository.findAllByOrderByOrderIndexAsc().stream()
+            .sorted(Comparator.comparing(Unit::getOrderIndex).thenComparing(Unit::getId))
+            .toList();
+
+    List<Unit> reordered =
+        units.stream().filter(existing -> !existing.getId().equals(unit.getId())).toList();
+    int boundedIndex = Math.max(1, Math.min(requestedOrderIndex, reordered.size() + 1));
+
+    java.util.ArrayList<Unit> mutable = new java.util.ArrayList<>(reordered);
+    mutable.add(boundedIndex - 1, unit);
+
+    int orderIndex = 1;
+    for (Unit current : mutable) {
+      if (!current.getOrderIndex().equals(orderIndex)) {
+        current.setOrderIndex(orderIndex);
+      }
+      unitRepository.save(current);
+      orderIndex++;
+    }
+  }
+
   private void ensureCanViewLesson(User actor, Lesson lesson) {
     if (lesson.getStatus() == LessonStatus.APPROVED) {
       return;
@@ -601,7 +629,7 @@ public class LessonService {
 
   public record UnitCreateInput(String title, String description) {}
 
-  public record UnitPatchInput(String title, String description) {}
+  public record UnitPatchInput(String title, String description, Integer orderIndex) {}
 
   public record LessonPatchInput(
       Long unitId,
