@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, ThumbsDown, ThumbsUp } from "lucide-react";
 import { requireOnboardingCompleted } from "@/lib/auth";
@@ -109,8 +109,11 @@ function DashboardPage() {
         <Card>
           <CardContent className="pt-6">
             <p className="text-center text-muted-foreground">
-              You haven't submitted any approved lingo yet. Head to the <strong>Add</strong> page to
-              get started!
+              You haven't submitted any approved lingo yet. Head to the{" "}
+              <Link to="/add" className="font-semibold text-primary underline underline-offset-4">
+                Add
+              </Link>{" "}
+              page to get started!
             </p>
           </CardContent>
         </Card>

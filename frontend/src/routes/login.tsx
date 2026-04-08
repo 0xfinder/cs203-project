@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HTTPError } from "ky";
+import { isAppNavPath, type AppNavPath } from "@/lib/app-nav";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: async () => {
@@ -53,6 +54,23 @@ function LoginPage() {
     return "login";
   });
 
+  const getRedirectTarget = (): AppNavPath | null => {
+    try {
+      if (typeof window === "undefined") {
+        return null;
+      }
+      const params = new URLSearchParams(window.location.search);
+      const redirectTarget = params.get("redirect");
+      if (!redirectTarget || !isAppNavPath(redirectTarget)) {
+        return null;
+      }
+      return redirectTarget;
+    } catch (e) {
+      console.error("failed to read redirect target:", e);
+      return null;
+    }
+  };
+
   const handleLogin = async (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
@@ -70,7 +88,22 @@ function LoginPage() {
       return;
     }
 
-    void navigate({ to: "/lessons" });
+    try {
+      const me = await getMe();
+      const redirectTarget = getRedirectTarget();
+      if (!me.onboardingCompleted && redirectTarget !== "/profile") {
+        void navigate({ to: "/onboarding" });
+        return;
+      }
+      void navigate({ to: redirectTarget ?? "/lessons" });
+    } catch (error) {
+      if (error instanceof HTTPError && error.response.status === 401) {
+        await supabase.auth.signOut();
+        setError("Your session expired. Please log in again.");
+        return;
+      }
+      throw error;
+    }
   };
 
   const handleSignUp = async (e: React.SyntheticEvent<HTMLFormElement>) => {

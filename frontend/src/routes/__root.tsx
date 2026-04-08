@@ -1,9 +1,19 @@
 import { Link, Outlet, createRootRoute, useRouterState } from "@tanstack/react-router";
+import { useState } from "react";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { type AppNavPath, APP_NAV_ITEMS, isAppShellPath, isNavItemActive } from "@/lib/app-nav";
+import {
+  type AppNavItem,
+  type AppNavPath,
+  APP_NAV_ITEMS,
+  isAppShellPath,
+  isNavItemActive,
+  isNavItemPublic,
+} from "@/lib/app-nav";
 import { cn } from "@/lib/utils";
 import { queryClient } from "@/lib/query-client";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
+import Dialog, { DialogContent } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
 const navPriority: Partial<Record<AppNavPath, number>> = {
@@ -29,6 +39,7 @@ export const Route = createRootRoute({
 
 function RootComponent() {
   const { profile } = Route.useLoaderData();
+  const [pendingAuthNavItem, setPendingAuthNavItem] = useState<AppNavItem | null>(null);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -57,6 +68,67 @@ function RootComponent() {
       return aOrder - bOrder;
     });
 
+  const buildLoginHref = (item: AppNavItem | null, signup = false) => {
+    const params = new URLSearchParams();
+    if (item) {
+      params.set("redirect", item.to);
+    }
+    if (signup) {
+      params.set("tab", "signup");
+    }
+    const search = params.toString();
+    const hash = signup ? "#signup" : "";
+    return `/login${search ? `?${search}` : ""}${hash}`;
+  };
+
+  const renderNavItem = (item: AppNavItem, mobile = false) => {
+    const Icon = item.icon;
+    const active = isNavItemActive(pathname, item.to);
+    const baseClassName = mobile
+      ? cn(
+          "mx-1 my-2 flex items-center justify-center rounded-2xl border transition-colors",
+          active
+            ? "border-primary/25 bg-primary/14 text-foreground shadow-sm"
+            : "border-transparent text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+        )
+      : cn(
+          "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors",
+          active
+            ? "border-primary/25 bg-primary/14 text-foreground shadow-sm"
+            : "border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+        );
+
+    if (!profile && !isNavItemPublic(item)) {
+      return (
+        <button
+          key={item.to}
+          type="button"
+          aria-label={item.label}
+          onClick={() => setPendingAuthNavItem(item)}
+          className={baseClassName}
+        >
+          <Icon className={mobile ? "h-6 w-6" : "h-5 w-5 shrink-0"} />
+          {mobile ? (
+            <span className="sr-only">{item.label}</span>
+          ) : (
+            <span className={cn("font-semibold", active && "font-bold")}>{item.label}</span>
+          )}
+        </button>
+      );
+    }
+
+    return (
+      <Link key={item.to} to={item.to} aria-label={item.label} className={baseClassName}>
+        <Icon className={mobile ? "h-6 w-6" : "h-5 w-5 shrink-0"} />
+        {mobile ? (
+          <span className="sr-only">{item.label}</span>
+        ) : (
+          <span className={cn("font-semibold", active && "font-bold")}>{item.label}</span>
+        )}
+      </Link>
+    );
+  };
+
   if (!showAppShell) {
     return (
       <div className="flex min-h-dvh flex-col">
@@ -79,25 +151,7 @@ function RootComponent() {
           </div>
 
           <nav className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto">
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = isNavItemActive(pathname, item.to);
-              return (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition-colors",
-                    active
-                      ? "border-primary/25 bg-primary/14 text-foreground shadow-sm"
-                      : "border-transparent text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  )}
-                >
-                  <Icon className="h-5 w-5 shrink-0" />
-                  <span className={cn("font-semibold", active && "font-bold")}>{item.label}</span>
-                </Link>
-              );
-            })}
+            {navItems.map((item) => renderNavItem(item))}
           </nav>
         </div>
       </aside>
@@ -113,30 +167,38 @@ function RootComponent() {
           className="grid h-16"
           style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
         >
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = isNavItemActive(pathname, item.to);
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                aria-label={item.label}
-                className={cn(
-                  "mx-1 my-2 flex items-center justify-center rounded-2xl border transition-colors",
-                  active
-                    ? "border-primary/25 bg-primary/14 text-foreground shadow-sm"
-                    : "border-transparent text-muted-foreground hover:bg-accent/70 hover:text-foreground",
-                )}
-              >
-                <Icon className="h-6 w-6" />
-                <span className="sr-only">{item.label}</span>
-              </Link>
-            );
-          })}
+          {navItems.map((item) => renderNavItem(item, true))}
         </div>
       </nav>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-16 h-px bg-border md:hidden" />
+      <Dialog open={Boolean(pendingAuthNavItem)} onOpenChange={() => setPendingAuthNavItem(null)}>
+        <DialogContent
+          className="max-w-md rounded-3xl border border-border/60 bg-card p-6 shadow-2xl"
+          title="Log in to continue"
+          description={
+            pendingAuthNavItem
+              ? `You need to log in first before opening ${pendingAuthNavItem.label}.`
+              : undefined
+          }
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-primary/15 bg-primary/6 px-4 py-3 text-sm text-muted-foreground">
+              Public pages like <span className="font-semibold text-foreground">Forum</span> and{" "}
+              <span className="font-semibold text-foreground">Dictionary</span> stay open to
+              everyone. Learning, profile, and progress pages require an account.
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Button asChild className="flex-1">
+                <a href={buildLoginHref(pendingAuthNavItem)}>Log in</a>
+              </Button>
+              <Button asChild variant="outline" className="flex-1">
+                <a href={buildLoginHref(pendingAuthNavItem, true)}>Sign up</a>
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       {showDevtools && <TanStackRouterDevtools />}
     </div>
   );

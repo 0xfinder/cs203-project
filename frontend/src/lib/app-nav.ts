@@ -27,6 +27,7 @@ export interface AppNavItem {
   to: AppNavPath;
   label: string;
   icon: LucideIcon;
+  access: "public" | "authenticated";
   roles?: UserRole[];
 }
 
@@ -35,48 +36,57 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     to: "/lessons",
     label: "Learn",
     icon: House,
+    access: "authenticated",
   },
   {
     to: "/revise",
     label: "Revise",
     icon: RotateCcw,
+    access: "authenticated",
   },
   {
     to: "/leaderboard",
     label: "Leaderboard",
     icon: Trophy,
+    access: "authenticated",
   },
   {
     to: "/add",
     label: "Add",
     icon: SquarePlus,
+    access: "authenticated",
     roles: ["CONTRIBUTOR", "MODERATOR", "ADMIN"],
   },
   {
     to: "/dashboard",
     label: "Dashboard",
     icon: BarChart3,
+    access: "authenticated",
   },
   {
     to: "/dictionary",
     label: "Dictionary",
     icon: BookOpen,
+    access: "public",
   },
   {
     to: "/review",
     label: "Review",
     icon: ClipboardCheck,
+    access: "authenticated",
     roles: ["MODERATOR", "ADMIN"],
   },
   {
     to: "/forum",
     label: "Forum",
     icon: MessageCircleMore,
+    access: "public",
   },
   {
     to: "/profile",
     label: "Profile",
     icon: UserRound,
+    access: "authenticated",
   },
 ] as const;
 
@@ -94,4 +104,12 @@ export function isAppShellPath(pathname: string): boolean {
 
 export function isNavItemActive(pathname: string, to: AppNavPath): boolean {
   return isPathSegmentMatch(pathname, to);
+}
+
+export function isNavItemPublic(item: AppNavItem): boolean {
+  return item.access === "public";
+}
+
+export function isAppNavPath(value: string): value is AppNavPath {
+  return APP_NAV_ITEMS.some((item) => item.to === value);
 }
