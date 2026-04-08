@@ -104,7 +104,8 @@ class LessonServiceTest {
 
     when(unitRepository.findById(3L)).thenReturn(Optional.of(third));
     when(unitRepository.findAllByOrderByOrderIndexAsc()).thenReturn(List.of(first, second, third));
-    when(unitRepository.save(any(Unit.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(unitRepository.saveAndFlush(any(Unit.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
 
     Unit updated =
         lessonService.patchUnit(admin, 3L, new LessonService.UnitPatchInput(null, null, 1));

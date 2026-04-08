@@ -498,13 +498,22 @@ public class LessonService {
     java.util.ArrayList<Unit> mutable = new java.util.ArrayList<>(reordered);
     mutable.add(boundedIndex - 1, unit);
 
-    int orderIndex = 1;
-    for (Unit current : mutable) {
-      if (!current.getOrderIndex().equals(orderIndex)) {
-        current.setOrderIndex(orderIndex);
+    // assign temporary negative slots first so we never trip the unique
+    // constraint on order_index while reshuffling persisted rows.
+    for (int index = 0; index < mutable.size(); index++) {
+      Unit current = mutable.get(index);
+      int temporaryOrderIndex = -1 * (index + 1);
+      if (!current.getOrderIndex().equals(temporaryOrderIndex)) {
+        current.setOrderIndex(temporaryOrderIndex);
       }
-      unitRepository.save(current);
-      orderIndex++;
+      unitRepository.saveAndFlush(current);
+    }
+
+    int finalOrderIndex = 1;
+    for (Unit current : mutable) {
+      current.setOrderIndex(finalOrderIndex);
+      unitRepository.saveAndFlush(current);
+      finalOrderIndex++;
     }
   }
 

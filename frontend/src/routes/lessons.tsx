@@ -5,17 +5,14 @@ import {
   Trophy,
   Flame,
   Star,
-  Lock,
   ChevronRight,
   Lightbulb,
   RotateCcw,
   BookOpenText,
 } from "lucide-react";
-import Dialog, { DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LessonForm } from "@/components/lesson-quiz-forms";
 import { AdminUnitsPanel } from "@/features/lessons/components/admin-units-panel";
 import { requireContributorOrOnboarded } from "@/lib/auth";
 import { getLeaderboard } from "@/lib/api";
@@ -81,19 +78,10 @@ function LearnPage() {
     currentLeaderboardEntry?.totalScore ??
     (progressItems ?? []).reduce((sum, item) => sum + item.bestScore, 0);
 
-  const isUnlocked = (index: number) => {
-    if (isContributor) return true;
-    if (index === 0) return true;
-    const previousUnit = visibleUnits[index - 1];
-    const previousRoadmap = getUnitRoadmap(previousUnit, progressByLessonId, undefined, false);
-    return (
-      previousRoadmap.totalLessons > 0 &&
-      previousRoadmap.completedCount === previousRoadmap.totalLessons
-    );
-  };
+  const isUnlocked = () => true;
 
-  const currentUnitId = visibleUnits.find((unit, index) => {
-    const unlocked = isUnlocked(index);
+  const currentUnitId = visibleUnits.find((unit) => {
+    const unlocked = isUnlocked();
     const roadmap = getUnitRoadmap(unit, progressByLessonId, undefined, isContributor);
     const completed = roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
     return unlocked && !completed;
@@ -153,7 +141,7 @@ function LearnPage() {
 
       <div className="relative flex flex-col items-center pb-4">
         {visibleUnits.map((unit, index) => {
-          const unlocked = isUnlocked(index);
+          const unlocked = isUnlocked();
           const roadmap = getUnitRoadmap(unit, progressByLessonId, undefined, isContributor);
           const completed =
             roadmap.totalLessons > 0 && roadmap.completedCount === roadmap.totalLessons;
@@ -180,19 +168,14 @@ function LearnPage() {
               <div
                 className={cn(
                   "relative flex size-16 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-emerald-500 text-2xl shadow-lg transition-shadow duration-200 sm:size-20",
-                  !unlocked && "opacity-40 saturate-0",
                   unlocked && "group-hover:shadow-xl",
                   isCurrent && "ring-4 ring-ring/50",
                 )}
               >
-                {unlocked ? (
-                  <BookOpenText
-                    className="size-7 text-white drop-shadow sm:size-9"
-                    strokeWidth={2.25}
-                  />
-                ) : (
-                  <Lock className="size-6 text-white/80 sm:size-8" />
-                )}
+                <BookOpenText
+                  className="size-7 text-white drop-shadow sm:size-9"
+                  strokeWidth={2.25}
+                />
 
                 {completed && (
                   <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow ring-2 ring-background sm:size-7 sm:text-sm">
@@ -210,7 +193,6 @@ function LearnPage() {
                     <h3
                       className={cn(
                         "line-clamp-2 text-sm font-bold leading-tight sm:line-clamp-1 sm:text-base",
-                        !unlocked && "text-muted-foreground",
                       )}
                     >
                       {unit.title}
@@ -269,7 +251,7 @@ function LearnPage() {
           </div>
         </CardHeader>
         <CardContent className="-mt-2 space-y-1.5 text-sm text-muted-foreground">
-          <p>• Complete units in order to unlock new ones</p>
+          <p>• All units are open, so you can learn in any order</p>
           <p>• Each unit launches the next lesson in that sequence</p>
           <p>• Your best scores and attempts still sync to your account</p>
         </CardContent>
@@ -303,25 +285,6 @@ function LearnPage() {
       ) : (
         learnContent
       )}
-
-      {isContributor ? (
-        <div className="fixed bottom-6 right-6 z-30 sm:bottom-8 sm:right-8">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button size="lg" className="rounded-full px-5 shadow-xl">
-                Add Lesson
-              </Button>
-            </DialogTrigger>
-            <DialogContent
-              title="Add Lesson"
-              description="Build the lesson and submit it for review."
-              className="max-h-[92vh] max-w-5xl overflow-y-auto"
-            >
-              <LessonForm />
-            </DialogContent>
-          </Dialog>
-        </div>
-      ) : null}
     </AppPageShell>
   );
 }

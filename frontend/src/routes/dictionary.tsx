@@ -1,11 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { memo, useCallback, useDeferredValue, useMemo, useState } from "react";
 import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   useApprovedContentsWithVotes,
@@ -15,9 +14,6 @@ import {
   type ContentVoteType,
   type ContentWithVotesResponse,
 } from "@/features/content/useContentData";
-import { getMe } from "@/lib/me";
-import { api } from "@/lib/api";
-import Dialog, { DialogTrigger, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { AppPageShell } from "@/components/app-page-shell";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
@@ -298,7 +294,6 @@ const DictionaryLetterSection = memo(function DictionaryLetterSection({
 });
 
 function DictionaryPage() {
-  const queryClient = useQueryClient();
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
   const { data: contents, isLoading, error } = useApprovedContentsWithVotes();
   const castVote = useCastContentVote();
@@ -313,49 +308,7 @@ function DictionaryPage() {
   const deleteMutation = useDeleteContent();
   const profile = currentUserViewQuery.data?.profile ?? null;
   const isAdmin = profile?.role === "ADMIN" || profile?.role === "MODERATOR";
-  const isContributor =
-    profile?.role === "CONTRIBUTOR" || profile?.role === "ADMIN" || profile?.role === "MODERATOR";
   const canVote = Boolean(profile);
-
-  // Add lingo form state (contributors only)
-  const [termInput, setTermInput] = useState("");
-  const [defInput, setDefInput] = useState("");
-  const [exampleInput, setExampleInput] = useState("");
-  const [submitLoading, setSubmitLoading] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const handleLingoSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSubmitError(null);
-    setSubmitSuccess(null);
-    setSubmitLoading(true);
-    try {
-      const me = await getMe();
-      const payload = {
-        term: termInput.trim(),
-        definition: defInput.trim(),
-        example: exampleInput.trim() || null,
-        submittedBy: me.email ?? "",
-      };
-      await api.post("contents", { json: payload }).json();
-      await queryClient.invalidateQueries({ queryKey: ["contents", "approved-with-votes"] });
-      await queryClient.invalidateQueries({ queryKey: ["contents"] });
-      setSubmitSuccess(
-        me.role === "ADMIN" || me.role === "MODERATOR"
-          ? "Added and live."
-          : "Submitted — pending review.",
-      );
-      setTermInput("");
-      setDefInput("");
-      setExampleInput("");
-    } catch (err) {
-      console.error(err);
-      setSubmitError("Failed to submit term.");
-    } finally {
-      setSubmitLoading(false);
-    }
-  };
 
   const filteredGroups = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
@@ -464,64 +417,6 @@ function DictionaryPage() {
               className="h-11 rounded-xl border-primary/30 bg-card pl-9 shadow-sm focus-visible:border-primary/50"
             />
           </div>
-
-          {isContributor ? (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button size="lg" className="rounded-full px-5 shadow-xl">
-                  Add Lingo
-                </Button>
-              </DialogTrigger>
-              <DialogContent
-                className="mx-0 max-h-[calc(100vh-2rem)] w-[min(calc(100vw-2rem),28rem)] max-w-none overflow-y-auto rounded-2xl p-4 sm:w-full sm:max-w-md sm:p-6"
-                title="Add Lingo"
-                description="Submit a new dictionary term for review"
-              >
-                <form onSubmit={handleLingoSubmit} className="space-y-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="dict-term">Term</Label>
-                    <Input
-                      id="dict-term"
-                      name="term"
-                      value={termInput}
-                      onChange={(e) => setTermInput(e.target.value)}
-                      className="h-11 rounded-xl border-border bg-card shadow-sm"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dict-definition">Definition</Label>
-                    <textarea
-                      id="dict-definition"
-                      name="definition"
-                      value={defInput}
-                      onChange={(e) => setDefInput(e.target.value)}
-                      className="min-h-28 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm shadow-sm outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dict-example">Example (optional)</Label>
-                    <textarea
-                      id="dict-example"
-                      name="example"
-                      value={exampleInput}
-                      onChange={(e) => setExampleInput(e.target.value)}
-                      className="min-h-24 w-full rounded-xl border border-border bg-card px-3 py-2 text-sm shadow-sm outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    <Button
-                      type="submit"
-                      disabled={submitLoading || !termInput.trim() || !defInput.trim()}
-                    >
-                      {submitLoading ? "Submitting…" : "Submit"}
-                    </Button>
-                  </div>
-                  {submitSuccess && <p className="text-sm text-green-600">{submitSuccess}</p>}
-                  {submitError && <p className="text-sm text-destructive">{submitError}</p>}
-                </form>
-              </DialogContent>
-            </Dialog>
-          ) : null}
         </div>
 
         {!isLoading && contents && (

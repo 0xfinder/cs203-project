@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
 import {
   type DragEndEvent,
   DndContext,
@@ -487,6 +487,7 @@ function BoardColumn({
   action,
   children,
   footer,
+  footerRef,
 }: {
   title: string;
   description: string;
@@ -494,6 +495,7 @@ function BoardColumn({
   action?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
+  footerRef?: RefObject<HTMLDivElement | null>;
 }) {
   return (
     <section className="flex min-h-[24rem] flex-col overflow-hidden rounded-2xl border border-border/70 bg-card/70 lg:min-h-0">
@@ -510,7 +512,11 @@ function BoardColumn({
         {action}
       </div>
       <div className="flex-1 overflow-hidden">{children}</div>
-      {footer ? <div className="border-t border-border/70 p-4">{footer}</div> : null}
+      {footer ? (
+        <div ref={footerRef} className="border-t border-border/70 p-4">
+          {footer}
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -605,17 +611,18 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
   const [stepFeedback, setStepFeedback] = useState<string | null>(null);
 
   const [stepItems, setStepItems] = useState<LessonStepPayload[]>([]);
+  const unitFooterRef = useRef<HTMLDivElement | null>(null);
+  const lessonFooterRef = useRef<HTMLDivElement | null>(null);
+  const stepFooterRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     setBoardUnits(sortUnitsForBoard(units));
   }, [units]);
 
   const sortedUnits = useMemo(() => sortUnitsForBoard(boardUnits), [boardUnits]);
-  const selectedUnit =
-    sortedUnits.find((unit) => unit.id === selectedUnitId) ?? sortedUnits[0] ?? null;
+  const selectedUnit = sortedUnits.find((unit) => unit.id === selectedUnitId) ?? null;
   const approvedLessons = useMemo(() => getApprovedLessons(selectedUnit), [selectedUnit]);
-  const selectedLesson =
-    approvedLessons.find((lesson) => lesson.id === selectedLessonId) ?? approvedLessons[0] ?? null;
+  const selectedLesson = approvedLessons.find((lesson) => lesson.id === selectedLessonId) ?? null;
 
   const lessonDetailQuery = useLessonForEdit(selectedLesson?.id ?? 0);
   const selectedLessonDetail =
@@ -623,15 +630,15 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
       ? lessonDetailQuery.data
       : null;
 
-  const selectedStep = stepItems.find((step) => step.id === selectedStepId) ?? stepItems[0] ?? null;
+  const selectedStep = stepItems.find((step) => step.id === selectedStepId) ?? null;
 
   useEffect(() => {
     if (sortedUnits.length === 0) {
       setSelectedUnitId(null);
       return;
     }
-    if (!selectedUnitId || !sortedUnits.some((unit) => unit.id === selectedUnitId)) {
-      setSelectedUnitId(sortedUnits[0].id);
+    if (selectedUnitId && !sortedUnits.some((unit) => unit.id === selectedUnitId)) {
+      setSelectedUnitId(null);
     }
   }, [sortedUnits, selectedUnitId]);
 
@@ -640,8 +647,8 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
       setSelectedLessonId(null);
       return;
     }
-    if (!selectedLessonId || !approvedLessons.some((lesson) => lesson.id === selectedLessonId)) {
-      setSelectedLessonId(approvedLessons[0]?.id ?? null);
+    if (selectedLessonId && !approvedLessons.some((lesson) => lesson.id === selectedLessonId)) {
+      setSelectedLessonId(null);
     }
   }, [selectedUnit, approvedLessons, selectedLessonId]);
 
@@ -658,10 +665,52 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
       setSelectedStepId(null);
       return;
     }
-    if (!selectedStepId || !stepItems.some((step) => step.id === selectedStepId)) {
-      setSelectedStepId(stepItems[0].id);
+    if (selectedStepId && !stepItems.some((step) => step.id === selectedStepId)) {
+      setSelectedStepId(null);
     }
   }, [stepItems, selectedStepId]);
+
+  useEffect(() => {
+    const shouldScroll = unitMode === "create" || Boolean(selectedUnitId);
+    if (!shouldScroll || typeof window === "undefined" || window.innerWidth >= 1024) {
+      return;
+    }
+    const node = unitFooterRef.current;
+    if (!node) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [selectedUnitId, unitMode]);
+
+  useEffect(() => {
+    const shouldScroll = lessonMode === "create" || Boolean(selectedLessonId);
+    if (!shouldScroll || typeof window === "undefined" || window.innerWidth >= 1024) {
+      return;
+    }
+    const node = lessonFooterRef.current;
+    if (!node) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [selectedLessonId, lessonMode]);
+
+  useEffect(() => {
+    const shouldScroll = stepMode === "create" || Boolean(selectedStepId);
+    if (!shouldScroll || typeof window === "undefined" || window.innerWidth >= 1024) {
+      return;
+    }
+    const node = stepFooterRef.current;
+    if (!node) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      node.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [selectedStepId, stepMode]);
 
   useEffect(() => {
     if (unitMode !== "edit" || !selectedUnit) {
@@ -857,7 +906,9 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
       await deleteUnit.mutateAsync(selectedUnit.id);
       const remaining = sortedUnits.filter((unit) => unit.id !== selectedUnit.id);
       setBoardUnits(remaining);
-      setSelectedUnitId(remaining[0]?.id ?? null);
+      setSelectedUnitId(null);
+      setSelectedLessonId(null);
+      setSelectedStepId(null);
       setUnitFeedback("Unit deleted.");
     } catch (error) {
       setUnitFeedback(error instanceof Error ? error.message : "Could not delete unit.");
@@ -981,10 +1032,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
           : unit,
       );
       setBoardUnits(nextUnits);
-      const remainingLessons = getApprovedLessons(
-        nextUnits.find((unit) => unit.id === selectedUnit.id) ?? null,
-      );
-      setSelectedLessonId(remainingLessons[0]?.id ?? null);
+      setSelectedLessonId(null);
       setSelectedStepId(null);
       setLessonFeedback("Lesson deleted.");
     } catch (error) {
@@ -1054,10 +1102,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
             : unit,
         );
         setBoardUnits(nextUnits);
-        const remainingLessons = getApprovedLessons(
-          nextUnits.find((unit) => unit.id === selectedUnit.id) ?? null,
-        );
-        setSelectedLessonId(remainingLessons[0]?.id ?? null);
+        setSelectedLessonId(null);
         setSelectedStepId(null);
         setStepMode("create");
         setStepForm(createEmptyStepState());
@@ -1067,7 +1112,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
 
       const nextSteps = stepItems.filter((step) => step.id !== selectedStep.id);
       setStepItems(nextSteps);
-      setSelectedStepId(nextSteps[0]?.id ?? null);
+      setSelectedStepId(null);
       setStepFeedback("Step deleted.");
     } catch (error) {
       setStepFeedback(error instanceof Error ? error.message : "Could not delete step.");
@@ -1115,6 +1160,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
           title="Units"
           description="Create or reorder curriculum containers."
           icon={<Layers3 className="size-4" />}
+          footerRef={unitFooterRef}
           action={
             <Button type="button" size="sm" onClick={createNewUnit}>
               <Plus className="size-4" />
@@ -1122,70 +1168,76 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
             </Button>
           }
           footer={
-            <div className="space-y-3">
-              <div>
-                <Label htmlFor="board-unit-title">Unit title</Label>
-                <Input
-                  id="board-unit-title"
-                  value={unitTitle}
-                  onChange={(event) => setUnitTitle(event.target.value)}
-                  className={fieldClass}
-                  placeholder="Status, Tone, and Internet Gravity"
-                />
-              </div>
-              <div>
-                <Label htmlFor="board-unit-description">Description</Label>
-                <textarea
-                  id="board-unit-description"
-                  rows={3}
-                  value={unitDescription}
-                  onChange={(event) => setUnitDescription(event.target.value)}
-                  className={fieldClass}
-                  placeholder="What this unit covers."
-                />
-              </div>
-              {unitFeedback ? (
-                <p className="rounded-md bg-secondary px-3 py-2 text-sm text-foreground">
-                  {unitFeedback}
-                </p>
-              ) : null}
-              <div className="flex items-center gap-2">
-                {unitMode === "edit" ? (
-                  <>
+            unitMode === "create" || selectedUnit ? (
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="board-unit-title">Unit title</Label>
+                  <Input
+                    id="board-unit-title"
+                    value={unitTitle}
+                    onChange={(event) => setUnitTitle(event.target.value)}
+                    className={fieldClass}
+                    placeholder="Status, Tone, and Internet Gravity"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="board-unit-description">Description</Label>
+                  <textarea
+                    id="board-unit-description"
+                    rows={3}
+                    value={unitDescription}
+                    onChange={(event) => setUnitDescription(event.target.value)}
+                    className={fieldClass}
+                    placeholder="What this unit covers."
+                  />
+                </div>
+                {unitFeedback ? (
+                  <p className="rounded-md bg-secondary px-3 py-2 text-sm text-foreground">
+                    {unitFeedback}
+                  </p>
+                ) : null}
+                <div className="flex items-center gap-2">
+                  {unitMode === "edit" ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        disabled={
+                          !selectedUnit ||
+                          deleteUnit.isPending ||
+                          (selectedUnit?.lessons.length ?? 0) > 0
+                        }
+                        onClick={() => void handleDeleteUnit()}
+                      >
+                        <Trash2 className="size-4" />
+                        Delete
+                      </Button>
+                      <Button
+                        type="button"
+                        disabled={!selectedUnit || updateUnit.isPending}
+                        onClick={() => void handleSaveUnit()}
+                      >
+                        <Save className="size-4" />
+                        Save
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       type="button"
-                      variant="outline"
-                      disabled={
-                        !selectedUnit ||
-                        deleteUnit.isPending ||
-                        (selectedUnit?.lessons.length ?? 0) > 0
-                      }
-                      onClick={() => void handleDeleteUnit()}
+                      disabled={createUnit.isPending}
+                      onClick={() => void handleCreateUnit()}
                     >
-                      <Trash2 className="size-4" />
-                      Delete
+                      <Plus className="size-4" />
+                      Create
                     </Button>
-                    <Button
-                      type="button"
-                      disabled={!selectedUnit || updateUnit.isPending}
-                      onClick={() => void handleSaveUnit()}
-                    >
-                      <Save className="size-4" />
-                      Save
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    type="button"
-                    disabled={createUnit.isPending}
-                    onClick={() => void handleCreateUnit()}
-                  >
-                    <Plus className="size-4" />
-                    Create
-                  </Button>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Select a unit to edit it, or create a new one.
+              </p>
+            )
           }
         >
           <DndContext
@@ -1205,8 +1257,14 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
                   id={`unit:${unit.id}`}
                   selected={selectedUnit?.id === unit.id}
                   onSelect={() => {
-                    setSelectedUnitId(unit.id);
-                    setUnitMode("edit");
+                    if (selectedUnit?.id === unit.id) {
+                      setSelectedUnitId(null);
+                      setSelectedLessonId(null);
+                      setSelectedStepId(null);
+                    } else {
+                      setSelectedUnitId(unit.id);
+                      setUnitMode("edit");
+                    }
                     setUnitFeedback(null);
                   }}
                 >
@@ -1234,6 +1292,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
               : "Select a unit to manage its lessons."
           }
           icon={<BookOpenText className="size-4" />}
+          footerRef={lessonFooterRef}
           action={
             <Button type="button" size="sm" onClick={createNewLesson} disabled={!selectedUnit}>
               <Plus className="size-4" />
@@ -1241,7 +1300,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
             </Button>
           }
           footer={
-            selectedUnit ? (
+            lessonMode === "create" || selectedLesson ? (
               <div className="space-y-3">
                 <div>
                   <Label htmlFor="board-lesson-title">Lesson title</Label>
@@ -1338,6 +1397,10 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
                   )}
                 </div>
               </div>
+            ) : selectedUnit ? (
+              <p className="text-sm text-muted-foreground">
+                Select a lesson to edit it, or create a new one.
+              </p>
             ) : (
               <p className="text-sm text-muted-foreground">Pick a unit to edit lessons.</p>
             )
@@ -1364,8 +1427,13 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
                   id={`lesson:${lesson.id}`}
                   selected={selectedLesson?.id === lesson.id}
                   onSelect={() => {
-                    setSelectedLessonId(lesson.id);
-                    setLessonMode("edit");
+                    if (selectedLesson?.id === lesson.id) {
+                      setSelectedLessonId(null);
+                      setSelectedStepId(null);
+                    } else {
+                      setSelectedLessonId(lesson.id);
+                      setLessonMode("edit");
+                    }
                     setLessonFeedback(null);
                   }}
                 >
@@ -1407,6 +1475,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
               : "Select an approved lesson to edit its steps."
           }
           icon={<ListOrdered className="size-4" />}
+          footerRef={stepFooterRef}
           action={
             <Button type="button" size="sm" onClick={createNewStep} disabled={!selectedLesson}>
               <Plus className="size-4" />
@@ -1414,7 +1483,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
             </Button>
           }
           footer={
-            selectedLesson ? (
+            stepMode === "create" || selectedStep ? (
               <div className="space-y-3">
                 <div>
                   <Label>Step type</Label>
@@ -1798,6 +1867,10 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
                   )}
                 </div>
               </div>
+            ) : selectedLesson ? (
+              <p className="text-sm text-muted-foreground">
+                Select a step to edit it, or create a new one.
+              </p>
             ) : (
               <p className="text-sm text-muted-foreground">Pick a lesson to edit steps.</p>
             )
@@ -1834,8 +1907,12 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
                     id={`step:${step.id}`}
                     selected={selectedStep?.id === step.id}
                     onSelect={() => {
-                      setSelectedStepId(step.id);
-                      setStepMode("edit");
+                      if (selectedStep?.id === step.id) {
+                        setSelectedStepId(null);
+                      } else {
+                        setSelectedStepId(step.id);
+                        setStepMode("edit");
+                      }
                       setStepFeedback(null);
                     }}
                   >
