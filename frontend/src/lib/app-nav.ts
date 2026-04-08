@@ -6,7 +6,6 @@ import {
   SquarePlus,
   UserRound,
   MessageCircleMore,
-  RotateCcw,
   BarChart3,
   Trophy,
 } from "lucide-react";
@@ -36,12 +35,6 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     to: "/lessons",
     label: "Learn",
     icon: House,
-    access: "authenticated",
-  },
-  {
-    to: "/revise",
-    label: "Revise",
-    icon: RotateCcw,
     access: "authenticated",
   },
   {
@@ -100,7 +93,10 @@ function isPathSegmentMatch(pathname: string, to: string): boolean {
 }
 
 export function isAppShellPath(pathname: string): boolean {
-  return APP_NAV_ITEMS.some((item) => isPathSegmentMatch(pathname, item.to));
+  return (
+    APP_NAV_ITEMS.some((item) => isPathSegmentMatch(pathname, item.to)) ||
+    isPathSegmentMatch(pathname, "/revise")
+  );
 }
 
 export function isNavItemActive(pathname: string, to: AppNavPath): boolean {
@@ -112,5 +108,5 @@ export function isNavItemPublic(item: AppNavItem): boolean {
 }
 
 export function isAppNavPath(value: string): value is AppNavPath {
-  return APP_NAV_ITEMS.some((item) => item.to === value);
+  return APP_NAV_ITEMS.some((item) => item.to === value) || value === "/revise";
 }

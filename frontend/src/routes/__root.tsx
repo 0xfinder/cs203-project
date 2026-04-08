@@ -19,13 +19,12 @@ import { Button } from "@/components/ui/button";
 const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
 const MOBILE_PRIMARY_NAV_PATHS: readonly AppNavPath[] = [
   "/lessons",
-  "/revise",
   "/leaderboard",
   "/dictionary",
+  "/forum",
 ];
 const navPriority: Partial<Record<AppNavPath, number>> = {
   "/lessons": 0,
-  "/revise": 1,
   "/dictionary": 2,
   "/add": 3,
   "/dashboard": 3.5,

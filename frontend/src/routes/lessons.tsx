@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
 import { useState } from "react";
-import { Trophy, Flame, Star, Lock, ChevronRight, Lightbulb } from "lucide-react";
+import { Trophy, Flame, Star, Lock, ChevronRight, Lightbulb, RotateCcw } from "lucide-react";
 import Dialog, { DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -112,6 +112,14 @@ function LearnPage() {
               <Star className="size-4" />
               <span>{totalXP} XP</span>
             </div>
+            {profile?.onboardingCompleted ? (
+              <Button asChild size="sm" variant="outline" className="ml-auto">
+                <Link to="/revise">
+                  <RotateCcw className="size-4" />
+                  Revise
+                </Link>
+              </Button>
+            ) : null}
           </div>
         </CardHeader>
         <CardContent>
