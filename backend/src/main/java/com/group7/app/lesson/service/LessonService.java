@@ -160,6 +160,8 @@ public class LessonService {
 
   public Lesson patchLesson(User actor, Long lessonId, LessonPatchInput input) {
     Lesson lesson = requireLesson(lessonId);
+    Unit originalUnit = lesson.getUnit();
+    Unit targetUnit = originalUnit;
 
     if (input.status() != null && input.status() != lesson.getStatus()) {
       applyStatusTransition(actor, lesson, input.status(), input.reviewComment());
@@ -179,12 +181,12 @@ public class LessonService {
       requireOwnerOrAdmin(actor, lesson);
 
       if (input.unitId() != null) {
-        Unit unit =
+        targetUnit =
             unitRepository
                 .findById(input.unitId())
                 .orElseThrow(
                     () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "unit not found"));
-        lesson.setUnit(unit);
+        lesson.setUnit(targetUnit);
       }
       if (input.title() != null) {
         String title = sanitize(input.title());
@@ -200,12 +202,17 @@ public class LessonService {
       if (input.estimatedMinutes() != null) {
         lesson.setEstimatedMinutes(input.estimatedMinutes());
       }
-      if (input.orderIndex() != null) {
-        lesson.setOrderIndex(input.orderIndex());
-      }
     }
 
     Lesson saved = lessonRepository.save(lesson);
+    if (input.orderIndex() != null || !originalUnit.getId().equals(targetUnit.getId())) {
+      int requestedOrderIndex =
+          input.orderIndex() != null
+              ? input.orderIndex()
+              : lessonRepository.findByUnitIdOrderByOrderIndexAsc(targetUnit.getId()).size();
+      reorderLesson(saved, originalUnit, targetUnit, requestedOrderIndex);
+      return saved;
+    }
 
     return saved;
   }
@@ -266,11 +273,19 @@ public class LessonService {
           "[DEBUG] Auto-assigning step orderIndex for lesson " + lessonId + ": " + orderIndex);
     }
 
-    LessonStep step = new LessonStep(lesson, orderIndex, input.stepType());
+    int temporaryOrderIndex =
+        lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lessonId).stream()
+                .map(LessonStep::getOrderIndex)
+                .filter(i -> i != null)
+                .max(Comparator.naturalOrder())
+                .orElse(0)
+            + 1;
+
+    LessonStep step = new LessonStep(lesson, temporaryOrderIndex, input.stepType());
     applyStepPayload(step, input);
 
-    LessonStep saved = lessonStepRepository.save(step);
-    normalizeStepOrder(lessonId);
+    LessonStep saved = lessonStepRepository.saveAndFlush(step);
+    reorderStep(saved, lessonId, orderIndex);
     return saved;
   }
 
@@ -284,13 +299,11 @@ public class LessonService {
             .orElseThrow(
                 () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "lesson step not found"));
 
-    step.setOrderIndex(input.orderIndex());
     step.setStepType(input.stepType());
     applyStepPayload(step, input);
 
-    LessonStep saved = lessonStepRepository.save(step);
-    normalizeStepOrder(lessonId);
-    return saved;
+    reorderStep(step, lessonId, input.orderIndex());
+    return step;
   }
 
   public void deleteStep(User actor, Long lessonId, Long stepId) {
@@ -438,14 +451,7 @@ public class LessonService {
                 Comparator.comparing(LessonStep::getOrderIndex).thenComparing(LessonStep::getId))
             .toList();
 
-    int i = 1;
-    for (LessonStep step : steps) {
-      if (!step.getOrderIndex().equals(i)) {
-        step.setOrderIndex(i);
-        lessonStepRepository.save(step);
-      }
-      i++;
-    }
+    applyStepOrder(steps);
   }
 
   private Lesson requireLesson(Long lessonId) {
@@ -514,6 +520,82 @@ public class LessonService {
       current.setOrderIndex(finalOrderIndex);
       unitRepository.saveAndFlush(current);
       finalOrderIndex++;
+    }
+  }
+
+  private void reorderLesson(
+      Lesson lesson, Unit originalUnit, Unit targetUnit, int requestedOrderIndex) {
+    List<Lesson> lessons =
+        lessonRepository.findByUnitIdOrderByOrderIndexAsc(targetUnit.getId()).stream()
+            .filter(existing -> !existing.getId().equals(lesson.getId()))
+            .sorted(Comparator.comparing(Lesson::getOrderIndex).thenComparing(Lesson::getId))
+            .toList();
+
+    int boundedIndex = Math.max(1, Math.min(requestedOrderIndex, lessons.size() + 1));
+    java.util.ArrayList<Lesson> mutable = new java.util.ArrayList<>(lessons);
+    lesson.setUnit(targetUnit);
+    mutable.add(boundedIndex - 1, lesson);
+
+    applyLessonOrder(targetUnit, mutable);
+
+    if (!originalUnit.getId().equals(targetUnit.getId())) {
+      normalizeLessonOrder(originalUnit.getId());
+    }
+  }
+
+  private void normalizeLessonOrder(Long unitId) {
+    List<Lesson> lessons =
+        lessonRepository.findByUnitIdOrderByOrderIndexAsc(unitId).stream()
+            .sorted(Comparator.comparing(Lesson::getOrderIndex).thenComparing(Lesson::getId))
+            .toList();
+    Unit unit = requireUnit(unitId);
+    applyLessonOrder(unit, lessons);
+  }
+
+  private void applyLessonOrder(Unit unit, List<Lesson> lessons) {
+    for (int index = 0; index < lessons.size(); index++) {
+      Lesson lesson = lessons.get(index);
+      lesson.setUnit(unit);
+      lesson.setOrderIndex(-1 * (index + 1));
+      lessonRepository.saveAndFlush(lesson);
+    }
+
+    int orderIndex = 1;
+    for (Lesson lesson : lessons) {
+      lesson.setUnit(unit);
+      lesson.setOrderIndex(orderIndex);
+      lessonRepository.saveAndFlush(lesson);
+      orderIndex++;
+    }
+  }
+
+  private void reorderStep(LessonStep step, Long lessonId, int requestedOrderIndex) {
+    List<LessonStep> steps =
+        lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(lessonId).stream()
+            .filter(existing -> !existing.getId().equals(step.getId()))
+            .sorted(
+                Comparator.comparing(LessonStep::getOrderIndex).thenComparing(LessonStep::getId))
+            .toList();
+
+    int boundedIndex = Math.max(1, Math.min(requestedOrderIndex, steps.size() + 1));
+    java.util.ArrayList<LessonStep> mutable = new java.util.ArrayList<>(steps);
+    mutable.add(boundedIndex - 1, step);
+
+    applyStepOrder(mutable);
+  }
+
+  private void applyStepOrder(List<LessonStep> steps) {
+    for (int index = 0; index < steps.size(); index++) {
+      LessonStep step = steps.get(index);
+      step.setOrderIndex(-1 * (index + 1));
+      lessonStepRepository.saveAndFlush(step);
+    }
+
+    int orderIndex = 1;
+    for (LessonStep step : steps) {
+      step.setOrderIndex(orderIndex);
+      lessonStepRepository.saveAndFlush(step);
+      orderIndex++;
     }
   }
 

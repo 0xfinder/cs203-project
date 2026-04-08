@@ -324,7 +324,7 @@ class LessonServiceTest {
 
     when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
     when(vocabItemRepository.findById(77L)).thenReturn(Optional.of(vocabItem));
-    when(lessonStepRepository.save(any(LessonStep.class)))
+    when(lessonStepRepository.saveAndFlush(any(LessonStep.class)))
         .thenAnswer(invocation -> invocation.getArgument(0));
     when(lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(55L)).thenReturn(List.of());
 

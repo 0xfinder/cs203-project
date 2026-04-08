@@ -1,7 +1,9 @@
 package com.group7.app.lesson;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -386,11 +388,394 @@ class LessonSchemaV2E2ETest {
         .andExpect(status().isBadRequest());
   }
 
+  @Test
+  void moderatorCanReorderUnitsLessonsAndStepsForApprovedCurriculum() throws Exception {
+    User moderator = saveUser("curriculum-mod@example.com", Role.MODERATOR);
+    User learner = saveUser("curriculum-learner@example.com", Role.LEARNER);
+
+    VocabItem vocabItem =
+        vocabItemRepository.save(
+            new VocabItem("rizz", "charisma or flirting ability", "they have rizz", "noun"));
+
+    long unitOneId =
+        createUnit(moderator, "Unit One", "First curriculum container used for ordering tests.");
+    long unitTwoId =
+        createUnit(moderator, "Unit Two", "Second curriculum container used for ordering tests.");
+
+    long lessonAlphaId =
+        createLesson(
+            moderator, unitOneId, "Alpha Lesson", "First lesson inside the first unit.", 1);
+    long teachStepId =
+        createStep(
+            moderator,
+            lessonAlphaId,
+            stepRequest(1, "TEACH").put("vocabItemId", vocabItem.getId()));
+    long dialogueStepId =
+        createStep(
+            moderator,
+            lessonAlphaId,
+            dialogueStepRequest(2, "A: that post had rizz.\nB: no cap, the comments loved it."));
+    submitForReview(moderator, lessonAlphaId);
+    approveLesson(moderator, lessonAlphaId);
+
+    long lessonBetaId =
+        createLesson(
+            moderator, unitOneId, "Beta Lesson", "Second lesson inside the first unit.", 2);
+    createStep(moderator, lessonBetaId, recapStepRequest(1));
+    submitForReview(moderator, lessonBetaId);
+    approveLesson(moderator, lessonBetaId);
+
+    mockMvc
+        .perform(
+            patch("/api/units/{unitId}", unitTwoId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        objectMapper.createObjectNode().put("orderIndex", 1))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(unitTwoId))
+        .andExpect(jsonPath("$.orderIndex").value(1));
+
+    mockMvc
+        .perform(get("/api/units").with(auth(learner)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(unitTwoId))
+        .andExpect(jsonPath("$[1].id").value(unitOneId));
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}", lessonBetaId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        objectMapper.createObjectNode().put("orderIndex", 1))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(lessonBetaId))
+        .andExpect(jsonPath("$.orderIndex").value(1));
+
+    mockMvc
+        .perform(get("/api/lessons").with(auth(learner)).param("unitId", String.valueOf(unitOneId)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[0].id").value(lessonBetaId))
+        .andExpect(jsonPath("$[1].id").value(lessonAlphaId));
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}/steps/{stepId}", lessonAlphaId, dialogueStepId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        dialogueStepRequest(
+                            1, "A: reorder that step.\nB: bet, it should now lead the lesson."))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.id").value(dialogueStepId))
+        .andExpect(jsonPath("$.orderIndex").value(1));
+
+    JsonNode reorderedLesson = getLessonJson(moderator, lessonAlphaId);
+    assertThat(reorderedLesson.path("steps")).hasSize(2);
+    assertThat(reorderedLesson.path("steps").get(0).path("id").asLong()).isEqualTo(dialogueStepId);
+    assertThat(reorderedLesson.path("steps").get(1).path("id").asLong()).isEqualTo(teachStepId);
+    assertThat(reorderedLesson.path("steps").get(0).path("orderIndex").asInt()).isEqualTo(1);
+    assertThat(reorderedLesson.path("steps").get(1).path("orderIndex").asInt()).isEqualTo(2);
+  }
+
+  @Test
+  void moderatorCanCrudAllSupportedStepTypesOnApprovedLesson() throws Exception {
+    User contributor = saveUser("steps-writer@example.com", Role.CONTRIBUTOR);
+    User moderator = saveUser("steps-moderator@example.com", Role.MODERATOR);
+
+    VocabItem rizz =
+        vocabItemRepository.save(
+            new VocabItem("rizz", "charisma or flirting ability", "they have rizz", "noun"));
+    VocabItem aura =
+        vocabItemRepository.save(
+            new VocabItem("aura", "social presence or vibe", "that fit has aura", "noun"));
+
+    long unitId =
+        createUnit(
+            moderator, "Editing Sandbox", "Dedicated unit for approved lesson editing coverage.");
+    long lessonId =
+        createLesson(
+            contributor,
+            unitId,
+            "Editable Approved Lesson",
+            "Lesson used to cover approved step CRUD flows.",
+            1);
+    submitForReview(contributor, lessonId);
+    approveLesson(moderator, lessonId);
+
+    long teachStepId =
+        createStep(moderator, lessonId, stepRequest(1, "TEACH").put("vocabItemId", rizz.getId()));
+    long mcqStepId =
+        createStep(
+            moderator,
+            lessonId,
+            mcqStepRequest(
+                2, "What does rizz mean?", "Rizz means charisma.", 0, "Charisma", "A sandwich"));
+    long matchStepId = createStep(moderator, lessonId, matchStepRequest(3));
+    long shortAnswerStepId = createStep(moderator, lessonId, shortAnswerStepRequest(4));
+    long dialogueStepId =
+        createStep(
+            moderator,
+            lessonId,
+            dialogueStepRequest(5, "A: that clip had aura.\nB: no cap, it landed."));
+    long recapStepId = createStep(moderator, lessonId, recapStepRequest(6));
+
+    ObjectNode teachPatch = stepRequest(1, "TEACH").put("vocabItemId", aura.getId());
+    teachPatch
+        .putObject("payload")
+        .put("title", "aura")
+        .put("body", "social presence or vibe")
+        .put("example", "their aura carried the room");
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}/steps/{stepId}", lessonId, teachStepId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(teachPatch)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.payload.title").value("aura"))
+        .andExpect(jsonPath("$.vocab.term").value("aura"));
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}/steps/{stepId}", lessonId, mcqStepId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        mcqStepRequest(
+                            2,
+                            "Which word means social presence?",
+                            "Aura is about presence.",
+                            1,
+                            "A snack",
+                            "Social presence",
+                            "A lie"))))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.question.prompt").value("Which word means social presence?"))
+        .andExpect(jsonPath("$.question.choices[1].isCorrect").value(true));
+
+    ObjectNode updatedMatch = stepRequest(3, "QUESTION");
+    updatedMatch.put("questionType", "MATCH");
+    updatedMatch.put("prompt", "Match each term to the updated meaning.");
+    updatedMatch.put("explanation", "Keep the new pairings straight.");
+    ArrayNode updatedPairs = updatedMatch.putArray("matchPairs");
+    updatedPairs.addObject().put("left", "aura").put("right", "social presence");
+    updatedPairs.addObject().put("left", "cap").put("right", "a lie");
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}/steps/{stepId}", lessonId, matchStepId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(updatedMatch)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.question.prompt").value("Match each term to the updated meaning."))
+        .andExpect(jsonPath("$.question.matchPairs[0].left").value("aura"));
+
+    ObjectNode updatedShortAnswer = stepRequest(4, "QUESTION");
+    updatedShortAnswer.put("questionType", "SHORT_ANSWER");
+    updatedShortAnswer.put("prompt", "Which phrase means someone is telling the truth?");
+    updatedShortAnswer.put("explanation", "No cap means someone is being honest.");
+    updatedShortAnswer.putArray("acceptedAnswers").add("no cap").add("for real");
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}/steps/{stepId}", lessonId, shortAnswerStepId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(updatedShortAnswer)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.question.acceptedAnswers[1]").value("for real"));
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}/steps/{stepId}", lessonId, dialogueStepId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    objectMapper.writeValueAsBytes(
+                        dialogueStepRequest(
+                            5, "A: that fit has aura.\nB: bet, the whole chat agreed."))))
+        .andExpect(status().isOk())
+        .andExpect(
+            jsonPath("$.dialogueText")
+                .value("A: that fit has aura.\nB: bet, the whole chat agreed."));
+
+    ObjectNode recapPatch = stepRequest(6, "RECAP");
+    recapPatch
+        .putObject("payload")
+        .put("headline", "approved lesson recap")
+        .put("summary", "rizz, aura, and no cap all survived editing")
+        .putArray("takeaways")
+        .add("rizz means charisma")
+        .add("aura means presence");
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}/steps/{stepId}", lessonId, recapStepId)
+                .with(csrf())
+                .with(auth(moderator))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(recapPatch)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.payload.headline").value("approved lesson recap"))
+        .andExpect(
+            jsonPath("$.payload.summary").value("rizz, aura, and no cap all survived editing"));
+
+    JsonNode updatedLesson = getLessonJson(moderator, lessonId);
+    assertThat(updatedLesson.path("steps")).hasSize(6);
+    assertThat(updatedLesson.path("steps").get(0).path("stepType").asText()).isEqualTo("TEACH");
+    assertThat(updatedLesson.path("steps").get(5).path("stepType").asText()).isEqualTo("RECAP");
+
+    deleteStepAndAssertRemainingCount(moderator, lessonId, teachStepId, 5);
+    deleteStepAndAssertRemainingCount(moderator, lessonId, mcqStepId, 4);
+    deleteStepAndAssertRemainingCount(moderator, lessonId, matchStepId, 3);
+    deleteStepAndAssertRemainingCount(moderator, lessonId, shortAnswerStepId, 2);
+    deleteStepAndAssertRemainingCount(moderator, lessonId, dialogueStepId, 1);
+
+    mockMvc
+        .perform(
+            delete("/api/lessons/{lessonId}/steps/{stepId}", lessonId, recapStepId)
+                .with(csrf())
+                .with(auth(moderator)))
+        .andExpect(status().isNoContent());
+
+    mockMvc
+        .perform(get("/api/lessons/{lessonId}", lessonId).with(auth(moderator)))
+        .andExpect(status().isNotFound());
+  }
+
   private User saveUser(String email, Role role) {
     User user = new User(UUID.randomUUID(), email);
     user.setDisplayName(email.substring(0, email.indexOf('@')));
     user.setRole(role);
     return userRepository.save(user);
+  }
+
+  private long createUnit(User actor, String title, String description) throws Exception {
+    ObjectNode request = objectMapper.createObjectNode();
+    request.put("title", title);
+    request.put("description", description);
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post("/api/units")
+                    .with(csrf())
+                    .with(auth(actor))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsBytes(request)))
+            .andExpect(status().isOk())
+            .andReturn();
+
+    return extractId(result);
+  }
+
+  private long createLesson(
+      User actor, long unitId, String title, String description, int orderIndex) throws Exception {
+    ObjectNode request = objectMapper.createObjectNode();
+    request.put("unitId", unitId);
+    request.put("title", title);
+    request.put("description", description);
+    request.put("orderIndex", orderIndex);
+
+    MvcResult result =
+        mockMvc
+            .perform(
+                post("/api/lessons")
+                    .with(csrf())
+                    .with(auth(actor))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsBytes(request)))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+    return extractId(result);
+  }
+
+  private void submitForReview(User actor, long lessonId) throws Exception {
+    ObjectNode submit = objectMapper.createObjectNode();
+    submit.put("status", "PENDING_REVIEW");
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}", lessonId)
+                .with(csrf())
+                .with(auth(actor))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(submit)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("PENDING_REVIEW"));
+  }
+
+  private void approveLesson(User actor, long lessonId) throws Exception {
+    ObjectNode approve = objectMapper.createObjectNode();
+    approve.put("status", "APPROVED");
+
+    mockMvc
+        .perform(
+            patch("/api/lessons/{lessonId}", lessonId)
+                .with(csrf())
+                .with(auth(actor))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsBytes(approve)))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("APPROVED"));
+  }
+
+  private long createStep(User actor, long lessonId, ObjectNode request) throws Exception {
+    MvcResult result =
+        mockMvc
+            .perform(
+                post("/api/lessons/{lessonId}/steps", lessonId)
+                    .with(csrf())
+                    .with(auth(actor))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(objectMapper.writeValueAsBytes(request)))
+            .andExpect(status().isCreated())
+            .andReturn();
+
+    return extractId(result);
+  }
+
+  private JsonNode getLessonJson(User actor, long lessonId) throws Exception {
+    MvcResult result =
+        mockMvc
+            .perform(get("/api/lessons/{lessonId}", lessonId).with(auth(actor)))
+            .andExpect(status().isOk())
+            .andReturn();
+    return objectMapper.readTree(result.getResponse().getContentAsByteArray());
+  }
+
+  private void deleteStepAndAssertRemainingCount(
+      User actor, long lessonId, long stepId, int remainingCount) throws Exception {
+    mockMvc
+        .perform(
+            delete("/api/lessons/{lessonId}/steps/{stepId}", lessonId, stepId)
+                .with(csrf())
+                .with(auth(actor)))
+        .andExpect(status().isNoContent());
+
+    JsonNode lesson = getLessonJson(actor, lessonId);
+    assertThat(lesson.path("steps")).hasSize(remainingCount);
+  }
+
+  private long extractId(MvcResult result) throws Exception {
+    return objectMapper.readTree(result.getResponse().getContentAsByteArray()).path("id").asLong();
   }
 
   private JwtRequestPostProcessor auth(User user) {
