@@ -1,14 +1,14 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart3, ThumbsDown, ThumbsUp } from "lucide-react";
-import { requireOnboardingCompleted } from "@/lib/auth";
+import { requireContributorRole } from "@/lib/auth";
 import { useMyApprovedContentsWithVotes } from "@/features/content/useContentData";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import { AppPageShell } from "@/components/app-page-shell";
 
 export const Route = createFileRoute("/dashboard")({
-  beforeLoad: requireOnboardingCompleted,
+  beforeLoad: requireContributorRole,
   component: DashboardPage,
 });
 

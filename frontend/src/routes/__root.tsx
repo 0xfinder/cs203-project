@@ -1,6 +1,7 @@
 import { Link, Outlet, createRootRoute, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
+import { Ellipsis } from "lucide-react";
 import {
   type AppNavItem,
   type AppNavPath,
@@ -16,6 +17,12 @@ import Dialog, { DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
+const MOBILE_PRIMARY_NAV_PATHS: readonly AppNavPath[] = [
+  "/lessons",
+  "/revise",
+  "/leaderboard",
+  "/dictionary",
+];
 const navPriority: Partial<Record<AppNavPath, number>> = {
   "/lessons": 0,
   "/revise": 1,
@@ -40,6 +47,7 @@ export const Route = createRootRoute({
 function RootComponent() {
   const { profile } = Route.useLoaderData();
   const [pendingAuthNavItem, setPendingAuthNavItem] = useState<AppNavItem | null>(null);
+  const [mobileOverflowOpen, setMobileOverflowOpen] = useState(false);
   const pathname = useRouterState({
     select: (state) => state.location.pathname,
   });
@@ -68,6 +76,20 @@ function RootComponent() {
       return aOrder - bOrder;
     });
 
+  const primaryMobileNavItems = navItems.filter((item) =>
+    MOBILE_PRIMARY_NAV_PATHS.includes(item.to),
+  );
+  const overflowMobileNavItems = navItems.filter(
+    (item) => !MOBILE_PRIMARY_NAV_PATHS.includes(item.to),
+  );
+  const shouldUseMobileOverflow = overflowMobileNavItems.length > 1;
+  const mobileNavItems = shouldUseMobileOverflow
+    ? primaryMobileNavItems
+    : [...primaryMobileNavItems, ...overflowMobileNavItems];
+  const isMobileOverflowActive = overflowMobileNavItems.some((item) =>
+    isNavItemActive(pathname, item.to),
+  );
+
   const buildLoginHref = (item: AppNavItem | null, signup = false) => {
     const params = new URLSearchParams();
     if (item) {
@@ -81,7 +103,10 @@ function RootComponent() {
     return `/login${search ? `?${search}` : ""}${hash}`;
   };
 
-  const renderNavItem = (item: AppNavItem, mobile = false) => {
+  const renderNavItem = (
+    item: AppNavItem,
+    { mobile = false, onSelect }: { mobile?: boolean; onSelect?: () => void } = {},
+  ) => {
     const Icon = item.icon;
     const active = isNavItemActive(pathname, item.to);
     const baseClassName = mobile
@@ -104,7 +129,10 @@ function RootComponent() {
           key={item.to}
           type="button"
           aria-label={item.label}
-          onClick={() => setPendingAuthNavItem(item)}
+          onClick={() => {
+            onSelect?.();
+            setPendingAuthNavItem(item);
+          }}
           className={baseClassName}
         >
           <Icon className={mobile ? "h-6 w-6" : "h-5 w-5 shrink-0"} />
@@ -118,7 +146,13 @@ function RootComponent() {
     }
 
     return (
-      <Link key={item.to} to={item.to} aria-label={item.label} className={baseClassName}>
+      <Link
+        key={item.to}
+        to={item.to}
+        aria-label={item.label}
+        className={baseClassName}
+        onClick={onSelect}
+      >
         <Icon className={mobile ? "h-6 w-6" : "h-5 w-5 shrink-0"} />
         {mobile ? (
           <span className="sr-only">{item.label}</span>
@@ -165,13 +199,46 @@ function RootComponent() {
       <nav className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 backdrop-blur md:hidden">
         <div
           className="grid h-16"
-          style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0, 1fr))` }}
+          style={{
+            gridTemplateColumns: `repeat(${mobileNavItems.length + (shouldUseMobileOverflow ? 1 : 0)}, minmax(0, 1fr))`,
+          }}
         >
-          {navItems.map((item) => renderNavItem(item, true))}
+          {mobileNavItems.map((item) => renderNavItem(item, { mobile: true }))}
+          {shouldUseMobileOverflow ? (
+            <button
+              type="button"
+              aria-label="More"
+              aria-expanded={mobileOverflowOpen}
+              onClick={() => setMobileOverflowOpen(true)}
+              className={cn(
+                "mx-1 my-2 flex items-center justify-center rounded-2xl border transition-colors",
+                isMobileOverflowActive
+                  ? "border-primary/25 bg-primary/14 text-foreground shadow-sm"
+                  : "border-transparent text-muted-foreground hover:bg-accent/70 hover:text-foreground",
+              )}
+            >
+              <Ellipsis className="h-6 w-6" />
+              <span className="sr-only">More</span>
+            </button>
+          ) : null}
         </div>
       </nav>
 
       <div className="pointer-events-none fixed inset-x-0 bottom-16 h-px bg-border md:hidden" />
+      <Dialog open={mobileOverflowOpen} onOpenChange={setMobileOverflowOpen}>
+        <DialogContent
+          className="mx-0 w-[calc(100vw-2rem)] max-w-sm rounded-3xl border border-border/60 bg-card p-5 shadow-2xl md:hidden"
+          title="More"
+        >
+          <div className="flex flex-col gap-2">
+            {overflowMobileNavItems.map((item) =>
+              renderNavItem(item, {
+                onSelect: () => setMobileOverflowOpen(false),
+              }),
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
       <Dialog open={Boolean(pendingAuthNavItem)} onOpenChange={() => setPendingAuthNavItem(null)}>
         <DialogContent
           className="max-w-md rounded-3xl border border-border/60 bg-card p-6 shadow-2xl"

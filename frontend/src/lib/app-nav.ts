@@ -62,6 +62,7 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     label: "Dashboard",
     icon: BarChart3,
     access: "authenticated",
+    roles: ["CONTRIBUTOR", "MODERATOR", "ADMIN"],
   },
   {
     to: "/dictionary",
