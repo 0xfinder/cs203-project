@@ -54,7 +54,37 @@ function LearnPage() {
   });
 
   if (unitsLoading || progressLoading) {
-    return <AppPageShell contentClassName="max-w-2xl">Loading units...</AppPageShell>;
+    return (
+      <AppPageShell contentClassName="max-w-2xl">
+        <div className="animate-pulse space-y-6">
+          <div className="rounded-xl border bg-card p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="h-5 w-36 rounded-md bg-muted" />
+              <div className="h-4 w-20 rounded-md bg-muted" />
+            </div>
+            <div className="flex gap-2">
+              <div className="h-7 w-16 rounded-full bg-muted" />
+              <div className="h-7 w-20 rounded-full bg-muted" />
+            </div>
+            <div className="h-3 w-full rounded-full bg-muted" />
+          </div>
+          <div className="h-7 w-24 mx-auto rounded-md bg-muted" />
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="flex items-center gap-4 rounded-2xl border bg-card p-3"
+              style={{ marginLeft: i % 2 === 1 ? "3rem" : "0" }}
+            >
+              <div className="size-16 shrink-0 rounded-full bg-muted" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-3/4 rounded-md bg-muted" />
+                <div className="h-3 w-full rounded-md bg-muted" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </AppPageShell>
+    );
   }
 
   if (unitsError || progressError || !units) {

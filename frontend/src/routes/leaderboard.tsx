@@ -38,7 +38,31 @@ function LeaderboardPage() {
   });
 
   if (isLoading) {
-    return <div className="p-8 text-center">Loading rankings...</div>;
+    return (
+      <AppPageShell contentClassName="max-w-2xl">
+        <div className="animate-pulse">
+          <div className="flex flex-col items-center mb-6 gap-3">
+            <div className="size-12 rounded-full bg-muted" />
+            <div className="h-8 w-48 rounded-md bg-muted" />
+            <div className="h-4 w-40 rounded-md bg-muted" />
+          </div>
+          <div className="h-10 w-full max-w-md mx-auto rounded-lg bg-muted mb-8" />
+          <div className="rounded-xl border bg-card overflow-hidden">
+            <div className="border-b px-4 py-4 bg-muted/30">
+              <div className="h-4 w-full rounded-md bg-muted" />
+            </div>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="flex items-center gap-4 px-4 py-3 border-b last:border-0">
+                <div className="size-6 rounded-full bg-muted shrink-0" />
+                <div className="size-9 rounded-full bg-muted shrink-0" />
+                <div className="flex-1 h-4 rounded-md bg-muted" />
+                <div className="h-4 w-16 rounded-md bg-muted" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </AppPageShell>
+    );
   }
 
   if (error) {
