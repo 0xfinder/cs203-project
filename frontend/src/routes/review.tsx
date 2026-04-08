@@ -322,16 +322,18 @@ function ReviewPage() {
 
                     <div className="flex gap-3">
                       <Button
+                        className="bg-green-600 text-white hover:-translate-y-0.5 hover:shadow-lg hover:bg-green-550 active:translate-y-0"
                         onClick={() => setExpandedId(expandedId === content.id ? null : content.id)}
-                        variant="success"
                       >
                         Approve
                       </Button>
                       <Button
+                        variant="destructive"
+                        className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
                         onClick={() =>
                           setExpandedId(expandedId === -content.id ? null : -content.id)
                         }
-                        variant="destructive"
+
                       >
                         Reject
                       </Button>
@@ -339,7 +341,7 @@ function ReviewPage() {
 
                     {expandedId === content.id && (
                       <div className="mt-4 space-y-4 border-t pt-4">
-                        <h3 className="font-semibold">Approve "{content.term}"</h3>
+                        <h3 className="font-semibold">You are about to approve "{content.term}"</h3>
                         <div>
                           <Label htmlFor={`approve-comment-${content.id}`}>
                             Comment (Optional)
@@ -361,7 +363,7 @@ function ReviewPage() {
                           <Button
                             onClick={() => handleApprove(content.id)}
                             variant="success"
-                            className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                            className="bg-green-600 text-white hover:-translate-y-0.5 hover:shadow-lg hover:bg-green-550 active:translate-y-0"
                             disabled={approveMutation.isPending}
                           >
                             {approveMutation.isPending ? "Approving..." : "Confirm Approve"}
@@ -538,7 +540,7 @@ function ReviewPage() {
                           <Button
                             onClick={() => handleApproveLesson(lesson.id)}
                             variant="success"
-                            className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
+                            // className="text-white hover:-translate-y-0.5 hover:shadow-lg active:translate-y-0"
                             disabled={approveLessonMutation.isPending}
                           >
                             {approveLessonMutation.isPending ? "Approving..." : "Confirm Approve"}
@@ -650,8 +652,8 @@ function ReviewPage() {
                               <h3 className="mt-2 text-2xl font-semibold">{s.question.prompt}</h3>
 
                               {s.question.questionType === "MATCH" &&
-                              Array.isArray(s.question.matchPairs) &&
-                              s.question.matchPairs.length > 0 ? (
+                                Array.isArray(s.question.matchPairs) &&
+                                s.question.matchPairs.length > 0 ? (
                                 <div className="mt-4 space-y-2">
                                   <div className="text-sm font-semibold text-muted-foreground">
                                     Match pairs:
