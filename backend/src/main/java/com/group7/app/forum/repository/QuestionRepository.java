@@ -10,6 +10,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface QuestionRepository extends JpaRepository<Question, Long> {
   Page<Question> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
+  Page<Question> findByTitleContainingIgnoreCaseOrContentContainingIgnoreCaseOrderByCreatedAtDesc(
+      String title, String content, Pageable pageable);
+
   @EntityGraph(attributePaths = "answers")
   Optional<Question> findWithAnswersById(Long id);
 }

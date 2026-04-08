@@ -21,6 +21,9 @@ import {
   List,
   ListOrdered,
   ImagePlus,
+  Search,
+  CheckCircle2,
+  Quote,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -454,6 +457,8 @@ function QuestionCard({
   const queryClient = useQueryClient();
   const [answerDraft, setAnswerDraft] = useState("");
   const [postingAnswer, setPostingAnswer] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const isAuthor = profile?.id === question.authorInfo.id;
   const answersQuery = useQuery({
     ...forumAnswersQueryOptions(question.id),
     enabled: isExpanded,
@@ -544,6 +549,30 @@ function QuestionCard({
     }
   };
 
+  const handleResolve = async () => {
+    if (resolving) return;
+    setResolving(true);
+    try {
+      await api.patch(`forum/questions/${question.id}/resolve`).json();
+      await queryClient.invalidateQueries({ queryKey: [...FORUM_QUERY_KEY, "questions"] });
+    } catch (e) {
+      console.error("failed to resolve question:", e);
+      onError("Failed to update resolved status");
+    } finally {
+      setResolving(false);
+    }
+  };
+
+  const handleQuoteAnswer = (content: string, authorName: string) => {
+    const lines = content
+      .split("\n")
+      .map((line) => `> ${line}`)
+      .join("\n");
+    const quote = `**${authorName}** wrote:\n${lines}\n\n`;
+    setAnswerDraft((prev) => (prev ? `${prev}\n\n${quote}` : quote));
+    if (!isExpanded) onToggle();
+  };
+
   const handleQuestionVote = async (type: "THUMBS_UP" | "THUMBS_DOWN") => {
     if (!canPost) return;
     try {
@@ -623,7 +652,14 @@ function QuestionCard({
 
         <div className="mt-2 flex gap-3">
           <div className="min-w-0 flex-1">
-            <h3 className="text-base font-bold leading-snug">{question.title}</h3>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-base font-bold leading-snug">{question.title}</h3>
+              {question.resolved && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">
+                  <CheckCircle2 className="size-3" /> Resolved
+                </span>
+              )}
+            </div>
             <div className="mt-1.5 text-muted-foreground">
               <MarkdownContent content={question.content} />
             </div>
@@ -638,6 +674,22 @@ function QuestionCard({
 
         <div className="mt-3 flex items-center gap-3 pb-4">
           <AnswerBadge count={question.answerCount} onClick={onToggle} />
+          {isAuthor && (
+            <button
+              onClick={handleResolve}
+              disabled={resolving}
+              title={question.resolved ? "Mark as unresolved" : "Mark as resolved"}
+              className={cn(
+                "flex items-center gap-1 text-xs font-medium transition-colors",
+                question.resolved
+                  ? "text-success hover:text-success/70"
+                  : "text-muted-foreground hover:text-success",
+              )}
+            >
+              <CheckCircle2 className="size-3.5" />
+              {question.resolved ? "Resolved" : "Mark resolved"}
+            </button>
+          )}
           <button
             onClick={onToggle}
             className="ml-auto flex items-center gap-1 text-xs font-medium text-primary transition-colors hover:text-primary/80"
@@ -686,15 +738,31 @@ function QuestionCard({
                       <span className="text-xs text-muted-foreground/60">
                         {timeAgo(answer.createdAt)}
                       </span>
-                      {canDeleteContent(answer.authorInfo) && (
-                        <button
-                          onClick={() => handleDeleteAnswer(answer.id)}
-                          className="ml-auto hidden text-muted-foreground transition-colors hover:text-destructive group-hover:block"
-                          title="Delete answer"
-                        >
-                          <X className="size-3.5" />
-                        </button>
-                      )}
+                      <div className="ml-auto hidden items-center gap-2 group-hover:flex">
+                        {canPost && (
+                          <button
+                            onClick={() =>
+                              handleQuoteAnswer(
+                                answer.content,
+                                answer.authorInfo.displayName ?? answer.author,
+                              )
+                            }
+                            title="Quote this answer"
+                            className="text-muted-foreground transition-colors hover:text-primary"
+                          >
+                            <Quote className="size-3.5" />
+                          </button>
+                        )}
+                        {canDeleteContent(answer.authorInfo) && (
+                          <button
+                            onClick={() => handleDeleteAnswer(answer.id)}
+                            className="text-muted-foreground transition-colors hover:text-destructive"
+                            title="Delete answer"
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="mt-0.5 text-muted-foreground">
                       <MarkdownContent content={answer.content} />
@@ -755,9 +823,21 @@ function QuestionCard({
 function ForumPage() {
   const queryClient = useQueryClient();
   const [page, setPage] = useState(0);
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const errorBannerRef = useRef<HTMLDivElement>(null);
+  const [shaking, setShaking] = useState(false);
+
+  useEffect(() => {
+    if (!error) return;
+    errorBannerRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setShaking(true);
+    const t = setTimeout(() => setShaking(false), 500);
+    return () => clearTimeout(t);
+  }, [error]);
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
-  const forumQuestionsQuery = useQuery(forumQuestionsQueryOptions(page, FORUM_PAGE_SIZE));
+  const forumQuestionsQuery = useQuery(forumQuestionsQueryOptions(page, FORUM_PAGE_SIZE, debouncedSearch));
   const profile = (currentUserViewQuery.data && currentUserViewQuery.data.profile) || null;
   const currentUserAvatarUrl = currentUserViewQuery.data?.avatarUrl ?? null;
 
@@ -769,10 +849,19 @@ function ForumPage() {
   const questions = forumQuestionsQuery.data?.items ?? [];
   const pagination = forumQuestionsQuery.data;
 
+  // Debounce search: reset to page 0 on new search
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setDebouncedSearch(search);
+      setPage(0);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [search]);
+
   useEffect(() => {
     if (!pagination?.hasNext) return;
-    void queryClient.prefetchQuery(forumQuestionsQueryOptions(page + 1, FORUM_PAGE_SIZE));
-  }, [page, pagination?.hasNext, queryClient]);
+    void queryClient.prefetchQuery(forumQuestionsQueryOptions(page + 1, FORUM_PAGE_SIZE, debouncedSearch));
+  }, [page, pagination?.hasNext, queryClient, debouncedSearch]);
 
   useEffect(() => {
     if (!forumQuestionsQuery.isSuccess) return;
@@ -850,6 +939,25 @@ function ForumPage() {
         </div>
       </div>
 
+      {/* search bar */}
+      <div className="mb-5 relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+        <Input
+          className="pl-9"
+          placeholder="Search questions..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        {search && (
+          <button
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            onClick={() => setSearch("")}
+          >
+            <X className="size-4" />
+          </button>
+        )}
+      </div>
+
       {/* onboarding nudge */}
       {profile && !onboardingDone && (
         <Card className="mb-5 border-chart-4/40 bg-chart-4/5">
@@ -866,7 +974,7 @@ function ForumPage() {
 
       {/* error banner */}
       {error && (
-        <Card className="mb-5 border-destructive/40 bg-destructive/5">
+        <Card ref={errorBannerRef} className={cn("mb-5 border-destructive/40 bg-destructive/5", shaking && "animate-shake")}>
           <CardContent className="flex items-center justify-between gap-3 text-sm text-destructive">
             <span className="flex items-center gap-2">
               <AlertTriangle className="size-4 shrink-0" />
@@ -972,10 +1080,12 @@ function ForumPage() {
       {/* empty state */}
       {forumQuestionsQuery.isSuccess && questions.length === 0 && (
         <div className="py-20 text-center">
-          <p className="mb-4 text-5xl">?</p>
-          <p className="text-lg font-semibold">No questions yet</p>
+          <p className="mb-4 text-5xl">{debouncedSearch ? "🔍" : "?"}</p>
+          <p className="text-lg font-semibold">
+            {debouncedSearch ? `No results for "${debouncedSearch}"` : "No questions yet"}
+          </p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Be the first to ask something bussin!
+            {debouncedSearch ? "Try different keywords" : "Be the first to ask something bussin!"}
           </p>
         </div>
       )}
@@ -992,6 +1102,12 @@ function ForumPage() {
 
       {forumQuestionsQuery.isSuccess && questions.length > 0 && (
         <div className="space-y-4">
+          {debouncedSearch && (
+            <p className="text-sm text-muted-foreground">
+              {pagination?.totalItems ?? questions.length} result{(pagination?.totalItems ?? questions.length) !== 1 ? "s" : ""} for{" "}
+              <span className="font-medium text-foreground">"{debouncedSearch}"</span>
+            </p>
+          )}
           {questions.map((question) => (
             <QuestionCard
               key={question.id}

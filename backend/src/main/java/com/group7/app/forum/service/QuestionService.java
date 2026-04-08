@@ -2,6 +2,8 @@ package com.group7.app.forum.service;
 
 import com.group7.app.forum.model.Question;
 import com.group7.app.forum.repository.QuestionRepository;
+import java.time.LocalDateTime;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -22,7 +24,12 @@ public class QuestionService {
     this.moderationService = moderationService;
   }
 
-  public Page<Question> getQuestions(Pageable pageable) {
+  public Page<Question> getQuestions(Pageable pageable, String search) {
+    if (search != null && !search.isBlank()) {
+      return repository
+          .findByTitleContainingIgnoreCaseOrContentContainingIgnoreCaseOrderByCreatedAtDesc(
+              search, search, pageable);
+    }
     return repository.findAllByOrderByCreatedAtDesc(pageable);
   }
 
@@ -51,8 +58,6 @@ public class QuestionService {
     if (question.getContent() == null || question.getContent().isBlank()) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Content is required");
     }
-    // Defensive normalization: trim and enforce DB column limits to avoid
-    // DataIntegrityViolationException
     String title = question.getTitle() != null ? question.getTitle().trim() : "";
     String author = question.getAuthor() != null ? question.getAuthor().trim() : "";
 
@@ -65,7 +70,6 @@ public class QuestionService {
       author = author.substring(0, 255);
     }
 
-    // Ensure non-null author (use fallback)
     if (author.isBlank()) {
       author = "Anonymous";
     }
@@ -73,7 +77,6 @@ public class QuestionService {
     question.setTitle(title);
     question.setAuthor(author);
 
-    // log lengths for debugging
     log.debug(
         "Saving question: titleLen={} authorLen={} contentLen={}",
         title.length(),
@@ -81,6 +84,17 @@ public class QuestionService {
         question.getContent() == null ? 0 : question.getContent().length());
 
     moderationService.moderateContent(question.getTitle() + "\n" + question.getContent());
+    return repository.save(question);
+  }
+
+  public Question resolveQuestion(Long id, UUID requestingUserId) {
+    Question question = getQuestion(id);
+    if (!question.getAuthorId().equals(requestingUserId)) {
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "Only the question author can mark it as resolved");
+    }
+    question.setResolved(!question.isResolved());
+    question.setResolvedAt(question.isResolved() ? LocalDateTime.now() : null);
     return repository.save(question);
   }
 

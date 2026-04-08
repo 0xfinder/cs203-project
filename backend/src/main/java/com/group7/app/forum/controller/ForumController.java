@@ -56,14 +56,15 @@ public class ForumController {
   public ResponseEntity<ForumQuestionPageResponse> getAllQuestions(
       @AuthenticationPrincipal Jwt jwt,
       @RequestParam(defaultValue = "0") int page,
-      @RequestParam(defaultValue = "10") int size) {
+      @RequestParam(defaultValue = "10") int size,
+      @RequestParam(required = false) String q) {
     if (page < 0 || size < 1 || size > 50) {
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST, "page must be >= 0 and size must be between 1 and 50");
     }
 
     UUID userId = jwt != null ? parseUserId(jwt) : null;
-    Page<Question> resultPage = questionService.getQuestions(PageRequest.of(page, size));
+    Page<Question> resultPage = questionService.getQuestions(PageRequest.of(page, size), q);
     List<Question> questions = resultPage.getContent();
     var answerCounts =
         answerService.getAnswerCounts(questions.stream().map(Question::getId).toList());
@@ -120,6 +121,17 @@ public class ForumController {
     }
     questionService.deleteQuestion(id);
     return ResponseEntity.noContent().build();
+  }
+
+  @PatchMapping("/questions/{id}/resolve")
+  @Operation(summary = "Toggle resolved status on own question")
+  public ResponseEntity<QuestionListItemResponse> resolveQuestion(
+      @PathVariable Long id, @AuthenticationPrincipal Jwt jwt) {
+    User user = resolveUser(jwt);
+    Question q = questionService.resolveQuestion(id, user.getId());
+    var answerCounts = answerService.getAnswerCounts(List.of(q.getId()));
+    var items = mappingService.toQuestionListItemResponses(List.of(q), user.getId(), answerCounts);
+    return ResponseEntity.ok(items.getFirst());
   }
 
   // ── Answers ──────────────────────────────────────────────────────────────

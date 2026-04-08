@@ -30,6 +30,12 @@ public class Question {
 
   private LocalDateTime createdAt;
 
+  @Column(nullable = false)
+  private boolean resolved = false;
+
+  @Column(name = "resolved_at")
+  private LocalDateTime resolvedAt;
+
   @OneToMany(
       mappedBy = "question",
       cascade = CascadeType.ALL,
@@ -113,5 +119,21 @@ public class Question {
 
   public void setVotes(List<QuestionVote> votes) {
     this.votes = votes;
+  }
+
+  public boolean isResolved() {
+    return resolved;
+  }
+
+  public void setResolved(boolean resolved) {
+    this.resolved = resolved;
+  }
+
+  public LocalDateTime getResolvedAt() {
+    return resolvedAt;
+  }
+
+  public void setResolvedAt(LocalDateTime resolvedAt) {
+    this.resolvedAt = resolvedAt;
   }
 }

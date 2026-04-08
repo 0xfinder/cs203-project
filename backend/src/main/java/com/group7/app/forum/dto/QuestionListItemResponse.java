@@ -8,4 +8,5 @@ public record QuestionListItemResponse(
     AuthorInfo authorInfo,
     String createdAt,
     long answerCount,
-    VoteSummary votes) {}
+    VoteSummary votes,
+    boolean resolved) {}
