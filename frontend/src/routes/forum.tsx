@@ -401,7 +401,7 @@ function MarkdownTextarea({
   );
 
   return (
-    <div className="overflow-hidden rounded-md border border-border/80 bg-background shadow-xs">
+    <div className="overflow-hidden rounded-md border border-border/80 bg-background shadow-xs transition-[border-color,box-shadow] focus-within:border-ring focus-within:ring-1 focus-within:ring-ring/40">
       <MarkdownToolbar
         textareaRef={textareaRef}
         onImageUpload={handleImageUpload}
@@ -410,7 +410,7 @@ function MarkdownTextarea({
       />
       <textarea
         ref={textareaRef}
-        className="placeholder:text-muted-foreground focus-visible:ring-ring/50 w-full min-w-0 resize-none bg-transparent px-3 py-2 text-sm transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50"
+        className="placeholder:text-muted-foreground w-full min-w-0 resize-none bg-transparent px-3 py-2 text-sm outline-none disabled:pointer-events-none disabled:opacity-50"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
