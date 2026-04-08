@@ -15,6 +15,7 @@ import { queryClient } from "@/lib/query-client";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 import Dialog, { DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { UserAvatar } from "@/components/user-avatar";
 
 const showDevtools = import.meta.env.DEV && import.meta.env.VITE_SHOW_DEVTOOLS !== "false";
 const MOBILE_PRIMARY_NAV_PATHS: readonly AppNavPath[] = [
@@ -98,7 +99,7 @@ function GlobalNotFoundPage() {
 }
 
 function RootComponent() {
-  const { profile } = Route.useLoaderData();
+  const { profile, avatarUrl } = Route.useLoaderData();
   const [pendingAuthNavItem, setPendingAuthNavItem] = useState<AppNavItem | null>(null);
   const [mobileOverflowOpen, setMobileOverflowOpen] = useState(false);
   const pathname = useRouterState({
@@ -155,6 +156,9 @@ function RootComponent() {
     const hash = signup ? "#signup" : "";
     return `/login${search ? `?${search}` : ""}${hash}`;
   };
+
+  const profileDisplayName =
+    profile?.displayName?.trim() || profile?.email?.split("@")[0] || "unknown user";
 
   const renderNavItem = (
     item: AppNavItem,
@@ -240,6 +244,30 @@ function RootComponent() {
           <nav className="mt-4 flex flex-1 flex-col gap-1 overflow-y-auto">
             {navItems.map((item) => renderNavItem(item))}
           </nav>
+
+          {profile ? (
+            <Link
+              to="/profile"
+              className="mt-4 flex items-center gap-3 rounded-2xl border border-sidebar-border/80 bg-sidebar-accent/40 px-3 py-3 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+            >
+              <UserAvatar
+                name={profileDisplayName}
+                avatarPath={profile.avatarPath}
+                avatarColor={profile.avatarColor}
+                avatarUrl={avatarUrl}
+                className="size-11 ring-2 ring-background/80"
+                fallbackClassName="text-sm font-semibold"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold text-foreground">
+                  {profileDisplayName}
+                </p>
+                <p className="mt-0.5 truncate text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                  {profile.role}
+                </p>
+              </div>
+            </Link>
+          ) : null}
         </div>
       </aside>
 

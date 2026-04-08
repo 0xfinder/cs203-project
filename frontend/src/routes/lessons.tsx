@@ -1,7 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import type { CSSProperties } from "react";
 import { useState } from "react";
-import { Trophy, Flame, Star, Lock, ChevronRight, Lightbulb, RotateCcw } from "lucide-react";
+import {
+  Trophy,
+  Flame,
+  Star,
+  Lock,
+  ChevronRight,
+  Lightbulb,
+  RotateCcw,
+  BookOpenText,
+} from "lucide-react";
 import Dialog, { DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -177,13 +186,16 @@ function LearnPage() {
                 )}
               >
                 {unlocked ? (
-                  <span className="drop-shadow">📘</span>
+                  <BookOpenText
+                    className="size-7 text-white drop-shadow sm:size-9"
+                    strokeWidth={2.25}
+                  />
                 ) : (
                   <Lock className="size-6 text-white/80 sm:size-8" />
                 )}
 
                 {completed && (
-                  <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow sm:size-7 sm:text-sm">
+                  <span className="absolute -right-1 -top-1 flex size-6 items-center justify-center rounded-full bg-success text-xs font-bold text-success-foreground shadow ring-2 ring-background sm:size-7 sm:text-sm">
                     ✓
                   </span>
                 )}

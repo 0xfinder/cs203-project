@@ -533,7 +533,7 @@ function ProfilePage() {
                 <Button type="button" onClick={() => setEditing(true)}>
                   Edit profile
                 </Button>
-                <Button type="button" variant="ghost" onClick={() => void handleSignOut()}>
+                <Button type="button" variant="outline" onClick={() => void handleSignOut()}>
                   Sign out
                 </Button>
               </div>
@@ -596,7 +596,7 @@ function ProfilePage() {
                   <Button type="button" disabled={saving} onClick={() => void handleSave()}>
                     {saving ? "Saving..." : "Save"}
                   </Button>
-                  <Button type="button" variant="ghost" onClick={() => void handleSignOut()}>
+                  <Button type="button" variant="outline" onClick={() => void handleSignOut()}>
                     Sign out
                   </Button>
                 </div>
