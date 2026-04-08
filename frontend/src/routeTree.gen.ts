@@ -19,7 +19,6 @@ import { Route as LeaderboardRouteImport } from './routes/leaderboard'
 import { Route as ForumRouteImport } from './routes/forum'
 import { Route as DictionaryRouteImport } from './routes/dictionary'
 import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as AddLessonRouteImport } from './routes/add-lesson'
 import { Route as AddRouteImport } from './routes/add'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LessonLessonIdRouteImport } from './routes/lesson.$lessonId'
@@ -74,11 +73,6 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AddLessonRoute = AddLessonRouteImport.update({
-  id: '/add-lesson',
-  path: '/add-lesson',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AddRoute = AddRouteImport.update({
   id: '/add',
   path: '/add',
@@ -98,7 +92,6 @@ const LessonLessonIdRoute = LessonLessonIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
-  '/add-lesson': typeof AddLessonRoute
   '/dashboard': typeof DashboardRoute
   '/dictionary': typeof DictionaryRoute
   '/forum': typeof ForumRoute
@@ -114,7 +107,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/add': typeof AddRoute
-  '/add-lesson': typeof AddLessonRoute
   '/dashboard': typeof DashboardRoute
   '/dictionary': typeof DictionaryRoute
   '/forum': typeof ForumRoute
@@ -131,7 +123,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/add': typeof AddRoute
-  '/add-lesson': typeof AddLessonRoute
   '/dashboard': typeof DashboardRoute
   '/dictionary': typeof DictionaryRoute
   '/forum': typeof ForumRoute
@@ -149,7 +140,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/add'
-    | '/add-lesson'
     | '/dashboard'
     | '/dictionary'
     | '/forum'
@@ -165,7 +155,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/add'
-    | '/add-lesson'
     | '/dashboard'
     | '/dictionary'
     | '/forum'
@@ -181,7 +170,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/add'
-    | '/add-lesson'
     | '/dashboard'
     | '/dictionary'
     | '/forum'
@@ -198,7 +186,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AddRoute: typeof AddRoute
-  AddLessonRoute: typeof AddLessonRoute
   DashboardRoute: typeof DashboardRoute
   DictionaryRoute: typeof DictionaryRoute
   ForumRoute: typeof ForumRoute
@@ -284,13 +271,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/add-lesson': {
-      id: '/add-lesson'
-      path: '/add-lesson'
-      fullPath: '/add-lesson'
-      preLoaderRoute: typeof AddLessonRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/add': {
       id: '/add'
       path: '/add'
@@ -318,7 +298,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AddRoute: AddRoute,
-  AddLessonRoute: AddLessonRoute,
   DashboardRoute: DashboardRoute,
   DictionaryRoute: DictionaryRoute,
   ForumRoute: ForumRoute,
