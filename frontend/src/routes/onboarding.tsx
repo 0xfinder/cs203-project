@@ -4,6 +4,8 @@ import { HTTPError } from "ky";
 import { CheckCircle2, Sparkles, PenSquare } from "lucide-react";
 import { requireOnboardingPending } from "@/lib/auth";
 import { getMe, patchMe, type RoleIntent } from "@/lib/me";
+import { setCurrentUserViewCache } from "@/lib/current-user-view";
+import { queryClient } from "@/lib/query-client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -72,11 +74,15 @@ function OnboardingPage() {
 
     setSaving(true);
     try {
-      await patchMe({
+      const updatedProfile = await patchMe({
         displayName: trimmedDisplayName,
         roleIntent,
       });
-      void navigate({ to: "/lessons" });
+      setCurrentUserViewCache(queryClient, {
+        profile: updatedProfile,
+        avatarUrl: null,
+      });
+      void navigate({ to: "/lessons", replace: true });
     } catch (requestError) {
       if (requestError instanceof HTTPError) {
         try {

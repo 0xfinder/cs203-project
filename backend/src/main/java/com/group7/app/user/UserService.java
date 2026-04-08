@@ -5,11 +5,15 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @Transactional(readOnly = true)
 public class UserService {
+
+  private static final int AUTH_SYNC_RETRY_ATTEMPTS = 6;
+  private static final long AUTH_SYNC_RETRY_DELAY_MS = 100L;
 
   private final UserRepository userRepository;
 
@@ -33,12 +37,12 @@ public class UserService {
     return userRepository.existsByEmailIgnoreCase(email);
   }
 
-  @Transactional
+  @Transactional(propagation = Propagation.NOT_SUPPORTED)
   public User createFromAuth(UUID id, String email) {
     try {
-      return userRepository.save(new User(id, email));
+      return userRepository.saveAndFlush(new User(id, email));
     } catch (DataIntegrityViolationException ex) {
-      return userRepository.findById(id).orElseThrow(() -> ex);
+      return awaitUserRow(id, email, ex);
     }
   }
 
@@ -71,5 +75,35 @@ public class UserService {
   @Transactional
   public User save(User user) {
     return userRepository.save(user);
+  }
+
+  private User awaitUserRow(UUID id, String email, DataIntegrityViolationException originalError) {
+    for (int attempt = 0; attempt < AUTH_SYNC_RETRY_ATTEMPTS; attempt++) {
+      Optional<User> existing = userRepository.findById(id);
+      if (existing.isPresent()) {
+        return existing.get();
+      }
+
+      Optional<User> existingByEmail =
+          userRepository.findByEmailIgnoreCase(email).filter(user -> id.equals(user.getId()));
+      if (existingByEmail.isPresent()) {
+        return existingByEmail.get();
+      }
+
+      if (attempt + 1 < AUTH_SYNC_RETRY_ATTEMPTS) {
+        sleepBeforeRetry();
+      }
+    }
+
+    throw originalError;
+  }
+
+  private void sleepBeforeRetry() {
+    try {
+      Thread.sleep(AUTH_SYNC_RETRY_DELAY_MS);
+    } catch (InterruptedException ex) {
+      Thread.currentThread().interrupt();
+      throw new IllegalStateException("Interrupted while waiting for auth user sync", ex);
+    }
   }
 }

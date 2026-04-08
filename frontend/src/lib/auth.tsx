@@ -4,7 +4,8 @@ import { redirect } from "@tanstack/react-router";
 import { HTTPError } from "ky";
 import { supabase } from "./supabase";
 import { getValidAccessToken } from "./session";
-import { getMe } from "./me";
+import { requiredCurrentUserViewQueryOptions } from "./current-user-view";
+import { queryClient } from "./query-client";
 
 interface AuthContext {
   user: User | null;
@@ -72,7 +73,7 @@ export async function requireAuth() {
 export async function requireOnboardingCompleted() {
   await requireAuth();
   try {
-    const me = await getMe();
+    const me = await getRequiredUserProfile();
     if (!me.onboardingCompleted) {
       throw redirect({ to: "/onboarding" });
     }
@@ -88,7 +89,7 @@ export async function requireOnboardingCompleted() {
 export async function requireOnboardingPending() {
   await requireAuth();
   try {
-    const me = await getMe();
+    const me = await getRequiredUserProfile();
     if (me.onboardingCompleted) {
       throw redirect({ to: "/lessons" });
     }
@@ -105,7 +106,7 @@ export async function requireOnboardingPending() {
 export async function requireContributorOrOnboarded() {
   await requireAuth();
   try {
-    const me = await getMe();
+    const me = await getRequiredUserProfile();
     const allowedRoles = ["CONTRIBUTOR", "MODERATOR", "ADMIN"];
     if (!me.onboardingCompleted && !allowedRoles.includes(me.role)) {
       throw redirect({ to: "/onboarding" });
@@ -122,7 +123,7 @@ export async function requireContributorOrOnboarded() {
 export async function requireContributorRole() {
   await requireAuth();
   try {
-    const me = await getMe();
+    const me = await getRequiredUserProfile();
     const allowedRoles = ["CONTRIBUTOR", "MODERATOR", "ADMIN"];
     if (!allowedRoles.includes(me.role)) {
       throw redirect({ to: me.onboardingCompleted ? "/lessons" : "/onboarding" });
@@ -139,7 +140,7 @@ export async function requireContributorRole() {
 export async function requireModeratorRole() {
   await requireAuth();
   try {
-    const me = await getMe();
+    const me = await getRequiredUserProfile();
     const allowedRoles = ["MODERATOR", "ADMIN"];
     if (!allowedRoles.includes(me.role)) {
       throw redirect({ to: me.onboardingCompleted ? "/lessons" : "/onboarding" });
@@ -151,4 +152,12 @@ export async function requireModeratorRole() {
     }
     throw error;
   }
+}
+
+async function getRequiredUserProfile() {
+  const currentUserView = await queryClient.ensureQueryData(requiredCurrentUserViewQueryOptions());
+  if (!currentUserView.profile) {
+    throw new Error("Could not load current user profile");
+  }
+  return currentUserView.profile;
 }

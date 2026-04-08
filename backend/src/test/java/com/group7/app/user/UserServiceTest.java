@@ -30,7 +30,7 @@ class UserServiceTest {
   void createFromAuthReturnsSavedUser() {
     UUID userId = UUID.randomUUID();
     User saved = new User(userId, "user@example.com");
-    when(userRepository.save(any(User.class))).thenReturn(saved);
+    when(userRepository.saveAndFlush(any(User.class))).thenReturn(saved);
 
     User created = userService.createFromAuth(userId, "user@example.com");
 
@@ -41,9 +41,25 @@ class UserServiceTest {
   void createFromAuthReturnsExistingUserAfterRaceCondition() {
     UUID userId = UUID.randomUUID();
     User existing = new User(userId, "user@example.com");
-    when(userRepository.save(any(User.class)))
+    when(userRepository.saveAndFlush(any(User.class)))
         .thenThrow(new DataIntegrityViolationException("duplicate"));
     when(userRepository.findById(userId)).thenReturn(Optional.of(existing));
+
+    User created = userService.createFromAuth(userId, "user@example.com");
+
+    assertThat(created).isSameAs(existing);
+  }
+
+  @Test
+  void createFromAuthRetriesWhileAuthTriggerRowBecomesVisible() {
+    UUID userId = UUID.randomUUID();
+    User existing = new User(userId, "user@example.com");
+    when(userRepository.saveAndFlush(any(User.class)))
+        .thenThrow(new DataIntegrityViolationException("duplicate"));
+    when(userRepository.findById(userId))
+        .thenReturn(Optional.empty())
+        .thenReturn(Optional.empty())
+        .thenReturn(Optional.of(existing));
 
     User created = userService.createFromAuth(userId, "user@example.com");
 
