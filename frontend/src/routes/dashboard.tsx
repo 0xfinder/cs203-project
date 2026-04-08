@@ -58,42 +58,45 @@ function DashboardPage() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+      <div className="mb-8 grid grid-cols-3 gap-2 sm:gap-4">
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Submissions
+          <CardHeader className="p-3 pb-1 text-center sm:pb-2">
+            <CardTitle className="text-xs font-medium leading-tight text-muted-foreground sm:text-sm">
+              <span className="block">Total</span>
+              <span className="block">Submissions</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{sortedContents.length}</div>
+          <CardContent className="px-3 pb-3 pt-0 text-center">
+            <div className="text-2xl font-bold sm:text-3xl">{sortedContents.length}</div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Upvotes
+          <CardHeader className="p-3 pb-1 text-center sm:pb-2">
+            <CardTitle className="text-xs font-medium leading-tight text-muted-foreground sm:text-sm">
+              <span className="block">Total</span>
+              <span className="block">Upvotes</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <ThumbsUp className="w-5 h-5 text-green-600" />
-              <span className="text-3xl font-bold text-green-600">{totalUpvotes}</span>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+              <ThumbsUp className="h-4 w-4 text-green-600 sm:h-5 sm:w-5" />
+              <span className="text-2xl font-bold text-green-600 sm:text-3xl">{totalUpvotes}</span>
             </div>
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Downvotes
+          <CardHeader className="p-3 pb-1 text-center sm:pb-2">
+            <CardTitle className="text-xs font-medium leading-tight text-muted-foreground sm:text-sm">
+              <span className="block">Total</span>
+              <span className="block">Downvotes</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2">
-              <ThumbsDown className="w-5 h-5 text-red-600" />
-              <span className="text-3xl font-bold text-red-600">{totalDownvotes}</span>
+          <CardContent className="px-3 pb-3 pt-0">
+            <div className="flex items-center justify-center gap-1.5 sm:gap-2">
+              <ThumbsDown className="h-4 w-4 text-red-600 sm:h-5 sm:w-5" />
+              <span className="text-2xl font-bold text-red-600 sm:text-3xl">{totalDownvotes}</span>
             </div>
           </CardContent>
         </Card>
