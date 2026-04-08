@@ -67,9 +67,11 @@ async function extractErrorMessage(e: unknown, fallback: string): Promise<string
   if (e && typeof e === "object" && "response" in e) {
     try {
       const body = await (e as { response: Response }).response.json();
-      if (body?.message) return body.message;
-    } catch (e) {
-      console.error("failed to parse error response:", e);
+      // Spring Boot includes-message: always → body.message
+      // Spring Boot Problem Details format → body.detail
+      const msg = body?.message || body?.detail;
+      if (msg && msg !== "No message available") return msg;
+    } catch {
       /* ignore parse errors */
     }
   }
