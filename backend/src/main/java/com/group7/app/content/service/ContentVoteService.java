@@ -123,10 +123,12 @@ public class ContentVoteService {
         contentVoteRepository.countByContentIdAndVoteType(
             contentId, ContentVote.VoteType.THUMBS_DOWN);
     ContentVote.VoteType userVote =
-        contentVoteRepository
-            .findByContentIdAndUserId(contentId, userId)
-            .map(ContentVote::getVoteType)
-            .orElse(null);
+        userId == null
+            ? null
+            : contentVoteRepository
+                .findByContentIdAndUserId(contentId, userId)
+                .map(ContentVote::getVoteType)
+                .orElse(null);
     return new ContentVoteSummaryResponse(contentId, thumbsUp, thumbsDown, userVote);
   }
 }

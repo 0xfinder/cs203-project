@@ -121,6 +121,27 @@ class ContentVoteServiceTest {
   }
 
   @Test
+  void getApprovedContentsWithVotesReturnsNullUserVoteForGuests() {
+    Content approved = new Content("rizz", "charisma", "example", "creator@example.com");
+    org.springframework.test.util.ReflectionTestUtils.setField(approved, "id", 3L);
+    approved.setStatus(Content.Status.APPROVED);
+
+    when(contentRepository.findByStatus(Content.Status.APPROVED)).thenReturn(List.of(approved));
+    when(contentVoteRepository.countByContentIdAndVoteType(3L, ContentVote.VoteType.THUMBS_UP))
+        .thenReturn(2L);
+    when(contentVoteRepository.countByContentIdAndVoteType(3L, ContentVote.VoteType.THUMBS_DOWN))
+        .thenReturn(1L);
+    when(userRepository.findByEmailIgnoreCase("creator@example.com")).thenReturn(Optional.empty());
+
+    var responses = contentVoteService.getApprovedContentsWithVotes(null);
+
+    assertThat(responses).hasSize(1);
+    assertThat(responses.getFirst().thumbsUp()).isEqualTo(2L);
+    assertThat(responses.getFirst().thumbsDown()).isEqualTo(1L);
+    assertThat(responses.getFirst().userVote()).isNull();
+  }
+
+  @Test
   void getApprovedContentsWithVotesForSubmitterFiltersInRepository() {
     UUID userId = UUID.randomUUID();
     Content approved = new Content("rizz", "charisma", "example", "creator@example.com");

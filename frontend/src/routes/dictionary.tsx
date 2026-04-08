@@ -1,7 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState, useEffect } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 import { Search, BookOpen, Quote, Sparkles, ThumbsDown, ThumbsUp, Trash } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,15 +15,14 @@ import {
   type ContentVoteType,
   type ContentWithVotesResponse,
 } from "@/features/content/useContentData";
-import { requireOnboardingCompleted } from "@/lib/auth";
 import { getMe } from "@/lib/me";
 import { api } from "@/lib/api";
 import Dialog, { DialogTrigger, DialogContent } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { AppPageShell } from "@/components/app-page-shell";
+import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
 
 export const Route = createFileRoute("/dictionary")({
-  beforeLoad: requireOnboardingCompleted,
   component: DictionaryPage,
 });
 
@@ -77,6 +76,7 @@ function groupByLetter(groups: TermGroup[]): Record<string, TermGroup[]> {
 
 function DictionaryPage() {
   const queryClient = useQueryClient();
+  const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
   const { data: contents, isLoading, error } = useApprovedContentsWithVotes();
   const castVote = useCastContentVote();
   const clearVote = useClearContentVote();
@@ -85,28 +85,10 @@ function DictionaryPage() {
 
   const termGroups = useMemo(() => (contents ? buildTermGroups(contents) : []), [contents]);
   const deleteMutation = useDeleteContent();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isContributor, setIsContributor] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    void import("@/lib/me").then(({ getMe }) => {
-      void getMe()
-        .then((me) => {
-          if (!mounted) return;
-          setIsAdmin(me.role === "ADMIN" || me.role === "MODERATOR");
-          setIsContributor(
-            me.role === "CONTRIBUTOR" || me.role === "ADMIN" || me.role === "MODERATOR",
-          );
-        })
-        .catch(() => {
-          /* ignore */
-        });
-    });
-    return () => {
-      mounted = false;
-    };
-  }, []);
+  const profile = currentUserViewQuery.data?.profile ?? null;
+  const isAdmin = profile?.role === "ADMIN" || profile?.role === "MODERATOR";
+  const isContributor =
+    profile?.role === "CONTRIBUTOR" || profile?.role === "ADMIN" || profile?.role === "MODERATOR";
 
   // Add lingo form state (contributors only)
   const [termInput, setTermInput] = useState("");
@@ -191,6 +173,20 @@ function DictionaryPage() {
           </div>
         </div>
       </div>
+
+      {!profile && (
+        <Card className="mb-6 border-primary/20 bg-primary/5">
+          <CardContent className="flex flex-col gap-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+            <span className="text-muted-foreground">
+              Browse the public dictionary now, then{" "}
+              <span className="font-semibold text-foreground">log in to vote or contribute</span>.
+            </span>
+            <Button asChild size="sm" variant="outline" className="shrink-0">
+              <Link to="/login">Log in</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       {/* search bar + stats */}
       <div className="mb-6 space-y-3">
@@ -377,9 +373,11 @@ function DictionaryPage() {
                     <div className="space-y-3">
                       {group.entries.map((entry) => {
                         const userVote = entry.userVote;
-                        const voteBusy = castVote.isPending || clearVote.isPending;
+                        const canVote = Boolean(profile);
+                        const voteBusy = !canVote || castVote.isPending || clearVote.isPending;
 
                         const handleVote = (voteType: ContentVoteType) => {
+                          if (!canVote) return;
                           if (userVote === voteType) {
                             clearVote.mutate({ contentId: entry.content.id });
                           } else {
@@ -404,6 +402,7 @@ function DictionaryPage() {
                                   onClick={() => handleVote("THUMBS_UP")}
                                   disabled={voteBusy}
                                   className="gap-1"
+                                  title={canVote ? "Vote helpful" : "Log in to vote"}
                                 >
                                   <ThumbsUp className="size-3" />
                                   <span>{entry.thumbsUp}</span>
@@ -415,6 +414,7 @@ function DictionaryPage() {
                                   onClick={() => handleVote("THUMBS_DOWN")}
                                   disabled={voteBusy}
                                   className="gap-1"
+                                  title={canVote ? "Vote unhelpful" : "Log in to vote"}
                                 >
                                   <ThumbsDown className="size-3" />
                                   <span>{entry.thumbsDown}</span>

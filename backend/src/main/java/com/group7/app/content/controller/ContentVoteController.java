@@ -67,8 +67,12 @@ public class ContentVoteController {
   @GetMapping("/approved-with-votes")
   @Operation(summary = "Get approved content with vote totals")
   public List<ContentWithVotesResponse> getApprovedWithVotes(@AuthenticationPrincipal Jwt jwt) {
-    UUID userId = parseUserId(jwt);
-    userService.findById(userId).orElseGet(() -> userService.createFromAuth(userId, getEmail(jwt)));
+    UUID userId = jwt != null ? parseUserId(jwt) : null;
+    if (jwt != null && userId != null) {
+      userService
+          .findById(userId)
+          .orElseGet(() -> userService.createFromAuth(userId, getEmail(jwt)));
+    }
     return contentVoteService.getApprovedContentsWithVotes(userId);
   }
 

@@ -44,6 +44,8 @@ public class SecurityConfig {
                     // Allow anyone to view approved content
                     .requestMatchers(HttpMethod.GET, "/api/contents/approved/**")
                     .permitAll()
+                    .requestMatchers(HttpMethod.GET, "/api/contents/approved-with-votes")
+                    .permitAll()
 
                     // Only Contributors and Admins can submit new content
                     .requestMatchers(HttpMethod.POST, "/api/contents")

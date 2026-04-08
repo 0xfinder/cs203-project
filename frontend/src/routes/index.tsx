@@ -139,6 +139,34 @@ function MonoFunLanding() {
             </Button>
           </div>
 
+          <div
+            className="mb-16 flex flex-wrap items-center justify-center gap-3 animate-fade-in-up"
+            style={{ animationDelay: "0.5s" }}
+          >
+            <Button
+              asChild
+              variant="secondary"
+              size="lg"
+              className="rounded-full px-6 py-5 shadow-lg transition-all duration-300 hover:-translate-y-0.5"
+            >
+              <Link to="/dictionary" className="flex items-center gap-2">
+                <Search className="h-4 w-4" />
+                Browse Dictionary
+              </Link>
+            </Button>
+            <Button
+              asChild
+              variant="secondary"
+              size="lg"
+              className="rounded-full px-6 py-5 shadow-lg transition-all duration-300 hover:-translate-y-0.5"
+            >
+              <Link to="/forum" className="flex items-center gap-2">
+                <MessageCircle className="h-4 w-4" />
+                Visit Forum
+              </Link>
+            </Button>
+          </div>
+
           {/* Enhanced product preview */}
           <div
             className="bg-card/95 backdrop-blur-xl border border-border/50 shadow-2xl p-8 max-w-lg mx-auto mb-12 hover:shadow-3xl transition-all duration-500 hover:scale-105 hover:-translate-y-2 animate-fade-in-up"
@@ -215,6 +243,16 @@ function MonoFunLanding() {
                 Look up approved slang terms, definitions, and examples in a searchable reference
                 library.
               </p>
+              <Button
+                asChild
+                variant="ghost"
+                className="mt-5 px-0 text-primary hover:bg-transparent"
+              >
+                <Link to="/dictionary" className="inline-flex items-center gap-2">
+                  Open dictionary
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
             </div>
 
             <div className="group p-8 rounded-3xl bg-card/80 backdrop-blur-sm border border-border/50 shadow-lg hover:shadow-2xl transition-all duration-700 hover:-translate-y-4 hover:border-primary/30 hover:bg-card/90">
@@ -226,6 +264,16 @@ function MonoFunLanding() {
                 Ask questions, share examples, and see how the community uses slang in everyday
                 conversation.
               </p>
+              <Button
+                asChild
+                variant="ghost"
+                className="mt-5 px-0 text-primary hover:bg-transparent"
+              >
+                <Link to="/forum" className="inline-flex items-center gap-2">
+                  Open forum
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
             </div>
           </div>
 
