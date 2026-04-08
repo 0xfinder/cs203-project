@@ -1,8 +1,14 @@
 package com.group7.app.forum.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.group7.app.forum.dto.ForumMediaSignedUrlRequest;
 import com.group7.app.user.User;
 import com.group7.app.user.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -24,6 +30,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/forum/media")
+@Tag(name = "Forum", description = "Q&A forum endpoints")
 public class ForumMediaController {
 
   private static final String JWK_SET_SUFFIX = "/auth/v1/.well-known/jwks.json";
@@ -49,17 +56,27 @@ public class ForumMediaController {
   }
 
   @PostMapping("/signed-url")
+  @Operation(
+      summary = "Create a signed URL for forum media",
+      description =
+          "Creates a temporary signed URL for a file already uploaded to forum storage. "
+              + "This endpoint supports the forum image upload flow when the storage bucket is "
+              + "not publicly readable.")
+  @ApiResponses({
+    @ApiResponse(responseCode = "200", description = "Signed URL created"),
+    @ApiResponse(responseCode = "400", description = "Missing or invalid request data"),
+    @ApiResponse(responseCode = "401", description = "Authentication required"),
+    @ApiResponse(responseCode = "403", description = "Forum access requires completed onboarding"),
+    @ApiResponse(responseCode = "503", description = "Forum media signing is not configured")
+  })
   public ResponseEntity<?> signedUrl(
-      @AuthenticationPrincipal Jwt jwt, @RequestBody Map<String, Object> body)
+      @AuthenticationPrincipal Jwt jwt, @Valid @RequestBody ForumMediaSignedUrlRequest request)
       throws IOException, InterruptedException {
     User user = resolveUser(jwt);
     requireOnboardingCompleted(user);
-    String bucket = (String) body.getOrDefault("bucket", "forum-media");
-    String path = (String) body.get("path");
-    Integer expires = (Integer) body.getOrDefault("expires", 60 * 60 * 24);
-    if (path == null || path.isBlank()) {
-      return ResponseEntity.badRequest().body(Map.of("error", "missing path"));
-    }
+    String bucket = request.bucketOrDefault();
+    String path = request.normalizedPath();
+    int expires = request.expiresOrDefault();
     if (supabaseUrl == null) {
       return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
           .body(Map.of("error", "forum media signing is not configured"));

@@ -322,24 +322,15 @@ async function uploadForumImage(file: File, userId: string): Promise<string | nu
       }
     }
 
-    // Fallback: ask backend to sign the object using the service role (more reliable)
+    // Fallback: ask the backend to sign the object via the authenticated API client
     try {
-      const res = await fetch(
-        `${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8080"}/api/forum/media/signed-url`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ bucket: FORUM_MEDIA_BUCKET, path, expires: 60 * 60 * 24 }),
-        },
-      );
-      if (res.ok) {
-        const json = await res.json();
-        const signedUrl =
-          (json as any)?.signedUrl ?? (json as any)?.signedURL ?? (json as any)?.signed_url ?? null;
-        if (signedUrl) return signedUrl;
-      } else {
-        console.warn("forum upload: backend signed-url failed", res.status);
-      }
+      const json = await api
+        .post("forum/media/signed-url", {
+          json: { bucket: FORUM_MEDIA_BUCKET, path, expires: 60 * 60 * 24 },
+        })
+        .json<Record<string, string | undefined>>();
+      const signedUrl = json.signedUrl ?? json.signedURL ?? json.signed_url ?? null;
+      if (signedUrl) return signedUrl;
     } catch (e) {
       console.error("forum upload: backend signed-url error", e);
     }
