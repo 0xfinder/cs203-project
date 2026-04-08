@@ -145,10 +145,10 @@ export function ContributorLessonsPanel() {
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
-        <Card className="border-border/70 shadow-sm">
-          <CardHeader className="border-b border-border/70 bg-secondary/25 pb-4">
+        <Card className="overflow-hidden border-border/70 py-0 shadow-sm">
+          <div className="flex min-h-20 items-center border-b border-border/70 bg-secondary/25 px-6">
             <CardTitle className="text-base">{STATUS_LABELS[activeStatus]}</CardTitle>
-          </CardHeader>
+          </div>
           <CardContent className="p-3">
             {isLoading ? (
               <div className="rounded-2xl border border-dashed border-border/80 px-4 py-6 text-sm text-muted-foreground">
@@ -206,7 +206,7 @@ export function ContributorLessonsPanel() {
         <div className="min-w-0">
           {!selectedLesson ? (
             <Card className="border-border/70 shadow-sm">
-              <CardContent className="flex min-h-[420px] flex-col items-center justify-center px-6 py-12 text-center">
+              <CardContent className="flex min-h-[420px] flex-col items-center justify-start px-6 py-12 text-center">
                 <div className="flex size-14 items-center justify-center rounded-2xl bg-secondary text-muted-foreground">
                   <FileText className="size-6" />
                 </div>

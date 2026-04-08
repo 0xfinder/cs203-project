@@ -253,7 +253,7 @@ function MarkdownToolbar({
   uploading: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-0.5 rounded-t-md border border-b-0 bg-muted/40 px-1.5 py-1">
+    <div className="flex flex-wrap items-center gap-0.5 border-b border-border/80 bg-muted/40 px-1.5 py-1">
       {MD_ACTIONS.map((action) => (
         <button
           key={action.label}
@@ -401,7 +401,7 @@ function MarkdownTextarea({
   );
 
   return (
-    <div>
+    <div className="overflow-hidden rounded-md border border-border/80 bg-background shadow-xs">
       <MarkdownToolbar
         textareaRef={textareaRef}
         onImageUpload={handleImageUpload}
@@ -410,7 +410,7 @@ function MarkdownTextarea({
       />
       <textarea
         ref={textareaRef}
-        className="border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full min-w-0 resize-none rounded-b-md border bg-transparent px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 dark:bg-input/30"
+        className="placeholder:text-muted-foreground focus-visible:ring-ring/50 w-full min-w-0 resize-none bg-transparent px-3 py-2 text-sm transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50"
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
