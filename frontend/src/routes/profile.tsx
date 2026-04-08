@@ -15,7 +15,6 @@ import { requireAuth, useAuth } from "@/lib/auth";
 import { patchMe, type MeResponse, type RoleIntent, type UserRole } from "@/lib/me";
 import { queryClient } from "@/lib/query-client";
 import { supabase } from "@/lib/supabase";
-import { api } from "@/lib/api";
 import { applyTheme, getStoredTheme } from "@/lib/theme";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { AppPageShell } from "@/components/app-page-shell";
@@ -87,10 +86,7 @@ function ProfilePage() {
   const [dark, setDark] = useState<boolean>(() => getStoredTheme() === "dark");
   const [rolePanelOpen, setRolePanelOpen] = useState(false);
   const [roleChanging, setRoleChanging] = useState(false);
-  const allowDevRoleChange = import.meta.env.VITE_ALLOW_DEV_ROLE_CHANGE === "true";
-  const availableRoles: UserRole[] = allowDevRoleChange
-    ? ["LEARNER", "CONTRIBUTOR", "ADMIN"]
-    : ["LEARNER", "CONTRIBUTOR"];
+  const availableRoles: UserRole[] = ["LEARNER", "CONTRIBUTOR"];
 
   useEffect(() => {
     applyTheme(dark ? "dark" : "light");
@@ -276,31 +272,15 @@ function ProfilePage() {
         nextAvatarUrl = uploadResult.nextAvatarUrl;
       }
 
-      if (r === "ADMIN") {
-        // persist profile fields first, then request dev-role change
-        const payload = buildPatchPayload(avatarPath);
-        await patchMe(payload as any);
-
-        const updated = await api
-          .post("users/me/dev-role", { searchParams: { role: r } })
-          .json<MeResponse>();
-        setMeProfile(updated);
-        setUserRole(updated.role);
-        setCurrentUserViewCache(queryClient, { profile: updated, avatarUrl: nextAvatarUrl });
-        setSaveSuccess(`Role updated to ${updated.role} (dev)`);
-        setMeAvatarUrl(nextAvatarUrl);
-        setAvatarPreview(nextAvatarUrl);
-      } else {
-        const payload = buildPatchPayload(avatarPath);
-        payload.roleIntent = r === "CONTRIBUTOR" ? "CONTRIBUTOR" : "LEARNER";
-        const updated = await patchMe(payload as any);
-        setMeProfile(updated);
-        setUserRole(updated.role);
-        setCurrentUserViewCache(queryClient, { profile: updated, avatarUrl: nextAvatarUrl });
-        setSaveSuccess(`Role updated to ${updated.role}`);
-        setMeAvatarUrl(nextAvatarUrl);
-        setAvatarPreview(nextAvatarUrl);
-      }
+      const payload = buildPatchPayload(avatarPath);
+      payload.roleIntent = r === "CONTRIBUTOR" ? "CONTRIBUTOR" : "LEARNER";
+      const updated = await patchMe(payload as any);
+      setMeProfile(updated);
+      setUserRole(updated.role);
+      setCurrentUserViewCache(queryClient, { profile: updated, avatarUrl: nextAvatarUrl });
+      setSaveSuccess(`Role updated to ${updated.role}`);
+      setMeAvatarUrl(nextAvatarUrl);
+      setAvatarPreview(nextAvatarUrl);
       resetAvatarInput();
       setAvatarRemoved(false);
     } catch (err) {
@@ -517,16 +497,11 @@ function ProfilePage() {
                             <p className="text-xs text-muted-foreground">
                               {r === "LEARNER"
                                 ? "Focus on lessons and review drills"
-                                : r === "CONTRIBUTOR"
-                                  ? "Submit and help improve community entries"
-                                  : "Admin (testing only)"}
+                                : "Submit and help improve community entries"}
                             </p>
                           </Button>
                         ))}
                       </div>
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Admin option is intended for testing only.
-                      </p>
                     </div>
                   )}
                 </div>
@@ -565,16 +540,11 @@ function ProfilePage() {
                               <p className="text-xs text-muted-foreground">
                                 {r === "LEARNER"
                                   ? "Focus on lessons and review drills"
-                                  : r === "CONTRIBUTOR"
-                                    ? "Submit and help improve community entries"
-                                    : "Admin (testing only)"}
+                                  : "Submit and help improve community entries"}
                               </p>
                             </Button>
                           ))}
                         </div>
-                        <p className="mt-2 text-xs text-muted-foreground">
-                          Admin option is intended for testing only.
-                        </p>
                       </div>
                     )}
                   </div>

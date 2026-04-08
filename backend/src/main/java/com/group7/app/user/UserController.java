@@ -4,17 +4,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.UUID;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -24,12 +20,9 @@ import org.springframework.web.server.ResponseStatusException;
 public class UserController {
 
   private final UserService userService;
-  private final org.springframework.core.env.Environment env;
-  private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
-  public UserController(UserService userService, org.springframework.core.env.Environment env) {
+  public UserController(UserService userService) {
     this.userService = userService;
-    this.env = env;
   }
 
   @GetMapping("/me")
@@ -84,49 +77,6 @@ public class UserController {
             normalizeOptional(request.gender()),
             normalizeOptional(request.avatarColor()),
             avatarPath);
-    return UserMeResponse.fromUser(updated, userService.isOnboardingCompleted(updated));
-  }
-
-  @PostMapping("/me/dev-role")
-  @Operation(summary = "Dev: set current user's role (dev only)")
-  public UserMeResponse setMyRoleDev(@AuthenticationPrincipal Jwt jwt, @RequestParam String role) {
-    // Allow when explicitly enabled via environment variable or when running
-    // with the H2 in-memory fallback (local development). This makes local
-    // testing simpler while preserving the opt-in guarded check for production.
-    String allow = System.getenv("ALLOW_DEV_ROLE_CHANGE");
-    boolean enabled = "true".equalsIgnoreCase(allow);
-    if (!enabled) {
-      String dsUrl = env.getProperty("spring.datasource.url", "");
-      if (dsUrl != null && dsUrl.contains("h2:mem")) {
-        enabled = true;
-      }
-    }
-    if (!enabled) {
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Dev role changes are disabled");
-    }
-
-    UUID userId = parseUserId(jwt);
-    User user =
-        userService
-            .findById(userId)
-            .orElseGet(() -> userService.createFromAuth(userId, getEmail(jwt)));
-
-    Role newRole;
-    try {
-      newRole = Role.valueOf(role.trim().toUpperCase());
-    } catch (IllegalArgumentException ex) {
-      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role");
-    }
-
-    user.setRole(newRole);
-    User updated;
-    try {
-      updated = userService.save(user);
-    } catch (Exception ex) {
-      log.error("Failed to save user while setting dev role", ex);
-      throw new ResponseStatusException(
-          HttpStatus.INTERNAL_SERVER_ERROR, "Failed to set role: " + ex.getMessage());
-    }
     return UserMeResponse.fromUser(updated, userService.isOnboardingCompleted(updated));
   }
 
