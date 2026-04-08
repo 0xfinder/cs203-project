@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { Link, createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getValidAccessToken } from "@/lib/session";
@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { HTTPError } from "ky";
 import { isAppNavPath, type AppNavPath } from "@/lib/app-nav";
+import { ArrowLeft } from "lucide-react";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: async () => {
@@ -128,105 +129,115 @@ function LoginPage() {
   };
 
   return (
-    <div className="flex flex-1 items-center justify-center bg-background px-4">
-      <Card className="w-full max-w-md bg-card shadow-lg">
-        <Tabs
-          value={tab}
-          onValueChange={(value) => {
-            setTab(value);
-            setError(null);
-            setSuccess(null);
-          }}
+    <div className="flex flex-1 items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-md space-y-4">
+        <Link
+          to="/"
+          className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
         >
-          <CardHeader className="px-8 pt-8">
-            <CardTitle className="text-center text-2xl">
-              {tab === "login" ? "Sign in" : "Create an account"}
-            </CardTitle>
-            <CardDescription className="text-center">
-              {tab === "login"
-                ? "Log in to your AlphaLingo account"
-                : "Sign up to start learning Gen-Alpha culture"}
-            </CardDescription>
-            <TabsList className="mt-3 grid w-full grid-cols-2 rounded-xl bg-muted/70 p-1">
-              <TabsTrigger value="login" className="rounded-lg">
-                Sign In
-              </TabsTrigger>
-              <TabsTrigger value="signup" className="rounded-lg">
-                Sign Up
-              </TabsTrigger>
-            </TabsList>
-          </CardHeader>
-          <CardContent className="px-8 pb-8">
-            {error && (
-              <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            {success && (
-              <p className="mb-4 rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
-                {success}
-              </p>
-            )}
+          <ArrowLeft className="h-4 w-4" />
+          Back to home
+        </Link>
 
-            <TabsContent value="login" className="mt-0">
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="login-email">Email</Label>
-                  <Input
-                    id="login-email"
-                    type="email"
-                    placeholder="name@example.com"
-                    ref={emailRef}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="login-password">Password</Label>
-                  <Input
-                    id="login-password"
-                    type="password"
-                    placeholder="••••••••"
-                    ref={passwordRef}
-                    required
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Logging in…" : "Login"}
-                </Button>
-              </form>
-            </TabsContent>
+        <Card className="w-full bg-card shadow-lg">
+          <Tabs
+            value={tab}
+            onValueChange={(value) => {
+              setTab(value);
+              setError(null);
+              setSuccess(null);
+            }}
+          >
+            <CardHeader className="px-8 pt-8">
+              <CardTitle className="text-center text-2xl">
+                {tab === "login" ? "Sign in" : "Create an account"}
+              </CardTitle>
+              <CardDescription className="text-center">
+                {tab === "login"
+                  ? "Log in to your AlphaLingo account"
+                  : "Sign up to start learning Gen-Alpha culture"}
+              </CardDescription>
+              <TabsList className="mt-3 grid w-full grid-cols-2 rounded-xl bg-muted/70 p-1">
+                <TabsTrigger value="login" className="rounded-lg">
+                  Sign In
+                </TabsTrigger>
+                <TabsTrigger value="signup" className="rounded-lg">
+                  Sign Up
+                </TabsTrigger>
+              </TabsList>
+            </CardHeader>
+            <CardContent className="px-8 pb-8">
+              {error && (
+                <p className="mb-4 rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+              {success && (
+                <p className="mb-4 rounded-md bg-green-500/10 px-3 py-2 text-sm text-green-700 dark:text-green-400">
+                  {success}
+                </p>
+              )}
 
-            <TabsContent value="signup" className="mt-0">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder="name@example.com"
-                    ref={emailRef}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <Input
-                    id="signup-password"
-                    type="password"
-                    placeholder="••••••••"
-                    ref={passwordRef}
-                    required
-                    minLength={6}
-                  />
-                </div>
-                <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? "Creating account…" : "Sign up"}
-                </Button>
-              </form>
-            </TabsContent>
-          </CardContent>
-        </Tabs>
-      </Card>
+              <TabsContent value="login" className="mt-0">
+                <form onSubmit={handleLogin} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="login-email">Email</Label>
+                    <Input
+                      id="login-email"
+                      type="email"
+                      placeholder="name@example.com"
+                      ref={emailRef}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="login-password">Password</Label>
+                    <Input
+                      id="login-password"
+                      type="password"
+                      placeholder="••••••••"
+                      ref={passwordRef}
+                      required
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Logging in…" : "Login"}
+                  </Button>
+                </form>
+              </TabsContent>
+
+              <TabsContent value="signup" className="mt-0">
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      placeholder="name@example.com"
+                      ref={emailRef}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <Input
+                      id="signup-password"
+                      type="password"
+                      placeholder="••••••••"
+                      ref={passwordRef}
+                      required
+                      minLength={6}
+                    />
+                  </div>
+                  <Button type="submit" className="w-full" disabled={loading}>
+                    {loading ? "Creating account…" : "Sign up"}
+                  </Button>
+                </form>
+              </TabsContent>
+            </CardContent>
+          </Tabs>
+        </Card>
+      </div>
     </div>
   );
 }
