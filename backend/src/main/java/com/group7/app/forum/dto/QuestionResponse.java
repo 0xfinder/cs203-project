@@ -11,4 +11,5 @@ public record QuestionResponse(
     String createdAt,
     long answerCount,
     List<AnswerResponse> answers,
-    VoteSummary votes) {}
+    VoteSummary votes,
+    boolean resolved) {}

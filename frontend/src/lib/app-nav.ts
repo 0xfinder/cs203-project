@@ -8,6 +8,7 @@ import {
   MessageCircleMore,
   BarChart3,
   Trophy,
+  TrendingUp,
 } from "lucide-react";
 import type { UserRole } from "./me";
 
@@ -20,7 +21,8 @@ export type AppNavPath =
   | "/profile"
   | "/forum"
   | "/leaderboard"
-  | "/dashboard";
+  | "/dashboard"
+  | "/analytics";
 
 export interface AppNavItem {
   to: AppNavPath;
@@ -41,6 +43,12 @@ export const APP_NAV_ITEMS: readonly AppNavItem[] = [
     to: "/leaderboard",
     label: "Leaderboard",
     icon: Trophy,
+    access: "authenticated",
+  },
+  {
+    to: "/analytics",
+    label: "Progress",
+    icon: TrendingUp,
     access: "authenticated",
   },
   {

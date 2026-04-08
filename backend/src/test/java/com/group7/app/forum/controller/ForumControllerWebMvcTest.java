@@ -82,9 +82,10 @@ class ForumControllerWebMvcTest {
             new AuthorInfo(null, "Kai", null, null, null),
             "2026-01-01T10:00:00",
             0L,
-            new VoteSummary(0, 0, null));
+            new VoteSummary(0, 0, null),
+            false);
 
-    when(questionService.getQuestions(PageRequest.of(0, 10)))
+    when(questionService.getQuestions(PageRequest.of(0, 10), null))
         .thenReturn(new PageImpl<>(List.of(question), PageRequest.of(0, 10), 1));
     when(answerService.getAnswerCounts(List.of(1L))).thenReturn(Map.of(1L, 0L));
     when(forumMappingService.toQuestionListItemResponses(List.of(question), null, Map.of(1L, 0L)))
@@ -137,7 +138,8 @@ class ForumControllerWebMvcTest {
             "2026-01-01T10:00:00",
             0L,
             List.of(),
-            new VoteSummary(0, 0, null));
+            new VoteSummary(0, 0, null),
+            false);
 
     when(userService.findById(userId)).thenReturn(Optional.of(user));
     when(userService.isOnboardingCompleted(user)).thenReturn(true);

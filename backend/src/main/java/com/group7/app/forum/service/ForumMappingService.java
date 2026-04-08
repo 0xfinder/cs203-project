@@ -42,7 +42,8 @@ public class ForumMappingService {
                     resolveAuthorInfo(question.getAuthorId(), question.getAuthor(), userCache),
                     question.getCreatedAt() != null ? question.getCreatedAt().toString() : null,
                     answerCounts.getOrDefault(question.getId(), 0L),
-                    voteSummaries.getOrDefault(question.getId(), new VoteSummary(0, 0, null))))
+                    voteSummaries.getOrDefault(question.getId(), new VoteSummary(0, 0, null)),
+                    question.isResolved()))
         .toList();
   }
 
@@ -71,7 +72,8 @@ public class ForumMappingService {
         q.getCreatedAt() != null ? q.getCreatedAt().toString() : null,
         mappedAnswers.size(),
         mappedAnswers,
-        questionVotes.getOrDefault(q.getId(), new VoteSummary(0, 0, null)));
+        questionVotes.getOrDefault(q.getId(), new VoteSummary(0, 0, null)),
+        q.isResolved());
   }
 
   public List<AnswerResponse> toAnswerResponses(List<Answer> answers, UUID currentUserId) {

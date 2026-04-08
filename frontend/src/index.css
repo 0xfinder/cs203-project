@@ -227,3 +227,17 @@ body {
     @apply inline-flex transform items-center justify-center rounded-lg border-2 border-primary bg-transparent px-6 py-3 font-semibold text-primary shadow-lg transition duration-200 ease-in-out hover:scale-105 hover:bg-primary/10 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-background;
   }
 }
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  15%       { transform: translateX(-6px); }
+  30%       { transform: translateX(6px); }
+  45%       { transform: translateX(-5px); }
+  60%       { transform: translateX(5px); }
+  75%       { transform: translateX(-3px); }
+  90%       { transform: translateX(3px); }
+}
+
+.animate-shake {
+  animation: shake 0.45s ease-in-out;
+}

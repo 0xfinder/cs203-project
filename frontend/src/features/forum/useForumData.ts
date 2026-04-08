@@ -33,6 +33,7 @@ export type QuestionListItemResp = {
   createdAt: string;
   answerCount: number;
   votes: VoteSummary;
+  resolved: boolean;
 };
 
 export type ForumQuestionPageResp = {
@@ -46,13 +47,17 @@ export type ForumQuestionPageResp = {
 
 export const FORUM_QUERY_KEY = ["forum"] as const;
 
-export function forumQuestionsQueryOptions(page: number, size: number) {
+export function forumQuestionsQueryOptions(page: number, size: number, search?: string) {
   return queryOptions({
-    queryKey: [...FORUM_QUERY_KEY, "questions", page, size],
+    queryKey: [...FORUM_QUERY_KEY, "questions", page, size, search ?? ""],
     queryFn: () =>
       api
         .get("forum/questions", {
-          searchParams: { page, size },
+          searchParams: {
+            page,
+            size,
+            ...(search && search.trim() ? { q: search.trim() } : {}),
+          },
         })
         .json<ForumQuestionPageResp>(),
     staleTime: 30_000,
