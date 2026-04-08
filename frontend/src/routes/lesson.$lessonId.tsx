@@ -479,7 +479,8 @@ function LessonPage() {
                       size="sm"
                       variant="ghost"
                       onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
-                      className="absolute left-0 top-1/2 z-20 -translate-y-1/2 -translate-x-full"
+                      className="absolute left-0 top-1/2 z-20 hidden -translate-y-1/2 -translate-x-full lg:inline-flex"
+                      disabled={currentIndex === 0}
                     >
                       <ChevronLeft className="size-4" />
                     </Button>
@@ -490,7 +491,7 @@ function LessonPage() {
                         void goNext();
                       }}
                       disabled={submitAttempt.isPending || !canContinue}
-                      className="absolute right-0 top-1/2 z-20 -translate-y-1/2 translate-x-full"
+                      className="absolute right-0 top-1/2 z-20 hidden -translate-y-1/2 translate-x-full lg:inline-flex"
                     >
                       <ChevronRight className="size-4" />
                     </Button>
@@ -520,6 +521,30 @@ function LessonPage() {
                       : "Continue"}
                     <ArrowRight className="size-4" />
                   </Button>
+                )}
+                {(isContributor || isAdmin) && (
+                  <div className="grid grid-cols-2 gap-3 lg:hidden">
+                    <Button
+                      size="lg"
+                      className="gap-2"
+                      onClick={() => setCurrentIndex((i) => Math.max(0, i - 1))}
+                      disabled={currentIndex === 0}
+                    >
+                      <ChevronLeft className="size-4" />
+                      Previous
+                    </Button>
+                    <Button
+                      size="lg"
+                      className="gap-2"
+                      onClick={() => {
+                        void goNext();
+                      }}
+                      disabled={submitAttempt.isPending || !canContinue}
+                    >
+                      {isLast ? "Finish" : "Next"}
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
                 )}
                 {/* Arrows moved adjacent to the step card above (to the sides) */}
 
