@@ -313,7 +313,6 @@ function ProfilePage() {
   };
 
   const displayName = profile.name.trim() || user?.email?.split("@")[0] || "unknown user";
-  const avatarColor = profile.avatarColor || "#475569";
 
   return (
     <AppPageShell contentClassName="max-w-4xl">
@@ -358,7 +357,7 @@ function ProfilePage() {
                 <UserAvatar
                   name={displayName}
                   avatarPath={avatarRemoved ? null : (meProfile.avatarPath ?? null)}
-                  avatarColor={avatarColor}
+                  avatarColor={profile.avatarColor || null}
                   avatarUrl={avatarPreview}
                   className="h-20 w-20 text-sm font-semibold shadow"
                   fallbackClassName="text-lg"
