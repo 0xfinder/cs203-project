@@ -1,7 +1,7 @@
 import { Link, Outlet, createRootRoute, useRouterState } from "@tanstack/react-router";
 import { useState } from "react";
 import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { Ellipsis } from "lucide-react";
+import { ArrowLeft, Compass, Ellipsis } from "lucide-react";
 import {
   type AppNavItem,
   type AppNavPath,
@@ -40,8 +40,62 @@ export const Route = createRootRoute({
       <pre className="mt-2 whitespace-pre-wrap text-xs text-red-400">{error.stack}</pre>
     </div>
   ),
+  notFoundComponent: GlobalNotFoundPage,
   component: RootComponent,
 });
+
+function GlobalNotFoundPage() {
+  const pathname = useRouterState({
+    select: (state) => state.location.pathname,
+  });
+
+  return (
+    <div className="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-12">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute left-[-4rem] top-[10%] h-56 w-56 rounded-full bg-primary/12 blur-3xl sm:h-72 sm:w-72" />
+        <div className="absolute right-[-5rem] top-[18%] h-64 w-64 rounded-full bg-chart-3/12 blur-3xl sm:h-80 sm:w-80" />
+        <div className="absolute bottom-[-4rem] left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-chart-2/10 blur-3xl sm:h-96 sm:w-96" />
+      </div>
+
+      <div className="relative flex w-full max-w-2xl flex-col items-center text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background/75 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <Compass className="size-3.5" />
+          Lost In Translation
+        </div>
+
+        <div className="mt-6 space-y-4">
+          <p className="text-6xl font-black leading-none tracking-[-0.08em] text-primary sm:text-7xl">
+            404
+          </p>
+          <div className="space-y-2">
+            <h1 className="text-3xl font-black tracking-tight text-foreground sm:text-4xl">
+              this page is giving nonexistent
+            </h1>
+            <p className="max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">
+              Requested route does not exist.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 w-full rounded-2xl border border-border/70 bg-background/70 px-4 py-3 text-left">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+            Requested Path
+          </p>
+          <p className="mt-1 break-all font-mono text-sm text-foreground">{pathname}</p>
+        </div>
+
+        <div className="mt-6 w-full">
+          <Button asChild size="lg" variant="outline" className="w-full">
+            <Link to="/">
+              <ArrowLeft className="size-4" />
+              Back To Home
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function RootComponent() {
   const { profile } = Route.useLoaderData();
