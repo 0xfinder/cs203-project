@@ -135,3 +135,20 @@ export async function requireContributorRole() {
     throw error;
   }
 }
+
+export async function requireModeratorRole() {
+  await requireAuth();
+  try {
+    const me = await getMe();
+    const allowedRoles = ["MODERATOR", "ADMIN"];
+    if (!allowedRoles.includes(me.role)) {
+      throw redirect({ to: me.onboardingCompleted ? "/lessons" : "/onboarding" });
+    }
+  } catch (error) {
+    if (error instanceof HTTPError && error.response.status === 401) {
+      await supabase.auth.signOut();
+      throw redirect({ to: "/login" });
+    }
+    throw error;
+  }
+}

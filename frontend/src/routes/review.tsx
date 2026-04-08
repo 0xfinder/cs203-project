@@ -10,8 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { requireOnboardingCompleted } from "@/lib/auth";
-import { getMe } from "@/lib/me";
+import { requireModeratorRole } from "@/lib/auth";
 import {
   usePendingLessons,
   useUnits,
@@ -21,6 +20,11 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { AppPageShell } from "@/components/app-page-shell";
+
+export const Route = createFileRoute("/review")({
+  beforeLoad: requireModeratorRole,
+  component: ReviewPage,
+});
 
 function ReviewPage() {
   const queryClient = useQueryClient();
@@ -38,7 +42,6 @@ function ReviewPage() {
       // ignore storage errors
     }
   }, []);
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [reviewData, setReviewData] = useState<Record<number, { comment?: string }>>({});
   const pageSize = 10;
@@ -78,26 +81,8 @@ function ReviewPage() {
   const totalPages = response?.totalPages || 0;
   const totalElements = response?.totalElements || 0;
 
-  useEffect(() => {
-    let mounted = true;
-    getMe()
-      .then((u: any) => {
-        if (!mounted) return;
-        const role = u?.role || "LEARNER";
-        setHasAccess(role === "MODERATOR" || role === "ADMIN");
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setHasAccess(false);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
   // Admin-only debug: if no pending lessons appear, fetch raw server endpoints to inspect
   useEffect(() => {
-    if (hasAccess !== true) return;
     if ((lessonItems?.length ?? 0) > 0) {
       setDebugInfo(null);
       return;
@@ -125,7 +110,7 @@ function ReviewPage() {
     return () => {
       mounted = false;
     };
-  }, [hasAccess, lessonItems]);
+  }, [lessonItems]);
 
   // For pending lessons that don't include firstStepType/firstQuestionType, fetch their first step so we can show Type on the card.
   useEffect(() => {
@@ -264,16 +249,8 @@ function ReviewPage() {
   const termCount = termItems.length;
   const lessonCount = lessonItems.length;
 
-  if (isLoading || hasAccess === null) {
+  if (isLoading) {
     return <div className="p-8 text-center">Loading pending items...</div>;
-  }
-  if (hasAccess === false) {
-    return (
-      <div className="p-8 text-center text-destructive">
-        <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
-        <p>Only moderators and admins can review items.</p>
-      </div>
-    );
   }
   return (
     <AppPageShell contentClassName="max-w-4xl">
@@ -748,8 +725,3 @@ function ReviewPage() {
     </AppPageShell>
   );
 }
-
-export const Route = createFileRoute("/review")({
-  beforeLoad: requireOnboardingCompleted,
-  component: ReviewPage,
-});
