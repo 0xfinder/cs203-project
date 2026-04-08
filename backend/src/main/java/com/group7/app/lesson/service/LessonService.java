@@ -217,7 +217,24 @@ public class LessonService {
     return saved;
   }
 
-  public List<Lesson> listLessons(User actor, Long unitId, LessonStatus status) {
+  public List<Lesson> listLessons(User actor, Long unitId, LessonStatus status, boolean mine) {
+    if (mine) {
+      requireRole(actor, Role.CONTRIBUTOR, Role.MODERATOR, Role.ADMIN);
+      List<Lesson> ownLessons =
+          status != null
+              ? lessonRepository.findByCreatedByAndStatusOrderByUpdatedAtDescIdDesc(
+                  actor.getId(), status)
+              : lessonRepository.findByCreatedByOrderByUpdatedAtDescIdDesc(actor.getId());
+
+      if (unitId != null) {
+        return ownLessons.stream()
+            .filter(lesson -> lesson.getUnit().getId().equals(unitId))
+            .toList();
+      }
+
+      return ownLessons;
+    }
+
     boolean canSeeAll = isAdminOrModerator(actor);
 
     LessonStatus effectiveStatus = status;

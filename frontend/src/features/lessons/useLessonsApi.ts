@@ -12,6 +12,7 @@ export interface LessonSummary {
   orderIndex: number;
   status: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED";
   publishedAt?: string | null;
+  submittedBy?: string | null;
 }
 
 export interface UnitData {
@@ -304,6 +305,21 @@ export function useLessons(unitId?: number) {
       api
         .get("lessons", {
           searchParams: unitId ? { unitId } : undefined,
+        })
+        .json<LessonSummary[]>(),
+  });
+}
+
+export function useMyLessons(status?: "DRAFT" | "PENDING_REVIEW" | "APPROVED" | "REJECTED") {
+  return useQuery({
+    queryKey: [...LESSONS_KEY, "mine", status ?? "all"],
+    queryFn: () =>
+      api
+        .get("lessons", {
+          searchParams: {
+            mine: true,
+            ...(status ? { status } : {}),
+          },
         })
         .json<LessonSummary[]>(),
   });

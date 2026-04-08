@@ -57,9 +57,12 @@ public class LessonController {
   public List<LessonSummaryResponse> listLessons(
       @AuthenticationPrincipal Jwt jwt,
       @RequestParam(required = false) Long unitId,
-      @RequestParam(required = false) LessonStatus status) {
+      @RequestParam(required = false) LessonStatus status,
+      @RequestParam(defaultValue = "false") boolean mine) {
     User actor = authContextService.resolveUser(jwt);
-    return lessonService.listLessons(actor, unitId, status).stream().map(this::toSummary).toList();
+    return lessonService.listLessons(actor, unitId, status, mine).stream()
+        .map(this::toSummary)
+        .toList();
   }
 
   @GetMapping("/{lessonId}")

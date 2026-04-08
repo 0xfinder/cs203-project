@@ -49,7 +49,7 @@ public class UnitController {
         .map(
             unit -> {
               List<LessonSummaryResponse> lessons =
-                  lessonService.listLessons(actor, unit.getId(), null).stream()
+                  lessonService.listLessons(actor, unit.getId(), null, false).stream()
                       .filter(lesson -> lesson.getUnit().getId().equals(unit.getId()))
                       .map(this::toLessonSummary)
                       .toList();
@@ -89,7 +89,7 @@ public class UnitController {
             new LessonService.UnitPatchInput(
                 request.title(), request.description(), request.orderIndex()));
     List<LessonSummaryResponse> lessons =
-        lessonService.listLessons(actor, unit.getId(), null).stream()
+        lessonService.listLessons(actor, unit.getId(), null, false).stream()
             .filter(lesson -> lesson.getUnit().getId().equals(unit.getId()))
             .map(this::toLessonSummary)
             .toList();

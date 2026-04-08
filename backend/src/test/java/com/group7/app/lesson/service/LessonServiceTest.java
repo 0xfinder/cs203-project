@@ -299,10 +299,43 @@ class LessonServiceTest {
     when(lessonRepository.findByStatusOrderByOrderIndexAsc(LessonStatus.APPROVED))
         .thenReturn(List.of(approved));
 
-    List<Lesson> lessons = lessonService.listLessons(learner, null, LessonStatus.DRAFT);
+    List<Lesson> lessons = lessonService.listLessons(learner, null, LessonStatus.DRAFT, false);
 
     assertThat(lessons).containsExactly(approved);
     verify(lessonRepository).findByStatusOrderByOrderIndexAsc(LessonStatus.APPROVED);
+  }
+
+  @Test
+  void listLessonsForContributorMineReturnsOwnNonApprovedLessons() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Unit unit = new Unit("Core", "core", "desc", 1);
+    ReflectionTestUtils.setField(unit, "id", 7L);
+
+    Lesson draft = lesson(LessonStatus.DRAFT, contributor.getId());
+    draft.setUnit(unit);
+    Lesson rejected = lesson(LessonStatus.REJECTED, contributor.getId());
+    rejected.setUnit(unit);
+    when(lessonRepository.findByCreatedByOrderByUpdatedAtDescIdDesc(contributor.getId()))
+        .thenReturn(List.of(rejected, draft));
+
+    List<Lesson> lessons = lessonService.listLessons(contributor, null, null, true);
+
+    assertThat(lessons).containsExactly(rejected, draft);
+    verify(lessonRepository).findByCreatedByOrderByUpdatedAtDescIdDesc(contributor.getId());
+  }
+
+  @Test
+  void listLessonsForContributorMineCanFilterByStatus() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Lesson pending = lesson(LessonStatus.PENDING_REVIEW, contributor.getId());
+    when(lessonRepository.findByCreatedByAndStatusOrderByUpdatedAtDescIdDesc(
+            contributor.getId(), LessonStatus.PENDING_REVIEW))
+        .thenReturn(List.of(pending));
+
+    List<Lesson> lessons =
+        lessonService.listLessons(contributor, null, LessonStatus.PENDING_REVIEW, true);
+
+    assertThat(lessons).containsExactly(pending);
   }
 
   @Test
