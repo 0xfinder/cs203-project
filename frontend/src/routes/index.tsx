@@ -144,16 +144,17 @@ function MonoFunLanding() {
             className="bg-card/95 backdrop-blur-xl border border-border/50 shadow-2xl p-8 max-w-lg mx-auto mb-12 hover:shadow-3xl transition-all duration-500 hover:scale-105 hover:-translate-y-2 animate-fade-in-up"
             style={{ animationDelay: "0.6s" }}
           >
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-primary/10 rounded-2xl flex items-center justify-center shadow-lg">
+            <div className="mb-6 grid grid-cols-[auto_1fr_auto] items-center gap-4 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 shadow-lg">
                 <BookOpen className="h-6 w-6 text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm text-muted-foreground font-medium uppercase tracking-wide">
                   Example lesson
                 </p>
                 <p className="font-bold text-foreground text-2xl">rizz</p>
               </div>
+              <div className="h-12 w-12" aria-hidden="true" />
             </div>
             <p className="text-card-foreground mb-4 font-medium text-lg">Charm or charisma.</p>
             <div className="bg-gradient-to-r from-muted/60 to-muted/30 rounded-xl p-4 border-l-4 border-primary shadow-inner">
