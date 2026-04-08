@@ -1,4 +1,12 @@
-import { type ReactNode, type RefObject, useEffect, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  type RefObject,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type DragEndEvent,
   DndContext,
@@ -10,10 +18,30 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { BookOpenText, Layers3, ListOrdered, Plus, Save, Trash2 } from "lucide-react";
+import {
+  BookOpenText,
+  CornerDownRight,
+  Layers3,
+  ListOrdered,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from "@/components/ui/command";
+import Dialog, { DialogContent } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -73,6 +101,43 @@ type StepEditorState = {
   recapTakeaways: string;
 };
 
+type ApprovedLessonEntry = {
+  unit: UnitData;
+  lesson: LessonSummary;
+};
+
+type CurriculumSearchEntry =
+  | {
+      id: string;
+      kind: "unit";
+      unitId: number;
+      title: string;
+      subtitle: string;
+      badgeLabel: string;
+      searchValue: string;
+    }
+  | {
+      id: string;
+      kind: "lesson";
+      unitId: number;
+      lessonId: number;
+      title: string;
+      subtitle: string;
+      badgeLabel: string;
+      searchValue: string;
+    }
+  | {
+      id: string;
+      kind: "step";
+      unitId: number;
+      lessonId: number;
+      stepId: number;
+      title: string;
+      subtitle: string;
+      badgeLabel: string;
+      searchValue: string;
+    };
+
 function createChoice() {
   return { id: Date.now() + Math.random(), text: "", isCorrect: false };
 }
@@ -129,6 +194,85 @@ function reorderByIds<T extends { id: number }>(items: T[], activeId: number, ov
   const [moved] = next.splice(activeIndex, 1);
   next.splice(overIndex, 0, moved);
   return next;
+}
+
+function normalizeSearchText(...parts: Array<string | number | null | undefined>) {
+  return parts
+    .filter((part): part is string | number => part !== null && part !== undefined)
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function payloadString(payload: Record<string, unknown> | null, key: string) {
+  const value = payload?.[key];
+  return typeof value === "string" ? value : "";
+}
+
+function payloadStringArray(payload: Record<string, unknown> | null, key: string) {
+  const value = payload?.[key];
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item): item is string => typeof item === "string" && item.trim().length > 0);
+}
+
+function stepTypeLabel(stepType: LessonStepPayload["stepType"]) {
+  switch (stepType) {
+    case "TEACH":
+      return "Learn";
+    case "QUESTION":
+      return "Question";
+    case "DIALOGUE":
+      return "Dialogue";
+    case "RECAP":
+      return "Recap";
+  }
+}
+
+function stepSearchSummary(step: LessonStepPayload) {
+  if (step.stepType === "TEACH") {
+    return normalizeSearchText(
+      payloadString(step.payload, "title"),
+      payloadString(step.payload, "body"),
+      payloadString(step.payload, "example"),
+    );
+  }
+
+  if (step.stepType === "QUESTION") {
+    return normalizeSearchText(
+      step.question?.prompt,
+      step.question?.explanation,
+      step.question?.choices.map((choice) => choice.text).join(" "),
+      step.question?.acceptedAnswers.join(" "),
+    );
+  }
+
+  if (step.stepType === "DIALOGUE") {
+    return normalizeSearchText(step.dialogueText, payloadString(step.payload, "dialogueText"));
+  }
+
+  return normalizeSearchText(
+    payloadString(step.payload, "headline"),
+    payloadString(step.payload, "summary"),
+    payloadStringArray(step.payload, "takeaways").join(" "),
+  );
+}
+
+function stepPreview(step: LessonStepPayload) {
+  const summary = stepSearchSummary(step);
+  return summary || `${stepTypeLabel(step.stepType)} step`;
+}
+
+function resultBadgeTone(kind: CurriculumSearchEntry["kind"]) {
+  switch (kind) {
+    case "unit":
+      return "bg-chart-2/12 text-chart-2";
+    case "lesson":
+      return "bg-chart-1/12 text-chart-1";
+    case "step":
+      return "bg-chart-5/12 text-chart-5";
+  }
 }
 
 function normalizeApprovedLessonCollection(
@@ -474,10 +618,18 @@ async function buildStepWriteInputFromExistingStep(step: LessonStepPayload, orde
   };
 }
 
-function mergeNodeRefs<T>(...refs: Array<(node: T | null) => void>) {
-  return (node: T | null) => {
-    refs.forEach((ref) => ref(node));
-  };
+function scrollNodeIntoView(node: HTMLElement | null) {
+  if (!node) {
+    return;
+  }
+
+  window.requestAnimationFrame(() => {
+    node.scrollIntoView({
+      block: "nearest",
+      inline: "nearest",
+      behavior: "smooth",
+    });
+  });
 }
 
 function BoardColumn({
@@ -525,11 +677,13 @@ function ReorderableListItem({
   id,
   selected,
   onSelect,
+  itemRef,
   children,
 }: {
   id: string;
   selected: boolean;
   onSelect: () => void;
+  itemRef?: React.RefObject<HTMLButtonElement | null>;
   children: ReactNode;
 }) {
   const {
@@ -544,7 +698,13 @@ function ReorderableListItem({
   return (
     <button
       type="button"
-      ref={mergeNodeRefs<HTMLButtonElement>(setDragNodeRef, setDropNodeRef)}
+      ref={(node) => {
+        setDragNodeRef(node);
+        setDropNodeRef(node);
+        if (itemRef) {
+          itemRef.current = node;
+        }
+      }}
       onClick={onSelect}
       className={cn(
         "w-full rounded-none border-b border-border/70 px-4 py-3 text-left transition-colors",
@@ -596,6 +756,17 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
   const [selectedUnitId, setSelectedUnitId] = useState<number | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<number | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<number | null>(null);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
+  const [commandIndexLoading, setCommandIndexLoading] = useState(false);
+  const [commandLessonDetails, setCommandLessonDetails] = useState<Record<number, LessonDetail>>(
+    {},
+  );
+  const commandLessonDetailsRef = useRef<Record<number, LessonDetail>>({});
+  const [pendingStepJump, setPendingStepJump] = useState<{
+    lessonId: number;
+    stepId: number;
+  } | null>(null);
 
   const [unitMode, setUnitMode] = useState<EditorMode>("edit");
   const [lessonMode, setLessonMode] = useState<EditorMode>("edit");
@@ -614,15 +785,30 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
   const unitFooterRef = useRef<HTMLDivElement | null>(null);
   const lessonFooterRef = useRef<HTMLDivElement | null>(null);
   const stepFooterRef = useRef<HTMLDivElement | null>(null);
+  const commandInputRef = useRef<HTMLInputElement | null>(null);
+  const selectedUnitItemRef = useRef<HTMLButtonElement | null>(null);
+  const selectedLessonItemRef = useRef<HTMLButtonElement | null>(null);
+  const selectedStepItemRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     setBoardUnits(sortUnitsForBoard(units));
   }, [units]);
 
   const sortedUnits = useMemo(() => sortUnitsForBoard(boardUnits), [boardUnits]);
+  const approvedLessonEntries = useMemo<ApprovedLessonEntry[]>(
+    () =>
+      sortedUnits.flatMap((unit) =>
+        getApprovedLessons(unit).map((lesson) => ({
+          unit,
+          lesson,
+        })),
+      ),
+    [sortedUnits],
+  );
   const selectedUnit = sortedUnits.find((unit) => unit.id === selectedUnitId) ?? null;
   const approvedLessons = useMemo(() => getApprovedLessons(selectedUnit), [selectedUnit]);
   const selectedLesson = approvedLessons.find((lesson) => lesson.id === selectedLessonId) ?? null;
+  const deferredCommandQuery = useDeferredValue(commandQuery);
 
   const lessonDetailQuery = useLessonForEdit(selectedLesson?.id ?? 0);
   const selectedLessonDetail =
@@ -631,6 +817,73 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
       : null;
 
   const selectedStep = stepItems.find((step) => step.id === selectedStepId) ?? null;
+  const commandEntries = useMemo(() => {
+    const unitEntries: CurriculumSearchEntry[] = sortedUnits.map((unit) => ({
+      id: `unit:${unit.id}`,
+      kind: "unit",
+      unitId: unit.id,
+      title: unit.title,
+      subtitle: unit.description?.trim() || "Jump to this unit",
+      badgeLabel: `unit #${unit.orderIndex}`,
+      searchValue: normalizeSearchText("unit", unit.title, unit.description, unit.orderIndex),
+    }));
+
+    const lessonEntries: CurriculumSearchEntry[] = approvedLessonEntries.map(
+      ({ unit, lesson }) => ({
+        id: `lesson:${lesson.id}`,
+        kind: "lesson",
+        unitId: unit.id,
+        lessonId: lesson.id,
+        title: lesson.title,
+        subtitle: normalizeSearchText(unit.title, "•", lesson.description) || unit.title,
+        badgeLabel: `lesson #${lesson.orderIndex}`,
+        searchValue: normalizeSearchText(
+          "lesson",
+          unit.title,
+          lesson.title,
+          lesson.description,
+          lesson.learningObjective,
+          lesson.orderIndex,
+        ),
+      }),
+    );
+
+    const stepEntries: CurriculumSearchEntry[] = approvedLessonEntries.flatMap(
+      ({ unit, lesson }) => {
+        const detail = commandLessonDetails[lesson.id];
+        if (!detail) {
+          return [];
+        }
+
+        return [...detail.steps]
+          .sort((left, right) => left.orderIndex - right.orderIndex)
+          .map((step) => ({
+            id: `step:${step.id}`,
+            kind: "step" as const,
+            unitId: unit.id,
+            lessonId: lesson.id,
+            stepId: step.id,
+            title: `${stepTypeLabel(step.stepType)} step ${step.orderIndex}`,
+            subtitle: normalizeSearchText(unit.title, "•", lesson.title, "•", stepPreview(step)),
+            badgeLabel: `${stepTypeLabel(step.stepType).toLowerCase()} #${step.orderIndex}`,
+            searchValue: normalizeSearchText(
+              "step",
+              unit.title,
+              lesson.title,
+              stepTypeLabel(step.stepType),
+              step.orderIndex,
+              stepPreview(step),
+            ),
+          }));
+      },
+    );
+
+    return {
+      units: unitEntries,
+      lessons: lessonEntries,
+      steps: stepEntries,
+    };
+  }, [approvedLessonEntries, commandLessonDetails, sortedUnits]);
 
   useEffect(() => {
     if (sortedUnits.length === 0) {
@@ -669,6 +922,28 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
       setSelectedStepId(null);
     }
   }, [stepItems, selectedStepId]);
+
+  useEffect(() => {
+    if (
+      !pendingStepJump ||
+      selectedLessonId !== pendingStepJump.lessonId ||
+      !selectedLessonDetail
+    ) {
+      return;
+    }
+
+    const targetStep = selectedLessonDetail.steps.find(
+      (step) => step.id === pendingStepJump.stepId,
+    );
+    if (!targetStep) {
+      setPendingStepJump(null);
+      return;
+    }
+
+    setSelectedStepId(targetStep.id);
+    setStepMode("edit");
+    setPendingStepJump(null);
+  }, [pendingStepJump, selectedLessonDetail, selectedLessonId]);
 
   useEffect(() => {
     const shouldScroll = unitMode === "create" || Boolean(selectedUnitId);
@@ -733,6 +1008,146 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
     }
     setStepForm(createStateFromStep(selectedStep));
   }, [selectedStep, stepMode]);
+
+  useEffect(() => {
+    if (!selectedUnitId) {
+      return;
+    }
+    scrollNodeIntoView(selectedUnitItemRef.current);
+  }, [selectedUnitId, sortedUnits]);
+
+  useEffect(() => {
+    if (!selectedLessonId) {
+      return;
+    }
+    scrollNodeIntoView(selectedLessonItemRef.current);
+  }, [selectedLessonId, approvedLessons]);
+
+  useEffect(() => {
+    if (!selectedStepId) {
+      return;
+    }
+    scrollNodeIntoView(selectedStepItemRef.current);
+  }, [selectedStepId, stepItems]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "k" || (!event.metaKey && !event.ctrlKey)) {
+        return;
+      }
+
+      event.preventDefault();
+      setCommandOpen((current) => !current);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+    commandLessonDetailsRef.current = commandLessonDetails;
+  }, [commandLessonDetails]);
+
+  useEffect(() => {
+    if (!commandOpen) {
+      setCommandQuery("");
+      setCommandIndexLoading(false);
+    }
+  }, [commandOpen]);
+
+  useEffect(() => {
+    const approvedLessonIds = new Set(approvedLessonEntries.map(({ lesson }) => lesson.id));
+    setCommandLessonDetails((current) => {
+      const filtered = Object.fromEntries(
+        Object.entries(current).filter(([lessonId]) => approvedLessonIds.has(Number(lessonId))),
+      );
+
+      return Object.keys(filtered).length === Object.keys(current).length ? current : filtered;
+    });
+  }, [approvedLessonEntries]);
+
+  useEffect(() => {
+    if (!commandOpen) {
+      return;
+    }
+
+    const cachedDetails = approvedLessonEntries.reduce<Record<number, LessonDetail>>(
+      (acc, entry) => {
+        const cached = queryClient.getQueryData<LessonDetail>(["lessons", "edit", entry.lesson.id]);
+        if (cached) {
+          acc[entry.lesson.id] = cached;
+        }
+        return acc;
+      },
+      {},
+    );
+
+    if (Object.keys(cachedDetails).length > 0) {
+      setCommandLessonDetails((current) => {
+        let changed = false;
+        const next = { ...current };
+        for (const [lessonId, detail] of Object.entries(cachedDetails)) {
+          if (next[Number(lessonId)] !== detail) {
+            next[Number(lessonId)] = detail;
+            changed = true;
+          }
+        }
+        return changed ? next : current;
+      });
+    }
+
+    const missingEntries = approvedLessonEntries.filter(
+      ({ lesson }) => !cachedDetails[lesson.id] && !commandLessonDetailsRef.current[lesson.id],
+    );
+
+    if (missingEntries.length === 0) {
+      setCommandIndexLoading(false);
+      return;
+    }
+
+    let active = true;
+    setCommandIndexLoading(true);
+
+    void Promise.all(
+      missingEntries.map(async ({ lesson }) => {
+        try {
+          const detail = await queryClient.fetchQuery({
+            queryKey: ["lessons", "edit", lesson.id],
+            queryFn: () => api.get(`lessons/${lesson.id}`).json<LessonDetail>(),
+          });
+          return [lesson.id, detail] as const;
+        } catch {
+          return null;
+        }
+      }),
+    ).then((results) => {
+      if (!active) {
+        return;
+      }
+
+      const nextDetails = Object.fromEntries(
+        results.filter(Boolean) as Array<readonly [number, LessonDetail]>,
+      );
+      if (Object.keys(nextDetails).length > 0) {
+        setCommandLessonDetails((current) => {
+          let changed = false;
+          const next = { ...current };
+          for (const [lessonId, detail] of Object.entries(nextDetails)) {
+            if (next[Number(lessonId)] !== detail) {
+              next[Number(lessonId)] = detail;
+              changed = true;
+            }
+          }
+          return changed ? next : current;
+        });
+      }
+      setCommandIndexLoading(false);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [approvedLessonEntries, commandOpen, queryClient]);
 
   const persistUnitOrder = async (nextUnits: UnitData[]) => {
     const previousUnits = boardUnits;
@@ -1138,6 +1553,38 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
     setStepForm(createEmptyStepState());
   };
 
+  const jumpToSearchEntry = (entry: CurriculumSearchEntry) => {
+    setCommandOpen(false);
+    setCommandQuery("");
+    setUnitFeedback(null);
+    setLessonFeedback(null);
+    setStepFeedback(null);
+
+    if (entry.kind === "unit") {
+      setSelectedUnitId(entry.unitId);
+      setSelectedLessonId(null);
+      setSelectedStepId(null);
+      setUnitMode("edit");
+      return;
+    }
+
+    if (entry.kind === "lesson") {
+      setSelectedUnitId(entry.unitId);
+      setSelectedLessonId(entry.lessonId);
+      setSelectedStepId(null);
+      setUnitMode("edit");
+      setLessonMode("edit");
+      return;
+    }
+
+    setSelectedUnitId(entry.unitId);
+    setSelectedLessonId(entry.lessonId);
+    setSelectedStepId(null);
+    setUnitMode("edit");
+    setLessonMode("edit");
+    setPendingStepJump({ lessonId: entry.lessonId, stepId: entry.stepId });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -1150,10 +1597,138 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
             Reorder units, approved lessons, and lesson steps directly from one board.
           </p>
         </div>
-        <Badge variant="outline" className="w-fit bg-background/80 px-3 py-1">
-          drag to reorder
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            className="min-w-64 justify-between rounded-2xl border-dashed bg-background/80 text-muted-foreground"
+            onClick={() => setCommandOpen(true)}
+          >
+            <span className="inline-flex items-center gap-2">
+              <Search className="size-4" />
+              Search units, lessons, steps
+            </span>
+            <span className="rounded-full border border-border/80 bg-muted px-2 py-0.5 text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              {typeof navigator !== "undefined" && navigator.platform.includes("Mac")
+                ? "Cmd K"
+                : "Ctrl K"}
+            </span>
+          </Button>
+          <Badge variant="outline" className="w-fit bg-background/80 px-3 py-1">
+            drag to reorder
+          </Badge>
+        </div>
       </div>
+
+      <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
+        <DialogContent
+          title="Jump to curriculum"
+          description="Search approved units, lessons, and lesson steps, then jump straight into the board."
+          className="max-w-2xl px-6 pb-5 pt-5"
+          onOpenAutoFocus={(event: Event) => {
+            event.preventDefault();
+            commandInputRef.current?.focus();
+          }}
+        >
+          <Command shouldFilter loop>
+            <CommandInput
+              ref={commandInputRef}
+              value={commandQuery}
+              onValueChange={setCommandQuery}
+              placeholder="Search approved curriculum..."
+            />
+            <CommandList>
+              {commandIndexLoading ? (
+                <div className="border-b border-border/70 px-4 py-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  indexing approved lesson steps...
+                </div>
+              ) : null}
+              <CommandEmpty>
+                No approved units, lessons, or lesson steps match “{deferredCommandQuery.trim()}”.
+              </CommandEmpty>
+
+              <CommandGroup heading="Units">
+                {commandEntries.units.map((entry) => (
+                  <CommandItem
+                    key={entry.id}
+                    value={entry.searchValue}
+                    onSelect={() => jumpToSearchEntry(entry)}
+                  >
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-chart-2/12 text-chart-2">
+                      <Layers3 className="size-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold">{entry.title}</p>
+                      <p className="line-clamp-1 text-xs text-muted-foreground">{entry.subtitle}</p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn("border-0", resultBadgeTone(entry.kind))}
+                    >
+                      {entry.badgeLabel}
+                    </Badge>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+
+              <CommandSeparator />
+
+              <CommandGroup heading="Approved Lessons">
+                {commandEntries.lessons.map((entry) => (
+                  <CommandItem
+                    key={entry.id}
+                    value={entry.searchValue}
+                    onSelect={() => jumpToSearchEntry(entry)}
+                  >
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-chart-1/12 text-chart-1">
+                      <BookOpenText className="size-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold">{entry.title}</p>
+                      <p className="line-clamp-1 text-xs text-muted-foreground">{entry.subtitle}</p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn("border-0", resultBadgeTone(entry.kind))}
+                    >
+                      {entry.badgeLabel}
+                    </Badge>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+
+              <CommandSeparator />
+
+              <CommandGroup heading="Lesson Steps">
+                {commandEntries.steps.map((entry) => (
+                  <CommandItem
+                    key={entry.id}
+                    value={entry.searchValue}
+                    onSelect={() => jumpToSearchEntry(entry)}
+                  >
+                    <div className="flex size-10 items-center justify-center rounded-xl bg-chart-5/12 text-chart-5">
+                      <ListOrdered className="size-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold">{entry.title}</p>
+                      <p className="line-clamp-1 text-xs text-muted-foreground">{entry.subtitle}</p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={cn("border-0", resultBadgeTone(entry.kind))}
+                    >
+                      {entry.badgeLabel}
+                    </Badge>
+                    <CommandShortcut>
+                      <CornerDownRight className="size-3.5" />
+                    </CommandShortcut>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </DialogContent>
+      </Dialog>
 
       <div className="grid gap-4 lg:h-[calc(100dvh-12.5rem)] lg:grid-cols-[18rem_22rem_minmax(0,1fr)]">
         <BoardColumn
@@ -1256,6 +1831,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
                   key={unit.id}
                   id={`unit:${unit.id}`}
                   selected={selectedUnit?.id === unit.id}
+                  itemRef={selectedUnit?.id === unit.id ? selectedUnitItemRef : undefined}
                   onSelect={() => {
                     if (selectedUnit?.id === unit.id) {
                       setSelectedUnitId(null);
@@ -1426,6 +2002,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
                   key={lesson.id}
                   id={`lesson:${lesson.id}`}
                   selected={selectedLesson?.id === lesson.id}
+                  itemRef={selectedLesson?.id === lesson.id ? selectedLessonItemRef : undefined}
                   onSelect={() => {
                     if (selectedLesson?.id === lesson.id) {
                       setSelectedLessonId(null);
@@ -1906,6 +2483,7 @@ export function CurriculumBoard({ units }: { units: UnitData[] }) {
                     key={step.id}
                     id={`step:${step.id}`}
                     selected={selectedStep?.id === step.id}
+                    itemRef={selectedStep?.id === step.id ? selectedStepItemRef : undefined}
                     onSelect={() => {
                       if (selectedStep?.id === step.id) {
                         setSelectedStepId(null);
