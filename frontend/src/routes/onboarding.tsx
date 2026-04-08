@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { HTTPError } from "ky";
+import { CheckCircle2, Sparkles, PenSquare } from "lucide-react";
 import { requireOnboardingPending } from "@/lib/auth";
 import { getMe, patchMe, type RoleIntent } from "@/lib/me";
 import { Button } from "@/components/ui/button";
@@ -141,31 +142,65 @@ function OnboardingPage() {
                 <Button
                   type="button"
                   variant="outline"
+                  aria-pressed={roleIntent === "LEARNER"}
                   onClick={() => setRoleIntent("LEARNER")}
-                  className={`h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left transition ${
+                  className={`h-auto min-h-40 flex-col items-start gap-4 whitespace-normal rounded-2xl px-4 py-4 text-left transition ${
                     roleIntent === "LEARNER"
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-accent"
+                      ? "border-primary bg-primary/10 text-foreground shadow-sm ring-2 ring-primary/20"
+                      : "border-border bg-background hover:border-primary/30 hover:bg-accent"
                   }`}
                 >
-                  <p className="font-medium">Learner</p>
-                  <p className="text-sm text-muted-foreground">
-                    Focus on lessons, examples, and review drills.
+                  <div className="flex w-full items-start justify-between gap-3">
+                    <div className="flex size-11 items-center justify-center rounded-2xl bg-chart-1/12 text-chart-1">
+                      <Sparkles className="size-5" />
+                    </div>
+                    {roleIntent === "LEARNER" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/12 px-2.5 py-1 text-xs font-semibold text-primary">
+                        <CheckCircle2 className="size-3.5" />
+                        Selected
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="font-semibold">Learner</p>
+                    <p className="text-sm text-muted-foreground">
+                      Focus on lessons, examples, and review drills.
+                    </p>
+                  </div>
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Best for exploring first
                   </p>
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
+                  aria-pressed={roleIntent === "CONTRIBUTOR"}
                   onClick={() => setRoleIntent("CONTRIBUTOR")}
-                  className={`h-auto flex-col items-start gap-1 whitespace-normal rounded-lg px-4 py-3 text-left transition ${
+                  className={`h-auto min-h-40 flex-col items-start gap-4 whitespace-normal rounded-2xl px-4 py-4 text-left transition ${
                     roleIntent === "CONTRIBUTOR"
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-accent"
+                      ? "border-primary bg-primary/10 text-foreground shadow-sm ring-2 ring-primary/20"
+                      : "border-border bg-background hover:border-primary/30 hover:bg-accent"
                   }`}
                 >
-                  <p className="font-medium">Contributor</p>
-                  <p className="text-sm text-muted-foreground">
-                    Submit and help improve community knowledge entries.
+                  <div className="flex w-full items-start justify-between gap-3">
+                    <div className="flex size-11 items-center justify-center rounded-2xl bg-chart-5/12 text-chart-5">
+                      <PenSquare className="size-5" />
+                    </div>
+                    {roleIntent === "CONTRIBUTOR" ? (
+                      <span className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/12 px-2.5 py-1 text-xs font-semibold text-primary">
+                        <CheckCircle2 className="size-3.5" />
+                        Selected
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="font-semibold">Contributor</p>
+                    <p className="text-sm text-muted-foreground">
+                      Submit and help improve community knowledge entries.
+                    </p>
+                  </div>
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
+                    Best for helping build content
                   </p>
                 </Button>
               </div>

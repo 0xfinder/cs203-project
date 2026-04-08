@@ -74,7 +74,7 @@ function LeaderboardPage() {
   const getMetricValue = (entry: any) => {
     switch (sortBy) {
       case "streak":
-        return `${entry.maxCorrectStreak || 0} 🔥`;
+        return entry.maxCorrectStreak || 0;
       case "speed":
         return formatDuration(entry.avgTimeSeconds);
       default:
