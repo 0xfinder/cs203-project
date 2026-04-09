@@ -157,6 +157,10 @@ export interface ProgressItem {
   lastStepId: number | null;
 }
 
+export function getLifetimeXp(progressItems: ProgressItem[] | null | undefined) {
+  return (progressItems ?? []).reduce((sum, item) => sum + item.bestScore, 0);
+}
+
 export interface VocabMemoryItem {
   vocabItemId: number;
   term: string;

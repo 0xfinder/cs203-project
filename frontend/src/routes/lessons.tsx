@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
 import { getUnitRoadmap, getVisibleUnits, progressMap } from "@/features/lessons/lesson-roadmap";
 import { useQuery } from "@tanstack/react-query";
 import { optionalCurrentUserViewQueryOptions } from "@/lib/current-user-view";
-import { useLessonProgress, useUnits } from "@/features/lessons/useLessonsApi";
+import { getLifetimeXp, useLessonProgress, useUnits } from "@/features/lessons/useLessonsApi";
 import { AppPageShell } from "@/components/app-page-shell";
 
 export const Route = createFileRoute("/lessons")({
@@ -104,9 +104,7 @@ function LearnPage() {
   const currentLeaderboardEntry =
     leaderboardQuery.data?.find((entry) => entry.userId === profile?.id) ?? null;
   const streak = currentLeaderboardEntry?.maxCorrectStreak ?? 0;
-  const totalXP =
-    currentLeaderboardEntry?.totalScore ??
-    (progressItems ?? []).reduce((sum, item) => sum + item.bestScore, 0);
+  const totalXP = currentLeaderboardEntry?.totalScore ?? getLifetimeXp(progressItems);
 
   const isUnlocked = () => true;
 

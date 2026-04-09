@@ -13,6 +13,7 @@ import {
 import { Bar, BarChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import { Star, Flame, Zap, BookOpen, TrendingUp } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getLifetimeXp, useLessonProgress } from "@/features/lessons/useLessonsApi";
 
 export const Route = createFileRoute("/analytics")({
   beforeLoad: async () => {
@@ -89,8 +90,13 @@ function AnalyticsPage() {
     queryKey: ["analytics", "me"],
     queryFn: () => api.get("analytics/me").json<UserAnalytics>(),
   });
+  const {
+    data: progressItems,
+    isLoading: progressLoading,
+    error: progressError,
+  } = useLessonProgress();
 
-  if (isLoading) {
+  if (isLoading || progressLoading) {
     return (
       <AppPageShell contentClassName="max-w-2xl">
         <div className="animate-pulse space-y-6">
@@ -115,10 +121,15 @@ function AnalyticsPage() {
     );
   }
 
-  if (error) {
+  if (error || progressError) {
     return (
       <div className="p-8 text-center text-destructive">
-        Error loading analytics: {error instanceof Error ? error.message : "Unknown error"}
+        Error loading analytics:{" "}
+        {error instanceof Error
+          ? error.message
+          : progressError instanceof Error
+            ? progressError.message
+            : "Unknown error"}
       </div>
     );
   }
@@ -141,7 +152,7 @@ function AnalyticsPage() {
     failed: w.attempts - w.passed,
   }));
 
-  const totalXp = (data?.dailyXp ?? []).reduce((sum, d) => sum + d.xp, 0);
+  const totalXp = getLifetimeXp(progressItems);
   const hasAnyXp = last14.some((d) => d.xp > 0);
   const hasAnyWeekly = weeklyData.some((d) => d.passed + d.failed > 0);
 
