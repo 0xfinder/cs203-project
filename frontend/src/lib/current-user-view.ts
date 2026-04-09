@@ -1,13 +1,20 @@
 import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { HTTPError } from "ky";
 import { getMe, type MeResponse } from "@/lib/me";
 import { supabase } from "@/lib/supabase";
 
 const AVATAR_BUCKET = import.meta.env.VITE_SUPABASE_AVATAR_BUCKET?.trim() || "avatars";
 const CURRENT_USER_VIEW_KEY = "current-user-view";
 
+export interface CurrentUserViewError {
+  status: number | null;
+  message: string;
+}
+
 export interface CurrentUserView {
   profile: MeResponse | null;
   avatarUrl: string | null;
+  profileError?: CurrentUserViewError | null;
 }
 
 export async function resolveAvatarSignedUrl(avatarPath: string | null): Promise<string | null> {
@@ -26,47 +33,60 @@ export async function resolveAvatarSignedUrl(avatarPath: string | null): Promise
   return data.signedUrl ?? null;
 }
 
-async function fetchCurrentUserView(required: boolean): Promise<CurrentUserView> {
+async function fetchCurrentUserView(): Promise<CurrentUserView> {
   const {
     data: { session },
   } = await supabase.auth.getSession();
 
   if (!session) {
-    if (required) {
-      throw new Error("Not authenticated");
-    }
-    return { profile: null, avatarUrl: null };
+    return { profile: null, avatarUrl: null, profileError: null };
   }
 
   try {
     const profile = await getMe();
     const avatarUrl = await resolveAvatarSignedUrl(profile.avatarPath);
-    return { profile, avatarUrl };
+    return { profile, avatarUrl, profileError: null };
   } catch (error) {
-    if (required) {
-      throw error;
+    if (error instanceof HTTPError) {
+      return {
+        profile: null,
+        avatarUrl: null,
+        profileError: {
+          status: error.response.status,
+          message: error.message,
+        },
+      };
     }
-    return { profile: null, avatarUrl: null };
+    return {
+      profile: null,
+      avatarUrl: null,
+      profileError: {
+        status: null,
+        message: error instanceof Error ? error.message : "Failed to load current user profile",
+      },
+    };
   }
 }
 
-export function requiredCurrentUserViewQueryOptions() {
+function sharedCurrentUserViewQueryOptions() {
   return queryOptions({
-    queryKey: [CURRENT_USER_VIEW_KEY, "required"],
-    queryFn: () => fetchCurrentUserView(true),
+    queryKey: [CURRENT_USER_VIEW_KEY],
+    queryFn: fetchCurrentUserView,
     staleTime: 60_000,
   });
+}
+
+export function requiredCurrentUserViewQueryOptions() {
+  return sharedCurrentUserViewQueryOptions();
 }
 
 export function optionalCurrentUserViewQueryOptions() {
-  return queryOptions({
-    queryKey: [CURRENT_USER_VIEW_KEY, "optional"],
-    queryFn: () => fetchCurrentUserView(false),
-    staleTime: 60_000,
-  });
+  return sharedCurrentUserViewQueryOptions();
 }
 
 export function setCurrentUserViewCache(queryClient: QueryClient, value: CurrentUserView) {
-  queryClient.setQueryData(requiredCurrentUserViewQueryOptions().queryKey, value);
-  queryClient.setQueryData(optionalCurrentUserViewQueryOptions().queryKey, value);
+  queryClient.setQueryData(sharedCurrentUserViewQueryOptions().queryKey, {
+    ...value,
+    profileError: null,
+  } satisfies CurrentUserView);
 }

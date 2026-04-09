@@ -14,6 +14,15 @@ interface AuthContext {
   signOut: () => Promise<void>;
 }
 
+class CurrentUserProfileError extends Error {
+  readonly status: number | null;
+
+  constructor(message: string, status: number | null = null) {
+    super(message);
+    this.status = status;
+  }
+}
+
 const AuthContext = createContext<AuthContext | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -67,6 +76,13 @@ export function useAuth() {
   return context;
 }
 
+function isUnauthorizedProfileError(error: unknown) {
+  return (
+    (error instanceof HTTPError && error.response.status === 401) ||
+    (error instanceof CurrentUserProfileError && error.status === 401)
+  );
+}
+
 // use in beforeLoad on any route that requires authentication
 export async function requireAuth() {
   const token = await getValidAccessToken();
@@ -84,7 +100,7 @@ export async function requireOnboardingCompleted() {
       throw redirect({ to: "/onboarding" });
     }
   } catch (error) {
-    if (error instanceof HTTPError && error.response.status === 401) {
+    if (isUnauthorizedProfileError(error)) {
       await supabase.auth.signOut();
       throw redirect({ to: "/login" });
     }
@@ -100,7 +116,7 @@ export async function requireOnboardingPending() {
       throw redirect({ to: "/lessons" });
     }
   } catch (error) {
-    if (error instanceof HTTPError && error.response.status === 401) {
+    if (isUnauthorizedProfileError(error)) {
       await supabase.auth.signOut();
       throw redirect({ to: "/login" });
     }
@@ -118,7 +134,7 @@ export async function requireContributorOrOnboarded() {
       throw redirect({ to: "/onboarding" });
     }
   } catch (error) {
-    if (error instanceof HTTPError && error.response.status === 401) {
+    if (isUnauthorizedProfileError(error)) {
       await supabase.auth.signOut();
       throw redirect({ to: "/login" });
     }
@@ -135,7 +151,7 @@ export async function requireContributorRole() {
       throw redirect({ to: me.onboardingCompleted ? "/lessons" : "/onboarding" });
     }
   } catch (error) {
-    if (error instanceof HTTPError && error.response.status === 401) {
+    if (isUnauthorizedProfileError(error)) {
       await supabase.auth.signOut();
       throw redirect({ to: "/login" });
     }
@@ -152,7 +168,7 @@ export async function requireModeratorRole() {
       throw redirect({ to: me.onboardingCompleted ? "/lessons" : "/onboarding" });
     }
   } catch (error) {
-    if (error instanceof HTTPError && error.response.status === 401) {
+    if (isUnauthorizedProfileError(error)) {
       await supabase.auth.signOut();
       throw redirect({ to: "/login" });
     }
@@ -162,6 +178,12 @@ export async function requireModeratorRole() {
 
 async function getRequiredUserProfile() {
   const currentUserView = await queryClient.ensureQueryData(requiredCurrentUserViewQueryOptions());
+  if (currentUserView.profileError) {
+    throw new CurrentUserProfileError(
+      currentUserView.profileError.message,
+      currentUserView.profileError.status,
+    );
+  }
   if (!currentUserView.profile) {
     throw new Error("Could not load current user profile");
   }
