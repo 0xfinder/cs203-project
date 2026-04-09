@@ -332,8 +332,8 @@ function ProfilePage() {
 
         <Card className="px-4 py-3">
           <CardContent className="p-0">
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-center">
-              <div className="flex items-center gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <div className="flex min-w-0 items-center gap-4">
                 <UserAvatar
                   name={displayName}
                   avatarPath={avatarRemoved ? null : (meProfile.avatarPath ?? null)}
@@ -343,15 +343,15 @@ function ProfilePage() {
                   fallbackClassName="text-lg"
                 />
                 <div className="flex h-20 min-w-0 flex-col justify-center gap-1">
-                  <p className="text-lg font-semibold">{displayName}</p>
-                  <p className="text-sm text-muted-foreground">{user?.email ?? "unknown user"}</p>
-                  <RoleBadge role={userRole} className="w-fit" />
+                  <p className="break-words text-lg font-semibold">{displayName}</p>
+                  <p className="break-all text-sm text-muted-foreground">
+                    {user?.email ?? "unknown user"}
+                  </p>
+                  <RoleBadge role={userRole} className="w-fit max-w-full" />
                 </div>
               </div>
 
-              <div />
-
-              <div className="flex items-center justify-end gap-3">
+              <div className="flex flex-wrap items-center gap-3 md:justify-end">
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -469,19 +469,20 @@ function ProfilePage() {
               </div>
             )}
           </CardContent>
-          <CardFooter className="justify-between">
+          <CardFooter className="flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
             {!editing ? (
-              <div className="flex items-center gap-2">
+              <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
                 <div className="relative">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setRolePanelOpen((v) => !v)}
+                    className="w-full sm:w-auto"
                   >
                     Change role
                   </Button>
                   {rolePanelOpen && (
-                    <div className="absolute left-0 z-20 bottom-full mb-2 w-72 rounded-lg border border-border bg-card p-3 shadow-lg">
+                    <div className="absolute bottom-full left-0 z-20 mb-2 w-[min(18rem,calc(100vw-4rem))] rounded-lg border border-border bg-card p-3 shadow-lg">
                       <p className="mb-2 text-sm font-medium">Choose role</p>
                       <div className="grid gap-2">
                         {availableRoles.map((r) => (
@@ -505,26 +506,32 @@ function ProfilePage() {
                     </div>
                   )}
                 </div>
-                <Button type="button" onClick={() => setEditing(true)}>
+                <Button type="button" onClick={() => setEditing(true)} className="w-full sm:w-auto">
                   Edit profile
                 </Button>
-                <Button type="button" variant="outline" onClick={() => void handleSignOut()}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void handleSignOut()}
+                  className="w-full sm:w-auto"
+                >
                   Sign out
                 </Button>
               </div>
             ) : (
-              <div className="flex items-center justify-between w-full">
-                <div className="flex items-center gap-2">
+              <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                   <div className="relative">
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => setRolePanelOpen((v) => !v)}
+                      className="w-full sm:w-auto"
                     >
                       Change role
                     </Button>
                     {rolePanelOpen && (
-                      <div className="absolute left-0 z-20 bottom-full mb-2 w-72 rounded-lg border border-border bg-card p-3 shadow-lg">
+                      <div className="absolute bottom-full left-0 z-20 mb-2 w-[min(18rem,calc(100vw-4rem))] rounded-lg border border-border bg-card p-3 shadow-lg">
                         <p className="mb-2 text-sm font-medium">Choose role</p>
                         <div className="grid gap-2">
                           {availableRoles.map((r) => (
@@ -558,15 +565,26 @@ function ProfilePage() {
                       setAvatarRemoved(false);
                       resetAvatarInput();
                     }}
+                    className="w-full sm:w-auto"
                   >
                     Cancel
                   </Button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Button type="button" disabled={saving} onClick={() => void handleSave()}>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                  <Button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => void handleSave()}
+                    className="w-full sm:w-auto"
+                  >
                     {saving ? "Saving..." : "Save"}
                   </Button>
-                  <Button type="button" variant="outline" onClick={() => void handleSignOut()}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void handleSignOut()}
+                    className="w-full sm:w-auto"
+                  >
                     Sign out
                   </Button>
                 </div>
