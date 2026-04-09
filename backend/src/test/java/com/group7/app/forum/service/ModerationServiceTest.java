@@ -96,4 +96,43 @@ class ModerationServiceTest {
 
     assertThatCode(() -> service.moderateText("anything")).doesNotThrowAnyException();
   }
+
+  @Test
+  void moderateContentSupportsMarkdownImages() throws Exception {
+    String responseJson =
+        """
+        {
+          "results": [{
+            "flagged": false,
+            "categories": {
+              "harassment": false
+            }
+          }]
+        }
+        """;
+    ModerationService service = createService("sk-test", true, 200, responseJson);
+
+    assertThatCode(
+            () ->
+                service.moderateContent(
+                    "look at this ![alt](https://cdn.example.com/test.png) and explain it"))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void malformedModerationResponseFailsOpen() throws Exception {
+    ModerationService service = createService("sk-test", true, 200, "{\"unexpected\":true}");
+
+    assertThatCode(
+            () -> service.moderateTextAndImageUrl("caption", "https://cdn.example.com/a.png"))
+        .doesNotThrowAnyException();
+  }
+
+  @Test
+  void invalidJsonResponseFailsOpen() throws Exception {
+    ModerationService service = createService("sk-test", true, 200, "not-json");
+
+    assertThatCode(() -> service.moderateImageUrl("https://cdn.example.com/a.png"))
+        .doesNotThrowAnyException();
+  }
 }

@@ -57,6 +57,16 @@ class LessonStepPayloadServiceTest {
   }
 
   @Test
+  void buildQuestionPayloadRequiresAtLeastTwoMcqOptions() {
+    assertThatThrownBy(
+            () ->
+                service.buildQuestionPayload(
+                    QuestionType.MCQ, "prompt", null, List.of("one"), 0, null, null))
+        .isInstanceOf(ResponseStatusException.class)
+        .hasMessageContaining("mcq requires at least two options");
+  }
+
+  @Test
   void buildQuestionPayloadRequiresAcceptedAnswersForShortAnswer() {
     assertThatThrownBy(
             () ->
@@ -67,10 +77,36 @@ class LessonStepPayloadServiceTest {
   }
 
   @Test
+  void buildQuestionPayloadRequiresMatchPairsForMatchQuestion() {
+    assertThatThrownBy(
+            () ->
+                service.buildQuestionPayload(
+                    QuestionType.MATCH, "prompt", null, null, null, null, List.of()))
+        .isInstanceOf(ResponseStatusException.class)
+        .hasMessageContaining("matchPairs is required");
+  }
+
+  @Test
   void buildRecapPayloadRejectsNonObjectPayload() {
     assertThatThrownBy(() -> service.buildRecapPayload(JsonNodeFactory.instance.textNode("nope")))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("payload is required for recap step");
+  }
+
+  @Test
+  void readQuestionTreatsLegacyClozeAsShortAnswer() {
+    var payload =
+        objectMapper
+            .createObjectNode()
+            .put("questionType", "CLOZE")
+            .put("prompt", "Fill the blank");
+    payload.putArray("acceptedAnswers").add("rizz");
+    LessonStep step = questionStep(payload);
+
+    var question = service.readQuestion(step);
+
+    assertThat(question.questionType()).isEqualTo(QuestionType.SHORT_ANSWER);
+    assertThat(question.acceptedAnswers()).containsExactly("rizz");
   }
 
   @Test
@@ -98,6 +134,23 @@ class LessonStepPayloadServiceTest {
   }
 
   @Test
+  void evaluateRejectsMcqWithoutValidAnswerKey() {
+    var payload =
+        objectMapper.createObjectNode().put("questionType", "MCQ").put("prompt", "Pick one");
+    payload
+        .putArray("choices")
+        .addObject()
+        .put("id", 1L)
+        .put("text", "charisma")
+        .put("orderIndex", 1);
+    LessonStep step = questionStep(payload);
+
+    assertThatThrownBy(() -> service.evaluate(step, JsonNodeFactory.instance.textNode("charisma")))
+        .isInstanceOf(ResponseStatusException.class)
+        .hasMessageContaining("question has no answer key");
+  }
+
+  @Test
   void evaluateReturnsCorrectShortAnswerResultAfterNormalization() {
     LessonStep step =
         questionStep(
@@ -115,6 +168,24 @@ class LessonStepPayloadServiceTest {
     assertThat(evaluation.correct()).isTrue();
     assertThat(evaluation.correctAnswerText()).isEqualTo("no cap");
     assertThat(evaluation.evaluatedAnswer().path("acceptedAnswers")).hasSize(2);
+  }
+
+  @Test
+  void shuffledRightsReturnsOnlyNonBlankRights() {
+    var rights =
+        service.shuffledRights(
+            new LessonStepPayloadService.QuestionContent(
+                QuestionType.MATCH,
+                "prompt",
+                null,
+                List.of(),
+                List.of(
+                    new LessonStepPayloadService.MatchPairOption(1L, "rizz", "charisma", 1),
+                    new LessonStepPayloadService.MatchPairOption(2L, "cap", " ", 2),
+                    new LessonStepPayloadService.MatchPairOption(3L, "bet", null, 3)),
+                List.of()));
+
+    assertThat(rights).containsExactly("charisma");
   }
 
   @Test

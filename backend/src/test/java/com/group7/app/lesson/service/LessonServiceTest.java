@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.group7.app.lesson.model.Lesson;
 import com.group7.app.lesson.model.LessonStatus;
 import com.group7.app.lesson.model.LessonStep;
@@ -170,6 +171,30 @@ class LessonServiceTest {
   }
 
   @Test
+  void createLessonAssignsNextOrderIndexWhenMissing() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Unit unit = new Unit("Core", "core", "desc", 1);
+    ReflectionTestUtils.setField(unit, "id", 10L);
+    Lesson existingFirst = lesson(LessonStatus.APPROVED, UUID.randomUUID());
+    existingFirst.setOrderIndex(2);
+    Lesson existingSecond = lesson(LessonStatus.APPROVED, UUID.randomUUID());
+    existingSecond.setOrderIndex(4);
+
+    when(unitRepository.findById(10L)).thenReturn(Optional.of(unit));
+    when(lessonRepository.findByUnitIdOrderByOrderIndexAsc(10L))
+        .thenReturn(List.of(existingFirst, existingSecond));
+    when(lessonRepository.save(any(Lesson.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    Lesson lesson =
+        lessonService.createLesson(
+            contributor,
+            new LessonService.LessonDraftInput(10L, "Next Lesson", "Desc", null, 5, null));
+
+    assertThat(lesson.getOrderIndex()).isEqualTo(5);
+  }
+
+  @Test
   void createLessonRejectsInsufficientRole() {
     assertThatThrownBy(
             () ->
@@ -274,6 +299,22 @@ class LessonServiceTest {
   }
 
   @Test
+  void patchLessonRejectsInvalidStatusTransition() {
+    Lesson lesson = lesson(LessonStatus.DRAFT, user(Role.CONTRIBUTOR).getId());
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
+
+    assertThatThrownBy(
+            () ->
+                lessonService.patchLesson(
+                    user(Role.MODERATOR),
+                    55L,
+                    new LessonService.LessonPatchInput(
+                        null, null, null, null, null, null, LessonStatus.APPROVED, null)))
+        .isInstanceOf(ResponseStatusException.class)
+        .hasMessageContaining("invalid status transition");
+  }
+
+  @Test
   void patchLessonBlocksContributorEditsOnApprovedLesson() {
     User contributor = user(Role.CONTRIBUTOR);
     Lesson lesson = lesson(LessonStatus.APPROVED, contributor.getId());
@@ -339,6 +380,13 @@ class LessonServiceTest {
   }
 
   @Test
+  void listLessonsForMineRejectsLearner() {
+    assertThatThrownBy(() -> lessonService.listLessons(user(Role.LEARNER), null, null, true))
+        .isInstanceOf(ResponseStatusException.class)
+        .hasMessageContaining("insufficient role permissions");
+  }
+
+  @Test
   void getLessonRejectsNonOwnerForDraftLesson() {
     Lesson draftLesson = lesson(LessonStatus.DRAFT, UUID.randomUUID());
     when(lessonRepository.findById(55L)).thenReturn(Optional.of(draftLesson));
@@ -346,6 +394,27 @@ class LessonServiceTest {
     assertThatThrownBy(() -> lessonService.getLesson(user(Role.LEARNER), 55L))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("lesson is not available");
+  }
+
+  @Test
+  void getLessonAllowsOwnerToViewDraftLesson() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Lesson draftLesson = lesson(LessonStatus.DRAFT, contributor.getId());
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(draftLesson));
+
+    Lesson result = lessonService.getLesson(contributor, 55L);
+
+    assertThat(result).isSameAs(draftLesson);
+  }
+
+  @Test
+  void getLessonAllowsModeratorToViewPendingLesson() {
+    Lesson pendingLesson = lesson(LessonStatus.PENDING_REVIEW, user(Role.CONTRIBUTOR).getId());
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(pendingLesson));
+
+    Lesson result = lessonService.getLesson(user(Role.MODERATOR), 55L);
+
+    assertThat(result).isSameAs(pendingLesson);
   }
 
   @Test
@@ -386,6 +455,107 @@ class LessonServiceTest {
   }
 
   @Test
+  void createTeachStepRequiresVocabItemId() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Lesson lesson = lesson(LessonStatus.DRAFT, contributor.getId());
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
+
+    assertThatThrownBy(
+            () ->
+                lessonService.createStep(
+                    contributor,
+                    55L,
+                    new LessonService.StepWriteInput(
+                        1,
+                        StepType.TEACH,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null)))
+        .isInstanceOf(ResponseStatusException.class)
+        .hasMessageContaining("vocabItemId is required");
+  }
+
+  @Test
+  void createStepAutoAssignsPositiveOrderIndexWhenRequestedIndexIsZero() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Lesson lesson = lesson(LessonStatus.DRAFT, contributor.getId());
+    VocabItem vocabItem = new VocabItem("aura", "reputation", "example", "noun");
+    ReflectionTestUtils.setField(vocabItem, "id", 88L);
+    LessonStep existingStep = new LessonStep(lesson, 1, StepType.TEACH);
+    ReflectionTestUtils.setField(existingStep, "id", 10L);
+
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
+    when(vocabItemRepository.findById(88L)).thenReturn(Optional.of(vocabItem));
+    when(lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(55L))
+        .thenReturn(List.of(existingStep), List.of(existingStep), List.of(existingStep));
+    when(lessonStepRepository.saveAndFlush(any(LessonStep.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    LessonStep created =
+        lessonService.createStep(
+            contributor,
+            55L,
+            new LessonService.StepWriteInput(
+                0,
+                StepType.TEACH,
+                88L,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null));
+
+    assertThat(created.getOrderIndex()).isEqualTo(2);
+  }
+
+  @Test
+  void createDialogueStepBuildsDialoguePayload() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Lesson lesson = lesson(LessonStatus.DRAFT, contributor.getId());
+
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
+    when(lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(55L))
+        .thenReturn(List.of(), List.of());
+    when(lessonStepRepository.saveAndFlush(any(LessonStep.class)))
+        .thenAnswer(invocation -> invocation.getArgument(0));
+
+    LessonStep created =
+        lessonService.createStep(
+            contributor,
+            55L,
+            new LessonService.StepWriteInput(
+                1,
+                StepType.DIALOGUE,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                "  no cap  ",
+                null));
+
+    assertThat(created.getPayload().path("text").asText()).isEqualTo("no cap");
+    assertThat(created.getVocabItem()).isNull();
+  }
+
+  @Test
   void createQuestionStepRequiresPrompt() {
     User contributor = user(Role.CONTRIBUTOR);
     Lesson lesson = lesson(LessonStatus.DRAFT, contributor.getId());
@@ -412,6 +582,24 @@ class LessonServiceTest {
                         null)))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("questionType and prompt are required");
+  }
+
+  @Test
+  void deleteStepDeletesLessonWhenLastStepIsRemoved() {
+    User contributor = user(Role.CONTRIBUTOR);
+    Lesson lesson = lesson(LessonStatus.DRAFT, contributor.getId());
+    LessonStep step = new LessonStep(lesson, 1, StepType.RECAP);
+    ReflectionTestUtils.setField(step, "id", 81L);
+    step.setPayload(JsonNodeFactory.instance.objectNode().put("headline", "done"));
+
+    when(lessonRepository.findById(55L)).thenReturn(Optional.of(lesson));
+    when(lessonStepRepository.findByIdAndLessonId(81L, 55L)).thenReturn(Optional.of(step));
+    when(lessonStepRepository.findByLessonIdOrderByOrderIndexAsc(55L)).thenReturn(List.of());
+
+    lessonService.deleteStep(contributor, 55L, 81L);
+
+    verify(lessonStepRepository).delete(step);
+    verify(lessonRepository).delete(lesson);
   }
 
   private User user(Role role) {
