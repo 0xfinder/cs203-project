@@ -286,8 +286,19 @@ function AnalyticsPage() {
                     cursor={{ fill: "var(--muted)", opacity: 0.4 }}
                     content={<ChartTooltipContent />}
                   />
-                  <Bar dataKey="passed" stackId="a" fill="var(--color-primary)" radius={[0, 0, 0, 0]} />
-                  <Bar dataKey="failed" stackId="a" fill="var(--color-muted-foreground)" fillOpacity={0.35} radius={[4, 4, 0, 0]} />
+                  <Bar
+                    dataKey="passed"
+                    stackId="a"
+                    fill="var(--color-primary)"
+                    radius={[0, 0, 0, 0]}
+                  />
+                  <Bar
+                    dataKey="failed"
+                    stackId="a"
+                    fill="var(--color-muted-foreground)"
+                    fillOpacity={0.35}
+                    radius={[4, 4, 0, 0]}
+                  />
                 </BarChart>
               </ChartContainer>
               <div className="flex items-center gap-4 mt-1 px-2">
@@ -372,9 +383,11 @@ function AnalyticsPage() {
 
       {/* Current streak callout */}
       {(data?.currentStreak ?? 0) > 0 && (
-        <Card className={cn(
-          "border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20",
-        )}>
+        <Card
+          className={cn(
+            "border-orange-200 bg-orange-50 dark:border-orange-900/40 dark:bg-orange-950/20",
+          )}
+        >
           <CardContent className="py-4 px-4 flex items-center gap-3">
             <Flame className="size-8 text-orange-500 fill-orange-500 shrink-0" />
             <div>
