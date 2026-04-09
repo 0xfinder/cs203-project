@@ -95,8 +95,8 @@ function displayLabel(profile: UserProfile | null): string {
   return profile.displayName?.trim() || profile.email.split("@")[0];
 }
 
-function forumQuestionsKey(page: number, size: number) {
-  return [...FORUM_QUERY_KEY, "questions", page, size] as const;
+function forumQuestionsKey(page: number, size: number, search?: string) {
+  return [...FORUM_QUERY_KEY, "questions", page, size, search ?? ""] as const;
 }
 
 function forumAnswersKey(questionId: number) {
@@ -441,6 +441,7 @@ function QuestionCard({
   onError,
   currentPage,
   pageSize,
+  currentSearch,
 }: {
   question: QuestionListItemResp;
   isExpanded: boolean;
@@ -452,6 +453,7 @@ function QuestionCard({
   onError: (message: string) => void;
   currentPage: number;
   pageSize: number;
+  currentSearch: string;
 }) {
   const queryClient = useQueryClient();
   const [answerDraft, setAnswerDraft] = useState("");
@@ -581,7 +583,7 @@ function QuestionCard({
         })
         .json<VoteSummary>();
       queryClient.setQueryData<ForumQuestionPageResp>(
-        forumQuestionsKey(currentPage, pageSize),
+        forumQuestionsKey(currentPage, pageSize, currentSearch),
         (prev) =>
           prev
             ? {
@@ -603,7 +605,7 @@ function QuestionCard({
     try {
       const updated = await api.delete(`forum/questions/${question.id}/votes`).json<VoteSummary>();
       queryClient.setQueryData<ForumQuestionPageResp>(
-        forumQuestionsKey(currentPage, pageSize),
+        forumQuestionsKey(currentPage, pageSize, currentSearch),
         (prev) =>
           prev
             ? {
@@ -1128,6 +1130,7 @@ function ForumPage() {
               onError={setError}
               currentPage={page}
               pageSize={FORUM_PAGE_SIZE}
+              currentSearch={debouncedSearch}
             />
           ))}
 

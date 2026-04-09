@@ -4,7 +4,7 @@ import { redirect } from "@tanstack/react-router";
 import { HTTPError } from "ky";
 import { supabase } from "./supabase";
 import { getValidAccessToken } from "./session";
-import { requiredCurrentUserViewQueryOptions } from "./current-user-view";
+import { ensureCurrentUserView } from "./current-user-view";
 import { queryClient } from "./query-client";
 
 interface AuthContext {
@@ -177,7 +177,7 @@ export async function requireModeratorRole() {
 }
 
 async function getRequiredUserProfile() {
-  const currentUserView = await queryClient.ensureQueryData(requiredCurrentUserViewQueryOptions());
+  const currentUserView = await ensureCurrentUserView(queryClient);
   if (currentUserView.profileError) {
     throw new CurrentUserProfileError(
       currentUserView.profileError.message,

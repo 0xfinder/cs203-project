@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { RoleBadge } from "@/components/role-badge";
 import { UserAvatar } from "@/components/user-avatar";
 import {
-  requiredCurrentUserViewQueryOptions,
+  ensureCurrentUserView,
   resolveAvatarSignedUrl,
   setCurrentUserViewCache,
 } from "@/lib/current-user-view";
@@ -48,7 +48,7 @@ function toRoleIntent(role: UserRole): RoleIntent | undefined {
 }
 
 async function loadProfilePageData() {
-  const data = await queryClient.ensureQueryData(requiredCurrentUserViewQueryOptions());
+  const data = await ensureCurrentUserView(queryClient);
   if (!data.profile) {
     throw new Error("Could not load current user profile");
   }

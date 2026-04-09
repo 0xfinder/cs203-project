@@ -76,6 +76,19 @@ function sharedCurrentUserViewQueryOptions() {
   });
 }
 
+export async function ensureCurrentUserView(queryClient: QueryClient) {
+  const queryOptions = sharedCurrentUserViewQueryOptions();
+  const currentUserView = await queryClient.ensureQueryData(queryOptions);
+
+  // if a signed-out null profile was cached just before login, refetch once
+  // so guarded routes do not read that stale "guest" snapshot as fresh data.
+  if (!currentUserView.profile && !currentUserView.profileError) {
+    return queryClient.fetchQuery(queryOptions);
+  }
+
+  return currentUserView;
+}
+
 export function requiredCurrentUserViewQueryOptions() {
   return sharedCurrentUserViewQueryOptions();
 }
