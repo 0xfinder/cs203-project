@@ -35,7 +35,7 @@ class VocabControllerTest {
 
     ResponseEntity<VocabItem> response =
         vocabController.createVocab(
-            new VocabController.CreateVocabRequest("  rizz  ", "charisma", "example", "noun"));
+            new VocabController.CreateVocabRequest("  rizz  ", "charisma", "example"));
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isSameAs(existing);
@@ -50,7 +50,7 @@ class VocabControllerTest {
 
     ResponseEntity<VocabItem> response =
         vocabController.createVocab(
-            new VocabController.CreateVocabRequest("  rizz  ", "  charisma  ", "example", "noun"));
+            new VocabController.CreateVocabRequest("  rizz  ", "  charisma  ", "example"));
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     assertThat(response.getBody()).isSameAs(saved);
@@ -66,7 +66,7 @@ class VocabControllerTest {
 
     ResponseEntity<VocabItem> response =
         vocabController.createVocab(
-            new VocabController.CreateVocabRequest("rizz", "charisma", null, null));
+            new VocabController.CreateVocabRequest("rizz", "charisma", null));
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isSameAs(existing);
@@ -82,7 +82,7 @@ class VocabControllerTest {
     assertThatThrownBy(
             () ->
                 vocabController.createVocab(
-                    new VocabController.CreateVocabRequest("rizz", "charisma", null, null)))
+                    new VocabController.CreateVocabRequest("rizz", "charisma", null)))
         .isInstanceOf(DataIntegrityViolationException.class);
   }
 }

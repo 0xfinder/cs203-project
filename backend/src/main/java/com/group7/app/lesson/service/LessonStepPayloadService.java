@@ -32,16 +32,12 @@ public class LessonStepPayloadService {
     return JSON.objectNode();
   }
 
-  public JsonNode buildTeachPayload(
-      String title, String body, String example, String partOfSpeech) {
+  public JsonNode buildTeachPayload(String title, String body, String example) {
     ObjectNode payload = JSON.objectNode();
     payload.put("title", title);
     payload.put("body", body);
     if (example != null) {
       payload.put("example", example);
-    }
-    if (partOfSpeech != null) {
-      payload.put("partOfSpeech", partOfSpeech);
     }
     return payload;
   }

@@ -430,8 +430,6 @@ async function buildStepWriteInput(
             term: state.teachTitle.trim(),
             definition: state.teachBody.trim(),
             example: state.teachExample.trim() || null,
-            partOfSpeech:
-              initialStep?.stepType === "TEACH" ? (initialStep.vocab?.partOfSpeech ?? null) : null,
           },
         })
         .json<{ id: number }>();
@@ -446,8 +444,6 @@ async function buildStepWriteInput(
         title: state.teachTitle.trim(),
         body: state.teachBody.trim(),
         example: state.teachExample.trim() || null,
-        partOfSpeech:
-          initialStep?.stepType === "TEACH" ? (initialStep.vocab?.partOfSpeech ?? null) : null,
       },
     };
   }
@@ -557,7 +553,6 @@ async function buildStepWriteInputFromExistingStep(step: LessonStepPayload, orde
         title: readStringField(step.payload, "title") || step.vocab?.term || "",
         body: readStringField(step.payload, "body") || step.vocab?.definition || "",
         example: readStringField(step.payload, "example") || step.vocab?.exampleSentence || null,
-        partOfSpeech: step.vocab?.partOfSpeech ?? null,
       },
     };
   }

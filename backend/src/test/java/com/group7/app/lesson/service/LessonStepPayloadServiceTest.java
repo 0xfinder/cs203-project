@@ -213,7 +213,7 @@ class LessonStepPayloadServiceTest {
                 UUID.randomUUID()),
             2,
             StepType.TEACH);
-    teachStep.setPayload(service.buildTeachPayload("rizz", "charisma", "he has rizz", "noun"));
+    teachStep.setPayload(service.buildTeachPayload("rizz", "charisma", "he has rizz"));
 
     assertThat(service.sanitizePayloadForPlay(questionStep).has("answerKey")).isFalse();
     assertThat(service.sanitizePayloadForPlay(teachStep).path("title").asText()).isEqualTo("rizz");

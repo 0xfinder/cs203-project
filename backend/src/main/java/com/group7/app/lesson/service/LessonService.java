@@ -424,10 +424,7 @@ public class LessonService {
         } else {
           step.setPayload(
               lessonStepPayloadService.buildTeachPayload(
-                  vocabItem.getTerm(),
-                  vocabItem.getDefinition(),
-                  vocabItem.getExampleSentence(),
-                  vocabItem.getPartOfSpeech()));
+                  vocabItem.getTerm(), vocabItem.getDefinition(), vocabItem.getExampleSentence()));
         }
       }
       case DIALOGUE -> {

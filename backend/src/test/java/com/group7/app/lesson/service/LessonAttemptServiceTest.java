@@ -374,7 +374,7 @@ class LessonAttemptServiceTest {
     LessonStep step = new LessonStep(lesson, orderIndex, StepType.TEACH);
     ReflectionTestUtils.setField(step, "id", id);
     step.setVocabItem(vocabItem);
-    step.setPayload(payloadService.buildTeachPayload("rizz", "charisma", "example", "noun"));
+    step.setPayload(payloadService.buildTeachPayload("rizz", "charisma", "example"));
     return step;
   }
 

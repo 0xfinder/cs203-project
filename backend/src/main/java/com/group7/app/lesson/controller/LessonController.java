@@ -242,8 +242,7 @@ public class LessonController {
               step.getVocabItem().getId(),
               step.getVocabItem().getTerm(),
               step.getVocabItem().getDefinition(),
-              step.getVocabItem().getExampleSentence(),
-              step.getVocabItem().getPartOfSpeech()),
+              step.getVocabItem().getExampleSentence()),
           null,
           null,
           responsePayload);
@@ -439,8 +438,7 @@ public class LessonController {
       String dialogueText,
       JsonNode payload) {}
 
-  public record VocabPayload(
-      Long id, String term, String definition, String exampleSentence, String partOfSpeech) {}
+  public record VocabPayload(Long id, String term, String definition, String exampleSentence) {}
 
   public record QuestionPayload(
       Long id,

@@ -450,7 +450,6 @@ class LessonServiceTest {
                 null));
 
     assertThat(step.getPayload().path("title").asText()).isEqualTo("rizz");
-    assertThat(step.getPayload().path("partOfSpeech").asText()).isEqualTo("noun");
     assertThat(step.getVocabItem()).isSameAs(vocabItem);
   }
 

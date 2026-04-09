@@ -70,7 +70,6 @@ export interface VocabPayload {
   term: string;
   definition: string;
   exampleSentence: string | null;
-  partOfSpeech: string | null;
 }
 
 export interface LessonStepPayload {
