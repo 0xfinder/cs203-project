@@ -28,7 +28,85 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Run backend checks
+        id: backend_check
         run: ./gradlew check
+
+      - name: Write backend job summary
+        if: always()
+        env:
+          CHECK_OUTCOME: ${{ steps.backend_check.outcome }}
+        run: |
+          python3 - <<'PY'
+          import glob
+          import os
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+
+          summary_path = Path(os.environ["GITHUB_STEP_SUMMARY"])
+          check_outcome = os.environ.get("CHECK_OUTCOME", "unknown")
+          outcome_label = {
+              "success": "passed",
+              "failure": "failed",
+              "cancelled": "was cancelled",
+              "skipped": "was skipped",
+          }.get(check_outcome, check_outcome)
+
+          tests = failures = errors = skipped = 0
+          for report_path in glob.glob("build/test-results/test/TEST-*.xml"):
+              suite = ET.parse(report_path).getroot()
+              tests += int(suite.attrib.get("tests", 0))
+              failures += int(suite.attrib.get("failures", 0))
+              errors += int(suite.attrib.get("errors", 0))
+              skipped += int(suite.attrib.get("skipped", 0))
+
+          passed = max(tests - failures - errors - skipped, 0)
+
+          coverage_lines = []
+          jacoco_xml = Path("build/reports/jacoco/test/jacocoTestReport.xml")
+          if jacoco_xml.exists():
+              report = ET.parse(jacoco_xml).getroot()
+              counters = {
+                  counter.attrib["type"]: counter
+                  for counter in report.findall("counter")
+              }
+              for counter_type, label in (("LINE", "Line coverage"), ("BRANCH", "Branch coverage")):
+                  counter = counters.get(counter_type)
+                  if counter is None:
+                      continue
+                  missed = int(counter.attrib.get("missed", 0))
+                  covered = int(counter.attrib.get("covered", 0))
+                  total = missed + covered
+                  percent = (covered / total * 100) if total else 0.0
+                  coverage_lines.append(
+                      f"- {label}: {percent:.1f}% ({covered}/{total})"
+                  )
+
+          lines = [
+              "## Backend test summary",
+              "",
+              f"- Backend checks {outcome_label}.",
+              f"- Tests: {tests}",
+              f"- Passed: {passed}",
+              f"- Failed: {failures}",
+              f"- Errors: {errors}",
+              f"- Skipped: {skipped}",
+          ]
+
+          if coverage_lines:
+              lines.extend(["", "### Coverage", *coverage_lines])
+
+          lines.extend(
+              [
+                  "",
+                  "### Full reports",
+                  "- Download `backend-test-reports` for the Gradle HTML test report and raw JUnit XML.",
+                  "- Download `backend-jacoco-html` for the full JaCoCo HTML coverage report.",
+                  "",
+              ]
+          )
+
+          summary_path.write_text("\n".join(lines), encoding="utf-8")
+          PY
 
       - name: Upload test reports
         if: always()
