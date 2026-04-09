@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { HTTPError } from "ky";
-import { ArrowLeft, ArrowRight, RotateCcw, Sparkles, Target } from "lucide-react";
+import { ArrowLeft, ArrowRight, Lightbulb, RotateCcw, Sparkles, Target } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { QuestionStep } from "@/features/lessons/components/question-step";
 import {
+  type AiHintRequest,
   type LessonAnswer,
   type LessonStepPayload,
   type ReviseAttemptResult,
   type ReviseQueueItem,
+  useAiHint,
   useReviseQueue,
   useSubmitReviseAttempt,
 } from "@/features/lessons/useLessonsApi";
@@ -27,6 +29,7 @@ function RevisePage() {
   const navigate = useNavigate();
   const reviseQueue = useReviseQueue(SESSION_SIZE);
   const submitAttempt = useSubmitReviseAttempt();
+  const hintMutation = useAiHint();
 
   const [sessionItems, setSessionItems] = useState<ReviseQueueItem[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -34,6 +37,8 @@ function RevisePage() {
   const [tempAnswer, setTempAnswer] = useState<LessonAnswer>("");
   const [result, setResult] = useState<ReviseAttemptResult | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
+  const [hintError, setHintError] = useState<string | null>(null);
 
   const queueItems = sessionItems;
   const steps: LessonStepPayload[] = useMemo(
@@ -61,6 +66,8 @@ function RevisePage() {
       setTempAnswer("");
       setResult(null);
       setSubmitError(null);
+      setHint(null);
+      setHintError(null);
     }
   }, [reviseQueue.data?.items, sessionItems.length]);
 
@@ -83,6 +90,11 @@ function RevisePage() {
 
     setTempAnswer("");
   }, [currentStep, answersByStep]);
+
+  useEffect(() => {
+    setHint(null);
+    setHintError(null);
+  }, [currentStep?.id]);
 
   if (reviseQueue.isLoading) {
     return <div className="p-8 text-center">Loading your revise queue...</div>;
@@ -204,6 +216,19 @@ function RevisePage() {
     }
   };
 
+  const requestHint = async () => {
+    setHintError(null);
+
+    try {
+      const response = await hintMutation.mutateAsync(
+        buildHintRequest(currentQueueItem, currentStep, tempAnswer),
+      );
+      setHint(response.hint);
+    } catch (error) {
+      setHintError(await getHintErrorMessage(error));
+    }
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <div className="border-b bg-card/70 backdrop-blur">
@@ -283,6 +308,46 @@ function RevisePage() {
             <div>
               <div>
                 <QuestionStep step={currentStep} value={tempAnswer} onChange={setTempAnswer} />
+              </div>
+
+              <div className="mt-5 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    Stuck on this one? Pull a quick concept explainer.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() => {
+                      void requestHint();
+                    }}
+                    disabled={hintMutation.isPending}
+                  >
+                    <Lightbulb className="size-4" />
+                    {hintMutation.isPending ? "Loading hint..." : hint ? "Refresh hint" : "Hint"}
+                  </Button>
+                </div>
+
+                {hint ? (
+                  <Card className="border-chart-1/30 bg-chart-1/8">
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-2">
+                        <Lightbulb className="size-4 text-chart-1" />
+                        <p className="text-sm font-semibold">Concept explainer</p>
+                      </div>
+                      <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-muted-foreground">
+                        {hint}
+                      </p>
+                    </CardContent>
+                  </Card>
+                ) : null}
+
+                {hintError ? (
+                  <p className="rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                    {hintError}
+                  </p>
+                ) : null}
               </div>
 
               {submitError ? (
@@ -482,6 +547,44 @@ function formatPriorityDescription(reason: string) {
   }
 }
 
+function buildHintRequest(
+  currentQueueItem: ReviseQueueItem,
+  currentStep: LessonStepPayload,
+  answer: LessonAnswer,
+): AiHintRequest {
+  if (!currentStep.question) {
+    throw new Error("question payload missing");
+  }
+
+  return {
+    lessonTitle: currentQueueItem.lessonTitle,
+    questionType: currentStep.question.questionType,
+    prompt: currentStep.question.prompt,
+    choices:
+      currentStep.question.questionType === "MCQ"
+        ? currentStep.question.choices.map((choice) => choice.text)
+        : [],
+    matchPrompts:
+      currentStep.question.questionType === "MATCH"
+        ? currentStep.question.matchPairs.map((pair) => pair.left)
+        : [],
+    currentAnswer: formatCurrentAnswer(answer),
+  };
+}
+
+function formatCurrentAnswer(answer: LessonAnswer) {
+  if (typeof answer === "string") {
+    const trimmed = answer.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  const entries = Object.entries(answer)
+    .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    .map(([left, value]) => `${left} -> ${value}`);
+
+  return entries.length > 0 ? entries.join(", ") : null;
+}
+
 async function getSubmitErrorMessage(error: unknown) {
   if (error instanceof HTTPError) {
     const payload = (await error.response
@@ -505,4 +608,29 @@ async function getSubmitErrorMessage(error: unknown) {
   }
 
   return "Couldn't submit your revise run right now. Try again.";
+}
+
+async function getHintErrorMessage(error: unknown) {
+  if (error instanceof HTTPError) {
+    const payload = (await error.response
+      .clone()
+      .json()
+      .catch(() => null)) as { message?: string; error?: string } | null;
+
+    if (payload?.message) {
+      return payload.message;
+    }
+
+    if (payload?.error) {
+      return payload.error;
+    }
+
+    return `Couldn't load a hint right now (${error.response.status}). Try again.`;
+  }
+
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return "Couldn't load a hint right now. Try again.";
 }

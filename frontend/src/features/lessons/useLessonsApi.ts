@@ -192,6 +192,19 @@ export interface ReviseAttemptResult {
   results: AttemptResultItem[];
 }
 
+export interface AiHintRequest {
+  lessonTitle: string;
+  questionType: "MCQ" | "MATCH" | "SHORT_ANSWER";
+  prompt: string;
+  choices?: string[];
+  matchPrompts?: string[];
+  currentAnswer?: string | null;
+}
+
+export interface AiHintResponse {
+  hint: string;
+}
+
 const LESSONS_KEY = ["lessons"] as const;
 const UNITS_KEY = ["units"] as const;
 const PROGRESS_KEY = ["user-lesson-progress"] as const;
@@ -543,6 +556,12 @@ export function useSubmitReviseAttempt() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: REVISE_KEY });
     },
+  });
+}
+
+export function useAiHint() {
+  return useMutation({
+    mutationFn: (body: AiHintRequest) => api.post("ai/hint", { json: body }).json<AiHintResponse>(),
   });
 }
 
