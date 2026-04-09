@@ -206,7 +206,29 @@ function LessonPage() {
   }
 
   if (isLoading) {
-    return <div className="p-8 text-center">Loading lesson...</div>;
+    return (
+      <div className="flex flex-1 flex-col bg-background">
+        {/* top bar skeleton */}
+        <div className="flex items-center justify-between border-b px-4 py-3 animate-pulse">
+          <div className="h-8 w-8 rounded-lg bg-muted" />
+          <div className="h-2 w-48 rounded-full bg-muted" />
+          <div className="h-8 w-8 rounded-lg bg-muted" />
+        </div>
+        {/* content skeleton */}
+        <div className="flex flex-1 flex-col items-center justify-center px-4 py-10 animate-pulse gap-6 max-w-xl mx-auto w-full">
+          <div className="h-4 w-32 rounded-md bg-muted" />
+          <div className="h-7 w-3/4 rounded-md bg-muted" />
+          <div className="h-5 w-full rounded-md bg-muted" />
+          <div className="h-5 w-5/6 rounded-md bg-muted" />
+          <div className="grid grid-cols-2 gap-3 w-full mt-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-14 rounded-xl bg-muted" />
+            ))}
+          </div>
+          <div className="h-11 w-full rounded-xl bg-muted mt-2" />
+        </div>
+      </div>
+    );
   }
 
   if (!lessonData) {
