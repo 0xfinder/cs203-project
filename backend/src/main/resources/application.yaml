@@ -28,10 +28,6 @@ spring:
     show-sql: true
     open-in-view: false
 
-server:
-  error:
-    include-message: always
-
 openai:
   api-key: ${OPENAI_API_KEY:}
   moderation:

@@ -13,6 +13,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.group7.app.config.DatabaseRoleJwtAuthenticationConverter;
+import com.group7.app.config.GlobalExceptionHandler;
 import com.group7.app.config.SecurityConfig;
 import com.group7.app.forum.dto.AuthorInfo;
 import com.group7.app.forum.dto.QuestionListItemResponse;
@@ -39,14 +40,16 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 @WebMvcTest(ForumController.class)
-@Import(SecurityConfig.class)
+@Import({SecurityConfig.class, GlobalExceptionHandler.class, ForumExceptionHandler.class})
 @ActiveProfiles("test")
 class ForumControllerWebMvcTest {
 
@@ -331,5 +334,42 @@ class ForumControllerWebMvcTest {
         .andExpect(status().isForbidden());
 
     verifyNoInteractions(forumVoteService);
+  }
+
+  @Test
+  void postQuestionReturnsStructuredModerationMessage() throws Exception {
+    UUID userId = UUID.randomUUID();
+    User user = new User(userId, "user@example.com");
+    user.setRole(Role.LEARNER);
+    user.setDisplayName("Kai");
+    String moderationMessage =
+        "Your post was flagged by our content moderation system and cannot be published.";
+
+    when(userService.findById(userId)).thenReturn(Optional.of(user));
+    when(userService.isOnboardingCompleted(user)).thenReturn(true);
+    when(questionService.createQuestion(any(Question.class)))
+        .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, moderationMessage));
+
+    mockMvc
+        .perform(
+            post("/api/forum/questions")
+                .with(csrf())
+                .with(
+                    jwt()
+                        .jwt(
+                            token ->
+                                token
+                                    .subject(userId.toString())
+                                    .claim("email", "user@example.com")))
+                .contentType("application/json")
+                .content(
+                    """
+                                {
+                                  "title": "Question",
+                                  "content": "Rejected content"
+                                }
+                                """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(moderationMessage));
   }
 }

@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { getLeaderboard } from "@/lib/api";
+import { getLeaderboard, getMyLeaderboardStats, type LeaderboardEntry } from "@/lib/api";
 import { requireOnboardingCompleted } from "@/lib/auth";
 import { UserAvatar } from "@/components/user-avatar";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -40,7 +40,13 @@ function LeaderboardPage() {
     error,
   } = useQuery({
     queryKey: ["leaderboard", sortBy],
-    queryFn: () => getLeaderboard(200, sortBy),
+    queryFn: () => getLeaderboard(100, sortBy),
+  });
+
+  const myStatsQuery = useQuery({
+    queryKey: ["leaderboard", "me"],
+    queryFn: getMyLeaderboardStats,
+    enabled: !!profile?.id,
   });
 
   if (isLoading) {
@@ -101,7 +107,7 @@ function LeaderboardPage() {
     }
   };
 
-  const getMetricValue = (entry: any) => {
+  const getMetricValue = (entry: LeaderboardEntry) => {
     switch (sortBy) {
       case "streak":
         return entry.maxCorrectStreak || 0;
@@ -112,8 +118,9 @@ function LeaderboardPage() {
     }
   };
 
-  const myEntry = leaderboard?.find((e) => e.userId === profile?.id) ?? null;
-  const myRank = myEntry ? (leaderboard?.indexOf(myEntry) ?? -1) + 1 : null;
+  const myStats = myStatsQuery.data;
+  const myEntry = myStats?.entry ?? null;
+  const myPointsRank = myStats?.pointsRank ?? null;
 
   return (
     <AppPageShell contentClassName="max-w-2xl">
@@ -125,7 +132,11 @@ function LeaderboardPage() {
 
       {/* Global / My Stats tabs */}
       <div className="flex justify-center mb-6">
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "global" | "me")} className="w-full max-w-md">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as "global" | "me")}
+          className="w-full max-w-md"
+        >
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="global">
               <Trophy className="size-4 mr-2" />
@@ -141,7 +152,19 @@ function LeaderboardPage() {
 
       {activeTab === "me" && profile && (
         <div className="space-y-4 mb-6">
-          {myEntry ? (
+          {myStatsQuery.isLoading ? (
+            <Card>
+              <CardContent className="py-10 text-center text-muted-foreground text-sm">
+                Loading your stats...
+              </CardContent>
+            </Card>
+          ) : myStatsQuery.isError ? (
+            <Card>
+              <CardContent className="py-10 text-center text-destructive text-sm">
+                Could not load your leaderboard stats.
+              </CardContent>
+            </Card>
+          ) : myEntry ? (
             <>
               <Card>
                 <CardContent className="pt-4 pb-4">
@@ -154,106 +177,124 @@ function LeaderboardPage() {
                     />
                     <div>
                       <p className="font-bold">{profile.displayName || "Anonymous"}</p>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide">{profile.role}</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                        {profile.role}
+                      </p>
                     </div>
-                    {myRank && (
+                    {myPointsRank && (
                       <div className="ml-auto text-right">
-                        <p className="text-3xl font-black text-primary">#{myRank}</p>
-                        <p className="text-xs text-muted-foreground">Global rank</p>
+                        <p className="text-3xl font-black text-primary">#{myPointsRank}</p>
+                        <p className="text-xs text-muted-foreground">Global XP rank</p>
                       </div>
                     )}
                   </div>
                 </CardContent>
               </Card>
               <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground px-1">vs. community</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground px-1">
+                  vs. community
+                </p>
                 {(["points", "streak", "speed"] as const).map((metric) => {
-                  const board = leaderboard ?? [];
-                  const total = board.length;
-
-                  const rank = metric === "points"
-                    ? (board.findIndex((e) => e.userId === profile.id) ?? -1) + 1
-                    : metric === "streak"
-                    ? ([...board].sort((a, b) => (b.maxCorrectStreak ?? 0) - (a.maxCorrectStreak ?? 0)).findIndex((e) => e.userId === profile.id)) + 1
-                    : ([...board].sort((a, b) => (a.avgTimeSeconds ?? 9999) - (b.avgTimeSeconds ?? 9999)).findIndex((e) => e.userId === profile.id)) + 1;
-
-                  const topPct = total > 0 ? Math.max(1, Math.round((rank / total) * 100)) : 100;
+                  const total = myStats?.totalRankedUsers ?? 0;
+                  const rank =
+                    metric === "points"
+                      ? (myStats?.pointsRank ?? null)
+                      : metric === "streak"
+                        ? (myStats?.streakRank ?? null)
+                        : (myStats?.speedRank ?? null);
+                  const topPct =
+                    rank && total > 0 ? Math.max(1, Math.round((rank / total) * 100)) : null;
+                  const percentile =
+                    rank && total > 0
+                      ? Math.max(2, Math.round(((total - rank + 1) / total) * 100))
+                      : 0;
                   const isFirst = rank === 1;
 
-                  // Compute each player's position on 0–100 scale (higher = better)
-                  const getPos = (e: typeof board[0]) => {
-                    if (metric === "points") {
-                      const max = Math.max(...board.map((x) => x.totalScore ?? 0), 1);
-                      return ((e.totalScore ?? 0) / max) * 100;
-                    }
-                    if (metric === "streak") {
-                      const max = Math.max(...board.map((x) => x.maxCorrectStreak ?? 0), 1);
-                      return ((e.maxCorrectStreak ?? 0) / max) * 100;
-                    }
-                    // speed: lower time = rightmost (better)
-                    const times = board.filter((x) => x.avgTimeSeconds != null).map((x) => x.avgTimeSeconds!);
-                    if (times.length === 0) return 50;
-                    const min = Math.min(...times);
-                    const max = Math.max(...times);
-                    if (max === min) return 100;
-                    const t = e.avgTimeSeconds ?? max * 1.5;
-                    return Math.max(0, Math.min(100, ((max - t) / (max - min)) * 100));
-                  };
-
-                  const icon = metric === "points"
-                    ? <Star className="size-4 text-yellow-500 fill-yellow-500" />
-                    : metric === "streak"
-                    ? <Flame className="size-4 text-orange-500 fill-orange-500" />
-                    : <Zap className="size-4 text-blue-500" />;
-                  const label = metric === "points" ? "XP" : metric === "streak" ? "Streak" : "Speed";
+                  const icon =
+                    metric === "points" ? (
+                      <Star className="size-4 text-yellow-500 fill-yellow-500" />
+                    ) : metric === "streak" ? (
+                      <Flame className="size-4 text-orange-500 fill-orange-500" />
+                    ) : (
+                      <Zap className="size-4 text-blue-500" />
+                    );
+                  const label =
+                    metric === "points" ? "XP" : metric === "streak" ? "Streak" : "Speed";
+                  const value =
+                    metric === "points"
+                      ? (myEntry.totalScore?.toLocaleString() ?? "0")
+                      : metric === "streak"
+                        ? String(myEntry.maxCorrectStreak ?? 0)
+                        : formatDuration(myEntry.avgTimeSeconds);
 
                   return (
-                    <Card key={metric} className={cn("overflow-hidden", isFirst && "border-yellow-400/60 bg-yellow-50/40 dark:bg-yellow-950/20")}>
+                    <Card
+                      key={metric}
+                      className={cn(
+                        "overflow-hidden",
+                        isFirst && "border-yellow-400/60 bg-yellow-50/40 dark:bg-yellow-950/20",
+                      )}
+                    >
                       <CardContent className="pt-3 pb-3 px-4">
                         <div className="flex items-center justify-between mb-3">
                           <span className="flex items-center gap-1.5 text-sm font-semibold">
                             {icon} {label}
                           </span>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold text-muted-foreground bg-muted rounded-full px-2 py-0.5">
-                              Top {topPct}%
-                            </span>
-                            <span className={cn("text-xl font-black", isFirst ? "text-yellow-500" : "text-primary")}>
-                              #{rank}
-                              {isFirst && " 🏆"}
-                            </span>
-                            <span className="text-xs text-muted-foreground">/ {total}</span>
+                            {topPct ? (
+                              <span className="text-xs font-semibold text-muted-foreground bg-muted rounded-full px-2 py-0.5">
+                                Top {topPct}%
+                              </span>
+                            ) : null}
+                            {rank ? (
+                              <>
+                                <span
+                                  className={cn(
+                                    "text-xl font-black",
+                                    isFirst ? "text-yellow-500" : "text-primary",
+                                  )}
+                                >
+                                  #{rank}
+                                  {isFirst && " 🏆"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">/ {total}</span>
+                              </>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">Not ranked</span>
+                            )}
                           </div>
                         </div>
 
-                        {/* distribution track — every player is a dot at their real position */}
-                        <div className="relative h-5 my-1">
-                          <div className="absolute inset-x-0 top-1/2 h-1 -translate-y-1/2 bg-muted rounded-full" />
-                          {board.map((entry) => {
-                            const raw = getPos(entry);
-                            // clamp to 2–98% so dots at edges don't get clipped
-                            const pos = 2 + (raw / 100) * 96;
-                            const isMe = entry.userId === profile.id;
-                            return (
-                              <div
-                                key={entry.userId}
-                                title={isMe ? "You" : (entry.displayName || "Player")}
-                                className={cn(
-                                  "absolute rounded-full -translate-x-1/2 -translate-y-1/2",
-                                  isMe
-                                    ? cn("size-4 border-2 border-background shadow-lg z-10 ring-2",
-                                        isFirst ? "bg-yellow-400 ring-yellow-300" : "bg-primary ring-primary/40")
-                                    : "size-1.5 bg-foreground/25 z-0",
-                                )}
-                                style={{ left: `${pos}%`, top: "50%" }}
-                              />
-                            );
-                          })}
+                        <div className="flex items-end justify-between gap-3">
+                          <div>
+                            <p className="text-2xl font-black text-primary">{value}</p>
+                            <p className="text-[10px] uppercase tracking-widest text-muted-foreground">
+                              Your {label.toLowerCase()}
+                            </p>
+                          </div>
+                          {rank ? (
+                            <p className="text-xs text-muted-foreground text-right">
+                              Ahead of {Math.max(0, total - rank)} learner
+                              {Math.max(0, total - rank) === 1 ? "" : "s"}
+                            </p>
+                          ) : null}
                         </div>
 
-                        <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5">
-                          <span>Lowest</span>
-                          <span>Highest</span>
+                        <div className="mt-3 h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-full transition-all",
+                              metric === "points" && "bg-yellow-500/80",
+                              metric === "streak" && "bg-orange-500/80",
+                              metric === "speed" && "bg-blue-500/80",
+                            )}
+                            style={{ width: `${percentile}%` }}
+                          />
+                        </div>
+
+                        <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+                          <span>Lower</span>
+                          <span>Higher</span>
                         </div>
                       </CardContent>
                     </Card>
@@ -274,7 +315,7 @@ function LeaderboardPage() {
           ) : (
             <Card>
               <CardContent className="py-10 text-center text-muted-foreground text-sm">
-                Complete a lesson to appear on the leaderboard!
+                Only learner accounts appear on the leaderboard.
               </CardContent>
             </Card>
           )}
@@ -282,24 +323,24 @@ function LeaderboardPage() {
       )}
 
       {activeTab === "global" && (
-      <div className="flex justify-center mb-8">
-        <Tabs value={sortBy} onValueChange={setSortBy} className="w-full max-w-md">
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="points">
-              <Star className="size-4 mr-2" />
-              Points
-            </TabsTrigger>
-            <TabsTrigger value="streak">
-              <Flame className="size-4 mr-2" />
-              Streak
-            </TabsTrigger>
-            <TabsTrigger value="speed">
-              <Zap className="size-4 mr-2" />
-              Speed
-            </TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
+        <div className="flex justify-center mb-8">
+          <Tabs value={sortBy} onValueChange={setSortBy} className="w-full max-w-md">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="points">
+                <Star className="size-4 mr-2" />
+                Points
+              </TabsTrigger>
+              <TabsTrigger value="streak">
+                <Flame className="size-4 mr-2" />
+                Streak
+              </TabsTrigger>
+              <TabsTrigger value="speed">
+                <Zap className="size-4 mr-2" />
+                Speed
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       )}
 
       {activeTab === "global" && (
@@ -329,7 +370,9 @@ function LeaderboardPage() {
                       ) : index === 2 ? (
                         <span className="text-xl">🥉</span>
                       ) : (
-                        <span className="text-sm font-medium text-muted-foreground">{index + 1}</span>
+                        <span className="text-sm font-medium text-muted-foreground">
+                          {index + 1}
+                        </span>
                       );
 
                     return (

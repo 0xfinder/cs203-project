@@ -87,6 +87,11 @@ public class QuestionService {
 
   public Question resolveQuestion(Long id, UUID requestingUserId) {
     Question question = getQuestion(id);
+    if (question.getAuthorId() == null) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "This question was created before ownership tracking and cannot be marked resolved.");
+    }
     if (!question.getAuthorId().equals(requestingUserId)) {
       throw new ResponseStatusException(
           HttpStatus.FORBIDDEN, "Only the question author can mark it as resolved");

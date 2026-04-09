@@ -70,8 +70,7 @@ async function extractErrorMessage(e: unknown, fallback: string): Promise<string
   if (e && typeof e === "object" && "response" in e) {
     try {
       const body = await (e as { response: Response }).response.json();
-      // Spring Boot includes-message: always → body.message
-      // Spring Boot Problem Details format → body.detail
+      // forum endpoints return structured `message`; spring problem details may use `detail`
       const msg = body?.message || body?.detail;
       if (msg && msg !== "No message available") return msg;
     } catch {
@@ -557,7 +556,7 @@ function QuestionCard({
       await queryClient.invalidateQueries({ queryKey: [...FORUM_QUERY_KEY, "questions"] });
     } catch (e) {
       console.error("failed to resolve question:", e);
-      onError("Failed to update resolved status");
+      onError(await extractErrorMessage(e, "Failed to update resolved status"));
     } finally {
       setResolving(false);
     }
@@ -837,7 +836,9 @@ function ForumPage() {
     return () => clearTimeout(t);
   }, [error]);
   const currentUserViewQuery = useQuery(optionalCurrentUserViewQueryOptions());
-  const forumQuestionsQuery = useQuery(forumQuestionsQueryOptions(page, FORUM_PAGE_SIZE, debouncedSearch));
+  const forumQuestionsQuery = useQuery(
+    forumQuestionsQueryOptions(page, FORUM_PAGE_SIZE, debouncedSearch),
+  );
   const profile = (currentUserViewQuery.data && currentUserViewQuery.data.profile) || null;
   const currentUserAvatarUrl = currentUserViewQuery.data?.avatarUrl ?? null;
 
@@ -860,7 +861,9 @@ function ForumPage() {
 
   useEffect(() => {
     if (!pagination?.hasNext) return;
-    void queryClient.prefetchQuery(forumQuestionsQueryOptions(page + 1, FORUM_PAGE_SIZE, debouncedSearch));
+    void queryClient.prefetchQuery(
+      forumQuestionsQueryOptions(page + 1, FORUM_PAGE_SIZE, debouncedSearch),
+    );
   }, [page, pagination?.hasNext, queryClient, debouncedSearch]);
 
   useEffect(() => {
@@ -974,7 +977,10 @@ function ForumPage() {
 
       {/* error banner */}
       {error && (
-        <Card ref={errorBannerRef} className={cn("mb-5 border-destructive/40 bg-destructive/5", shaking && "animate-shake")}>
+        <Card
+          ref={errorBannerRef}
+          className={cn("mb-5 border-destructive/40 bg-destructive/5", shaking && "animate-shake")}
+        >
           <CardContent className="flex items-center justify-between gap-3 text-sm text-destructive">
             <span className="flex items-center gap-2">
               <AlertTriangle className="size-4 shrink-0" />
@@ -1104,7 +1110,8 @@ function ForumPage() {
         <div className="space-y-4">
           {debouncedSearch && (
             <p className="text-sm text-muted-foreground">
-              {pagination?.totalItems ?? questions.length} result{(pagination?.totalItems ?? questions.length) !== 1 ? "s" : ""} for{" "}
+              {pagination?.totalItems ?? questions.length} result
+              {(pagination?.totalItems ?? questions.length) !== 1 ? "s" : ""} for{" "}
               <span className="font-medium text-foreground">"{debouncedSearch}"</span>
             </p>
           )}

@@ -27,6 +27,18 @@ export interface LeaderboardEntry {
   avgTimeSeconds?: number;
 }
 
+export interface LeaderboardMeStats {
+  entry: LeaderboardEntry | null;
+  pointsRank: number | null;
+  streakRank: number | null;
+  speedRank: number | null;
+  totalRankedUsers: number;
+}
+
 export const getLeaderboard = async (limit = 10, sortBy = "points") => {
   return await api.get(`leaderboard?limit=${limit}&sortBy=${sortBy}`).json<LeaderboardEntry[]>();
+};
+
+export const getMyLeaderboardStats = async () => {
+  return await api.get("leaderboard/me").json<LeaderboardMeStats>();
 };
