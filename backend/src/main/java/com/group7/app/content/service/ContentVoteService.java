@@ -8,8 +8,14 @@ import com.group7.app.content.repository.ContentRepository;
 import com.group7.app.content.repository.ContentVoteRepository;
 import com.group7.app.user.User;
 import com.group7.app.user.UserRepository;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,24 +98,29 @@ public class ContentVoteService {
   }
 
   private List<ContentWithVotesResponse> mapContentWithVotes(List<Content> contents, UUID userId) {
+    if (contents.isEmpty()) {
+      return List.of();
+    }
+
+    List<Long> contentIds = contents.stream().map(Content::getId).toList();
+    Map<Long, Map<ContentVote.VoteType, Long>> voteCountsByContentId =
+        buildVoteCountsByContentId(contentIds);
+    Map<Long, ContentVote.VoteType> userVotesByContentId =
+        buildUserVotesByContentId(contentIds, userId);
+    Map<String, User> usersByLowercaseEmail = buildUsersByLowercaseEmail(contents);
+
     return contents.stream()
         .map(
             content -> {
-              ContentVoteSummaryResponse summary = buildSummary(content.getId(), userId);
-              String displayName =
-                  userRepository
-                      .findByEmailIgnoreCase(content.getSubmittedBy())
-                      .map(
-                          user ->
-                              user.getDisplayName() != null
-                                  ? user.getDisplayName()
-                                  : content.getSubmittedBy())
-                      .orElse(content.getSubmittedBy());
+              Map<ContentVote.VoteType, Long> voteCounts =
+                  voteCountsByContentId.getOrDefault(content.getId(), Collections.emptyMap());
+              User submitter = usersByLowercaseEmail.get(normalizeEmail(content.getSubmittedBy()));
+              String displayName = resolveDisplayName(content.getSubmittedBy(), submitter);
               return new ContentWithVotesResponse(
                   content,
-                  summary.thumbsUp(),
-                  summary.thumbsDown(),
-                  summary.userVote(),
+                  voteCounts.getOrDefault(ContentVote.VoteType.THUMBS_UP, 0L),
+                  voteCounts.getOrDefault(ContentVote.VoteType.THUMBS_DOWN, 0L),
+                  userVotesByContentId.get(content.getId()),
                   displayName);
             })
         .toList();
@@ -130,5 +141,47 @@ public class ContentVoteService {
                 .map(ContentVote::getVoteType)
                 .orElse(null);
     return new ContentVoteSummaryResponse(contentId, thumbsUp, thumbsDown, userVote);
+  }
+
+  private Map<Long, Map<ContentVote.VoteType, Long>> buildVoteCountsByContentId(
+      Collection<Long> contentIds) {
+    return contentVoteRepository.summarizeByContentIds(contentIds).stream()
+        .collect(
+            Collectors.groupingBy(
+                ContentVoteRepository.ContentVoteCountView::getContentId,
+                Collectors.toMap(
+                    ContentVoteRepository.ContentVoteCountView::getVoteType,
+                    ContentVoteRepository.ContentVoteCountView::getVoteCount)));
+  }
+
+  private Map<Long, ContentVote.VoteType> buildUserVotesByContentId(
+      Collection<Long> contentIds, UUID userId) {
+    if (userId == null) {
+      return Map.of();
+    }
+    return contentVoteRepository.findAllByContentIdInAndUserId(contentIds, userId).stream()
+        .collect(Collectors.toMap(vote -> vote.getContent().getId(), ContentVote::getVoteType));
+  }
+
+  private Map<String, User> buildUsersByLowercaseEmail(List<Content> contents) {
+    List<String> submittedByEmails =
+        contents.stream()
+            .map(Content::getSubmittedBy)
+            .map(ContentVoteService::normalizeEmail)
+            .distinct()
+            .toList();
+    return userRepository.findAllByEmailLowercaseIn(submittedByEmails).stream()
+        .collect(Collectors.toMap(user -> normalizeEmail(user.getEmail()), Function.identity()));
+  }
+
+  private static String resolveDisplayName(String submittedBy, User submitter) {
+    if (submitter == null || submitter.getDisplayName() == null) {
+      return submittedBy;
+    }
+    return submitter.getDisplayName();
+  }
+
+  private static String normalizeEmail(String email) {
+    return email.toLowerCase(Locale.ROOT);
   }
 }

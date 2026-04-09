@@ -3,6 +3,7 @@ package com.group7.app.content.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -12,6 +13,7 @@ import com.group7.app.content.repository.ContentRepository;
 import com.group7.app.content.repository.ContentVoteRepository;
 import com.group7.app.user.User;
 import com.group7.app.user.UserRepository;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -92,25 +94,23 @@ class ContentVoteServiceTest {
 
     when(contentRepository.findByStatus(Content.Status.APPROVED))
         .thenReturn(List.of(approved, approvedWithoutProfile));
-    when(contentVoteRepository.countByContentIdAndVoteType(1L, ContentVote.VoteType.THUMBS_UP))
-        .thenReturn(3L);
-    when(contentVoteRepository.countByContentIdAndVoteType(1L, ContentVote.VoteType.THUMBS_DOWN))
-        .thenReturn(1L);
-    when(contentVoteRepository.countByContentIdAndVoteType(2L, ContentVote.VoteType.THUMBS_UP))
-        .thenReturn(0L);
-    when(contentVoteRepository.countByContentIdAndVoteType(2L, ContentVote.VoteType.THUMBS_DOWN))
-        .thenReturn(2L);
-    when(contentVoteRepository.findByContentIdAndUserId(1L, userId))
+    when(contentVoteRepository.summarizeByContentIds(argThat(ids -> matchesIds(ids, 1L, 2L))))
         .thenReturn(
-            Optional.of(
+            List.of(
+                countView(1L, ContentVote.VoteType.THUMBS_UP, 3L),
+                countView(1L, ContentVote.VoteType.THUMBS_DOWN, 1L),
+                countView(2L, ContentVote.VoteType.THUMBS_DOWN, 2L)));
+    when(contentVoteRepository.findAllByContentIdInAndUserId(
+            argThat(ids -> matchesIds(ids, 1L, 2L)), org.mockito.ArgumentMatchers.eq(userId)))
+        .thenReturn(
+            List.of(
                 new ContentVote(
                     approved,
                     new User(userId, "viewer@example.com"),
                     ContentVote.VoteType.THUMBS_UP)));
-    when(contentVoteRepository.findByContentIdAndUserId(2L, userId)).thenReturn(Optional.empty());
-    when(userRepository.findByEmailIgnoreCase("creator@example.com"))
-        .thenReturn(Optional.of(creator));
-    when(userRepository.findByEmailIgnoreCase("legacy@example.com")).thenReturn(Optional.empty());
+    when(userRepository.findAllByEmailLowercaseIn(
+            argThat(emails -> matchesStrings(emails, "creator@example.com", "legacy@example.com"))))
+        .thenReturn(List.of(creator));
 
     var responses = contentVoteService.getApprovedContentsWithVotes(userId);
 
@@ -127,11 +127,14 @@ class ContentVoteServiceTest {
     approved.setStatus(Content.Status.APPROVED);
 
     when(contentRepository.findByStatus(Content.Status.APPROVED)).thenReturn(List.of(approved));
-    when(contentVoteRepository.countByContentIdAndVoteType(3L, ContentVote.VoteType.THUMBS_UP))
-        .thenReturn(2L);
-    when(contentVoteRepository.countByContentIdAndVoteType(3L, ContentVote.VoteType.THUMBS_DOWN))
-        .thenReturn(1L);
-    when(userRepository.findByEmailIgnoreCase("creator@example.com")).thenReturn(Optional.empty());
+    when(contentVoteRepository.summarizeByContentIds(argThat(ids -> matchesIds(ids, 3L))))
+        .thenReturn(
+            List.of(
+                countView(3L, ContentVote.VoteType.THUMBS_UP, 2L),
+                countView(3L, ContentVote.VoteType.THUMBS_DOWN, 1L)));
+    when(userRepository.findAllByEmailLowercaseIn(
+            argThat(emails -> matchesStrings(emails, "creator@example.com"))))
+        .thenReturn(List.of());
 
     var responses = contentVoteService.getApprovedContentsWithVotes(null);
 
@@ -154,13 +157,17 @@ class ContentVoteServiceTest {
     when(contentRepository.findByStatusAndSubmittedByIgnoreCase(
             Content.Status.APPROVED, "creator@example.com"))
         .thenReturn(List.of(approved));
-    when(contentVoteRepository.countByContentIdAndVoteType(9L, ContentVote.VoteType.THUMBS_UP))
-        .thenReturn(4L);
-    when(contentVoteRepository.countByContentIdAndVoteType(9L, ContentVote.VoteType.THUMBS_DOWN))
-        .thenReturn(1L);
-    when(contentVoteRepository.findByContentIdAndUserId(9L, userId)).thenReturn(Optional.empty());
-    when(userRepository.findByEmailIgnoreCase("creator@example.com"))
-        .thenReturn(Optional.of(creator));
+    when(contentVoteRepository.summarizeByContentIds(argThat(ids -> matchesIds(ids, 9L))))
+        .thenReturn(
+            List.of(
+                countView(9L, ContentVote.VoteType.THUMBS_UP, 4L),
+                countView(9L, ContentVote.VoteType.THUMBS_DOWN, 1L)));
+    when(contentVoteRepository.findAllByContentIdInAndUserId(
+            argThat(ids -> matchesIds(ids, 9L)), org.mockito.ArgumentMatchers.eq(userId)))
+        .thenReturn(List.of());
+    when(userRepository.findAllByEmailLowercaseIn(
+            argThat(emails -> matchesStrings(emails, "creator@example.com"))))
+        .thenReturn(List.of(creator));
 
     var responses =
         contentVoteService.getApprovedContentsWithVotesForSubmitter(userId, "creator@example.com");
@@ -169,5 +176,34 @@ class ContentVoteServiceTest {
     assertThat(responses.getFirst().content().getSubmittedBy()).isEqualTo("creator@example.com");
     assertThat(responses.getFirst().thumbsUp()).isEqualTo(4L);
     assertThat(responses.getFirst().submittedByDisplayName()).isEqualTo("Kai");
+  }
+
+  private static boolean matchesIds(Collection<Long> actualIds, Long... expectedIds) {
+    return actualIds.containsAll(List.of(expectedIds)) && actualIds.size() == expectedIds.length;
+  }
+
+  private static boolean matchesStrings(Collection<String> actualValues, String... expectedValues) {
+    return actualValues.containsAll(List.of(expectedValues))
+        && actualValues.size() == expectedValues.length;
+  }
+
+  private static ContentVoteRepository.ContentVoteCountView countView(
+      Long contentId, ContentVote.VoteType voteType, long voteCount) {
+    return new ContentVoteRepository.ContentVoteCountView() {
+      @Override
+      public Long getContentId() {
+        return contentId;
+      }
+
+      @Override
+      public ContentVote.VoteType getVoteType() {
+        return voteType;
+      }
+
+      @Override
+      public long getVoteCount() {
+        return voteCount;
+      }
+    };
   }
 }
