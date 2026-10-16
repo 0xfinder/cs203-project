@@ -37,73 +37,91 @@ The landing page introduces the platform and links to registration, sign-in, the
 
 Email and password authentication uses Supabase Auth. New users can register before setting up their profile.
 
-#### 3. Choose a lesson
+#### 3. Set up a profile
+
+<img src="assets/screenshots/03-onboarding.png" alt="Profile onboarding with learner and contributor choices" width="800">
+
+Choose a display name and start as a learner or contributor.
+
+#### 4. Choose a lesson
 
 <img src="assets/screenshots/05-lessons.png" alt="Learning units and lesson roadmap" width="800">
 
 Browse the unit roadmap, see completion progress, and open a lesson.
 
-#### 4. Practise in a lesson
+#### 5. Practise in a lesson
 
 <img src="assets/screenshots/06-lesson.png" alt="Lesson view with a teaching card" width="800">
 
 Lessons combine teaching steps with multiple-choice, matching, and text-answer questions. Submitted attempts return a score, correct answers, and explanations.
 
-#### 5. Revise earlier questions
+#### 6. Revise earlier questions
 
 <img src="assets/screenshots/08-revise.png" alt="Revision session with prioritised practice questions" width="800">
 
 Revision draws on previous answers to prioritise due and weak questions, then fills the session with other approved lesson questions. Results separate correct answers from mistakes to revisit.
 
-#### 6. Ask for an AI revision hint
+#### 7. Ask for an AI revision hint
 
 <img src="assets/screenshots/07-revise-hint.png" alt="AI explanation for a revision question" width="800">
 
 During revision, request an OpenAI-generated explanation based on the question and your current answer.
 
-#### 7. Look up a term
+#### 8. Look up a term
 
 <img src="assets/screenshots/09-dictionary.png" alt="Searchable dictionary of approved slang entries" width="800">
 
 Search terms or browse alphabetically to read approved definitions and usage examples. Signed-in users can upvote or downvote entries.
 
-#### 8. Ask the community
+#### 9. Ask the community
 
 <img src="assets/screenshots/10-forum.png" alt="Community question and answer forum" width="800">
 
 Search discussions, ask a question, or reply with Markdown and images. Users can vote on questions and answers, and question authors can mark discussions resolved.
 
-#### 9. Compare learning progress
+#### 10. Compare learning progress
 
 <img src="assets/screenshots/11-leaderboard.png" alt="Learner leaderboard with XP, streak, and speed rankings" width="800">
 
 Compare learner rankings by total XP, best correct-answer streak, or average lesson completion time. The page also shows your ranks for each metric.
 
-#### 10. Review learning analytics
+#### 11. Review learning analytics
 
 <img src="assets/screenshots/12-analytics.png" alt="Learning analytics summary with XP, streak, speed and accuracy" width="800">
 
 View total XP, lessons completed, best streak, average speed and overall accuracy, with daily XP, weekly attempts and unit-level accuracy charts below.
 
-#### 11. Manage your profile
+#### 12. Manage your profile
 
 <img src="assets/screenshots/13-profile.png" alt="Profile details and appearance settings" width="800">
 
 Edit your display name, bio, and avatar, choose a theme, or switch between learner and contributor roles.
 
-### For contributors
+### For contributors and moderators
 
-#### 12. Track approved contributions
+#### 13. Track approved contributions
 
 <img src="assets/screenshots/04-dashboard.png" alt="Contributor dashboard with approved dictionary entries and votes" width="800">
 
 The contributor dashboard lists your approved dictionary entries and their upvotes, downvotes, and net scores.
 
-#### 13. Author content
+#### 14. Author content
 
 <img src="assets/screenshots/14-add-content.png" alt="Contributor workspace for dictionary entries and lesson authoring" width="800">
 
 Submit a term with a definition and optional example, or build a lesson with a learning objective and teaching or quiz steps. The workspace also manages lesson drafts, pending submissions, and rejected lessons that need revision.
+
+#### 15. Manage the curriculum
+
+<img src="assets/screenshots/15-curriculum-board.png" alt="Moderator curriculum board with units, lessons and lesson steps" width="800">
+
+Moderators manage approved content from one board: create and edit units, lessons and steps, and drag to reorder them.
+
+#### 16. Review submissions
+
+<img src="assets/screenshots/16-review-queue.png" alt="Moderator review queue for pending dictionary entries and lessons" width="800">
+
+Moderators approve or reject pending dictionary entries and lessons. Rejected lessons go back to contributors to revise.
 
 ## Tech stack
 
